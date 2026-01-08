@@ -1,0 +1,49 @@
+
+
+Todas las entidades van siempre en:
+
+src/modules/<modulo>/entities/*.entity.ts
+
+Ejemplos de búsquedas rápidas:
+
+En VS Code: Ctrl+P y escribes product.entity
+
+En terminal:
+
+find src -name "*.entity.ts"
+
+-------------------------------------
+
+INSTALAR TYPEORM
+npm i @nestjs/typeorm typeorm pg @nestjs/config
+
+--------------------------------------- 
+
+ENV
+
+PORT=3000
+NODE_ENV=development
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=visvire
+DB_PASS=visvire123
+DB_NAME=visvire_db
+DB_SSL=false
+
+-----------------------------------------
+
+LEVANTAR POSTGREE (DEV)
+
+docker compose -f docker-compose.db.yml up -d
+
+docker ps -> para ver si está corriendo
+
+docker compose -f docker-compose.db.yml down -> detener docker
+
+-----------------------------
+
+LEVANTAR DOCKER PRODUCCIÓN
+docker compose up --build
+
+docker compose down -> para apagar

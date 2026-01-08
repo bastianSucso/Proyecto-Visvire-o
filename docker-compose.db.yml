@@ -6,13 +6,18 @@ services:
     container_name: visvire-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: visvire
-      POSTGRES_PASSWORD: visvire123
-      POSTGRES_DB: visvire_db
+      POSTGRES_USER: ${POSTGRES_USER:-visvire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-visvire123}
+      POSTGRES_DB: ${POSTGRES_DB:-visvire_db}
     ports:
-      - "5432:5432"
+      - "5432:5432" # DEV: sí se expone para herramientas locales
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

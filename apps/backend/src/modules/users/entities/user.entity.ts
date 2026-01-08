@@ -1,16 +1,27 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity({ name: 'users' })
-export class User {
+export type UserRole = 'ADMIN' | 'VENDEDOR';
+
+@Entity('users')
+export class UserEntity {
   @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  id: string;
 
   @Column({ unique: true })
-  email!: string;
+  email: string;
+
+  @Column({ nullable: true,})
+  nombre?: string;
+
+  @Column({ nullable: true,})
+  apellido?: string;
 
   @Column()
-  name!: string;
+  passwordHash: string;
 
-  @CreateDateColumn()
-  createdAt!: Date;
+  @Column({ type: 'varchar'})
+  role: UserRole;
+
+  @Column({ default: true })
+  isActive: boolean;
 }

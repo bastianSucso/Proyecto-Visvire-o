@@ -19,10 +19,13 @@ npm i @nestjs/typeorm typeorm pg @nestjs/config
 
 --------------------------------------- 
 
-ENV
+ENV.DEV
 
-PORT=3000
 NODE_ENV=development
+PORT=3000
+
+JWT_SECRET=super_secret_key_visvire
+JWT_EXPIRES_IN=8h
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -30,6 +33,16 @@ DB_USER=visvire
 DB_PASS=visvire123
 DB_NAME=visvire_db
 DB_SSL=false
+
+-----------------------------------------
+ENV.PROD
+
+POSTGRES_USER=visvire
+POSTGRES_PASSWORD=visvire123
+POSTGRES_DB=visvire_db
+
+JWT_SECRET=super_secret_key_visvire
+JWT_EXPIRES_IN=8h
 
 -----------------------------------------
 
@@ -40,10 +53,38 @@ docker compose -f docker-compose.db.yml up -d
 docker ps -> para ver si está corriendo
 
 docker compose -f docker-compose.db.yml down -> detener docker
-
------------------------------
+------------------------------------------------------------------
+docker compose --env-file .env.dev -f docker-compose.db.yml up -d
+-------------------------------------------------------------------
 
 LEVANTAR DOCKER PRODUCCIÓN
 docker compose up --build
 
 docker compose down -> para apagar
+----------------------------------------------------------------
+docker compose --env-file .env.prod up -d --build
+-------------------------------------------------------------
+
+INSTALAR TAILWIND:
+
+1.- Desde la raíz del repo:
+    cd apps/frontend
+
+2.- Instala Tailwind + PostCSS + Autoprefixer:
+    npm i -D tailwindcss@3 postcss autoprefixer
+
+3.- Crear los archivos de config:
+    npx tailwindcss init -p
+
+        Esto crea:
+            tailwind.config.js
+            postcss.config.js
+
+------------------------------------
+
+INSTALAR DEPENDENCIAS BACKEND: bcrypt + jwT
+
+npm i @nestjs/jwt @nestjs/passport passport passport-jwt bcrypt
+npm i -D @types/bcrypt
+npm i class-validator class-transformer
+

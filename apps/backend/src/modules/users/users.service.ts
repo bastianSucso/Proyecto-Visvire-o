@@ -70,4 +70,10 @@ export class UsersService {
   async setActive(id: string, isActive: boolean) {
     return this.update(id, { isActive });
   }
+
+  async remove(id: string): Promise<void> {
+  const user = await this.repo.findOne({ where: { id } });
+  if (!user) throw new NotFoundException('Usuario no encontrado');
+    await this.repo.delete(id);
+  }
 }

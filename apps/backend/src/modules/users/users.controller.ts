@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -30,5 +30,11 @@ export class UsersController {
   @Patch(':id/active')
   setActive(@Param('id') id: string, @Body() body: { isActive: boolean }) {
     return this.users.setActive(id, body.isActive);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+  await this.users.remove(id);
+    return { ok: true };
   }
 }

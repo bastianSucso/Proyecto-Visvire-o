@@ -32,4 +32,9 @@ export class UsersService {
   setActive(id: string, isActive: boolean) {
     return this.http.patch<UserDto>(`/api/users/${id}/active`, { isActive });
   }
+
+  delete(id: string) {
+    return this.http.delete<void>(`/api/users/${id}`);  
+  }
+
 }

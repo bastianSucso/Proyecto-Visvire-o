@@ -22,11 +22,11 @@ export class UsersPage {
   editing: UserDto | null = null;
 
   form = this.fb.group({
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/),]],
     nombre: [''],
     apellido: [''],
     role: ['VENDEDOR' as UserRole, [Validators.required]],
-    password: [''], // requerido solo al crear
+    password: ['', Validators.minLength(8)], // requerido solo al crear
   });
 
   ngOnInit() {
@@ -46,6 +46,11 @@ export class UsersPage {
   openCreate() {
     this.editing = null;
     this.form.reset({ role: 'VENDEDOR' as UserRole });
+
+    const pwd = this.form.get('password');
+    pwd?.setValidators([Validators.required, Validators.minLength(8)]);
+    pwd?.updateValueAndValidity();
+
     this.modalOpen = true;
   }
 
@@ -58,34 +63,38 @@ export class UsersPage {
       role: u.role,
       password: '',
     });
+    const pwd = this.form.get('password');
+    pwd?.setValidators([Validators.minLength(8)]);
+    pwd?.updateValueAndValidity();
     this.modalOpen = true;
   }
 
   closeModal() {
     this.modalOpen = false;
     this.errorMsg = '';
+    const pwd = this.form.get('password');
+    pwd?.setValidators([Validators.minLength(8)]);
+    pwd?.updateValueAndValidity();
   }
 
   save() {
+    
     this.errorMsg = '';
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
-
+    
     const v = this.form.value;
+    const email = (v.email ?? '').trim().toLowerCase();
     const payload: any = {
-      email: v.email!,
+      email,
       nombre: v.nombre || undefined,
       apellido: v.apellido || undefined,
       role: v.role!,
     };
 
     if (!this.editing) {
-      if (!v.password) {
-        this.errorMsg = 'La contraseña es obligatoria al crear usuario.';
-        return;
-      }
       payload.password = v.password;
       this.usersApi.create(payload).subscribe({
         next: () => { this.closeModal(); this.refresh(); },
@@ -107,6 +116,16 @@ export class UsersPage {
     this.usersApi.setActive(u.id, !u.isActive).subscribe({
       next: () => this.refresh(),
       error: (e) => alert(e?.error?.message || 'No se pudo actualizar estado'),
+    });
+  }
+
+  remove(u: UserDto) {
+    const ok = confirm(`¿Eliminar al usuario ${u.email}? Esta acción no se puede deshacer.`);
+    if (!ok) return;
+
+    this.usersApi.delete(u.id).subscribe({
+      next: () => this.refresh(),
+      error: (e) => alert(e?.error?.message || 'No se pudo eliminar el usuario'),
     });
   }
 }

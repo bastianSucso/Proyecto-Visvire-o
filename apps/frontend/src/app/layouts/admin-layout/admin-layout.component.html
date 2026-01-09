@@ -1,0 +1,31 @@
+<div class="min-h-screen bg-slate-50">
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-semibold">V</div>
+        <div>
+          <div class="text-sm font-semibold text-slate-900">Visvire</div>
+          <div class="text-xs text-slate-500">Panel</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="text-right">
+          <div class="text-sm text-slate-800">{{ auth.user?.email }}</div>
+          <div class="text-xs text-slate-500">Rol: {{ auth.user?.role }}</div>
+        </div>
+
+        <button
+          (click)="logout()"
+          class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-100 transition"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <router-outlet></router-outlet>
+  </main>
+</div>

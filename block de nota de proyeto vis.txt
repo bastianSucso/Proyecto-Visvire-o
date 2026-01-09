@@ -88,3 +88,19 @@ npm i @nestjs/jwt @nestjs/passport passport passport-jwt bcrypt
 npm i -D @types/bcrypt
 npm i class-validator class-transformer
 
+-----------------------------------
+
+CREAR ADMIN POR DEFECTO:
+
+1.- MODIFICAR EL .ENV.DEV: 
+        BOOTSTRAP_ADMIN_EMAIL=admin@admin.cl
+        BOOTSTRAP_ADMIN_PASSWORD=Admin123456
+
+2.- INSTALAR Cross-env
+        npm install --save-dev cross-env
+
+3.- MODIFICAR PACKAGE.JSON:
+        "seed:admin": "cross-env DOTENV_CONFIG_PATH=../../.env.dev node -r dotenv/config dist/database/seed-admin.js"
+
+4.- COMANDO PARA CREAR ADMIN POR DEFECTO.
+        npm run seed:admin 

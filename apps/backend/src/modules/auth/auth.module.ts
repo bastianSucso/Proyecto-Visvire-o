@@ -1,21 +1,32 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as ms from 'ms';
+
 import { AuthService } from './auth.service';
-import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { UserEntity } from 'src/modules/users/entities/user.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity]),
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET!,
-      signOptions: {
-        expiresIn: process.env.JWT_EXPIRES_IN as ms.StringValue,
+    ConfigModule,
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): JwtModuleOptions => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) throw new Error('JWT_SECRET no está definido');
+
+        const expires = (config.get<string>('JWT_EXPIRES_IN') ?? '8h') as ms.StringValue;
+
+        return {
+          secret,
+          signOptions: { expiresIn: expires },
+        };
       },
     }),
   ],

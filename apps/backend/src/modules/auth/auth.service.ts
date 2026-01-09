@@ -14,8 +14,11 @@ export class AuthService {
   ) {}
 
   async login(email: string, password: string) {
+
+    const normalizedEmail = email.trim().toLowerCase();
+
     const user = await this.usersRepo.findOne({
-      where: [{ email: email }],
+      where: [{ email: normalizedEmail }],
     });
 
     if (!user) throw new UnauthorizedException('Credenciales inválidas');

@@ -16,9 +16,10 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
-
-      { path: '', pathMatch: 'full', redirectTo: 'home' },
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {path: 'dashboard', loadComponent: () =>import('./features/admin/pages/dashboard/dashboard.page').then(m => m.DashboardPage),},
       {path: 'users', loadComponent: () => import('./features/admin/pages/users/users.page').then(m => m.UsersPage),},
+      {path: 'productos', loadComponent: () => import('./features/admin/pages/productos/productos.page').then(m => m.ProductosPage),},
     ],
   },
 

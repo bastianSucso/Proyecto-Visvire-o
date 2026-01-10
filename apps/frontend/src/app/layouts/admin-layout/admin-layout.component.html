@@ -1,6 +1,73 @@
-<div class="min-h-screen bg-slate-50">
-  <header class="bg-white border-b border-slate-200">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+<div class="min-h-screen bg-slate-50 flex">
+  <!-- Overlay (mobile) -->
+  <div
+    *ngIf="isMobileOpen"
+    class="fixed inset-0 bg-black/30 z-40 md:hidden"
+    (click)="closeMobile()"
+  ></div>
+
+  <!-- Sidebar (desktop) -->
+  <aside
+    class="bg-white border-r border-slate-200 hidden md:flex flex-col transition-all duration-200 ease-out"
+    [class.w-64]="!isCollapsed"
+    [class.w-20]="isCollapsed"
+  >
+    <!-- Brand -->
+    <div class="p-4 border-b border-slate-200">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-semibold">
+          V
+        </div>
+
+        <div class="overflow-hidden transition-all duration-200" [class.w-0]="isCollapsed" [class.w-auto]="!isCollapsed">
+          <div class="text-sm font-semibold text-slate-900 whitespace-nowrap">Visvireño</div>
+          <div class="text-xs text-slate-500 whitespace-nowrap">Panel</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="p-3 space-y-1">
+      <a
+        routerLink="/admin/dashboard"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">▦</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Dashboard</span>
+      </a>
+
+      <a
+        routerLink="/admin/users"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">👤</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Usuarios</span>
+      </a>
+
+      <a
+        routerLink="/admin/productos"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">📦</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Productos</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto p-3 border-t border-slate-200">
+      <div class="text-xs text-slate-500" [class.hidden]="isCollapsed">Visvireño · Admin  —  @Nexsu</div>
+    </div>
+  </aside>
+
+  <!-- Sidebar Drawer (mobile) -->
+  <aside
+    class="fixed top-0 left-0 h-full w-72 bg-white border-r border-slate-200 z-50 md:hidden transform transition-transform duration-200 ease-out"
+    [class.translate-x-0]="isMobileOpen"
+    [class.-translate-x-full]="!isMobileOpen"
+  >
+    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-semibold">V</div>
         <div>
@@ -9,23 +76,94 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <div class="text-right">
-          <div class="text-sm text-slate-800">{{ auth.user?.email }}</div>
-          <div class="text-xs text-slate-500">Rol: {{ auth.user?.role }}</div>
-        </div>
-
-        <button
-          (click)="logout()"
-          class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-100 transition"
-        >
-          Cerrar sesión
-        </button>
-      </div>
+      <button
+        class="h-9 w-9 rounded-lg border border-slate-200 hover:bg-slate-50"
+        (click)="closeMobile()"
+        title="Cerrar"
+      >
+        ✕
+      </button>
     </div>
-  </header>
 
-  <main class="max-w-6xl mx-auto px-4 py-6">
-    <router-outlet></router-outlet>
-  </main>
+    <nav class="p-3 space-y-1">
+      <a
+        routerLink="/admin/dashboard"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Dashboard
+      </a>
+
+      <a
+        routerLink="/admin/users"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Usuarios
+      </a>
+
+      <a
+        routerLink="/admin/productos"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Productos
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Content -->
+  <div class="flex-1 flex flex-col">
+    <!-- Topbar -->
+    <header class="bg-white border-b border-slate-200">
+      <div class="px-4 py-3">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+          <!-- Left controls -->
+          <div class="flex items-center gap-2">
+            <!-- Mobile hamburger -->
+            <button
+              class="h-10 w-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 md:hidden"
+              (click)="toggleMobile()"
+              title="Menú"
+            >
+              ☰
+            </button>
+
+            <!-- Desktop collapse toggle -->
+            <button
+              class="h-10 w-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hidden md:inline-flex items-center justify-center"
+              (click)="toggleCollapse()"
+              [title]="isCollapsed ? 'Expandir' : 'Colapsar'"
+            >
+              {{ isCollapsed ? '»' : '«' }}
+            </button>
+          </div>
+
+          <!-- User info (mantiene tu info) -->
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <div class="text-sm text-slate-800">{{ auth.user?.email }}</div>
+              <div class="text-xs text-slate-500">Rol: {{ auth.user?.role }}</div>
+            </div>
+
+            <button
+              (click)="logout()"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-100 transition"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </div>  
+    </header>
+
+    <main class="flex-1">
+      <div class="max-w-6xl mx-auto px-4 py-6">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
 </div>

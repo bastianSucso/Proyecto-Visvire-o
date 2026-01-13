@@ -31,6 +31,7 @@ export const routes: Routes = [
       import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'home' },
+      { path: 'caja', loadComponent: () => import('./features/vendedor/pages/caja/caja.page').then(m => m.CajaPage) },
     ],
   },
 

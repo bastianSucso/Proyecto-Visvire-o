@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { HistorialEntity } from 'src/modules/historial/entities/historial.entity';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 export type UserRole = 'ADMIN' | 'VENDEDOR';
 
@@ -30,4 +31,8 @@ export class UserEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => HistorialEntity, h => h.usuario)
+  historiales: HistorialEntity[];
+
 }

@@ -1,0 +1,135 @@
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-3xl px-4 py-6">
+    <!-- Header -->
+    <div class="mb-6">
+      <h1 class="text-xl font-semibold text-slate-900">Caja</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Apertura de caja para iniciar jornada de ventas.
+      </p>
+    </div>
+
+    <!-- Card -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="p-5 sm:p-6">
+        <!-- Loading -->
+        <div *ngIf="loading" class="flex items-center gap-3 text-sm text-slate-600">
+          <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+          Cargando estado de caja...
+        </div>
+
+        <!-- Error -->
+        <div
+          *ngIf="!loading && errorMsg"
+          class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {{ errorMsg }}
+        </div>
+
+        <!-- Caja abierta -->
+        <ng-container *ngIf="!loading && cajaActual; else sinCajaTpl">
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                  [ngClass]="{
+                    'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': cajaActual.estado === 'ABIERTA',
+                    'bg-slate-100 text-slate-700 ring-1 ring-slate-200': cajaActual.estado !== 'ABIERTA'
+                  }"
+                >
+                  {{ cajaActual.estado }}
+                </span>
+
+                <span class="text-sm text-slate-600">
+                  Apertura: <span class="font-medium text-slate-900">
+                    {{ cajaActual.historial.fechaApertura | date:'short' }}
+                  </span>
+                </span> 
+              </div>
+
+              <button
+                type="button"
+                (click)="cargarCajaActual()"
+                class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              >
+                Refrescar
+              </button>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="text-xs font-medium text-slate-500">Monto inicial</div>
+                <div class="mt-1 text-lg font-semibold text-slate-900">
+                  {{ cajaActual.montoInicial }}
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="text-xs font-medium text-slate-500">Monto total (derivado)</div>
+                <div class="mt-1 text-lg font-semibold text-slate-900">
+                  {{ cajaActual.montoTotal }}
+                </div>
+                <p class="mt-1 text-xs text-slate-500">
+                  Se calculará “en tiempo real” con ventas cuando exista el módulo.
+                </p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+              <p class="text-sm text-slate-600">
+                La caja se encuentra abierta. El cierre de caja se implementará en una historia posterior.
+              </p>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Sin caja -->
+        <ng-template #sinCajaTpl>
+          <div class="space-y-5">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-sm text-slate-700">
+                No existe una caja abierta. Para iniciar la jornada, ingresa el monto inicial y abre caja.
+              </p>
+            </div>
+
+            <form [formGroup]="form" (ngSubmit)="abrirCaja()" class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">
+                  Monto inicial
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  formControlName="montoInicial"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  placeholder="0"
+                />
+
+                <div
+                  *ngIf="form.get('montoInicial')?.touched && form.get('montoInicial')?.invalid"
+                  class="mt-1 text-xs text-red-600"
+                >
+                  <span *ngIf="form.get('montoInicial')?.errors?.['required']">Monto requerido.</span>
+                  <span *ngIf="form.get('montoInicial')?.errors?.['min']">Debe ser mayor o igual a 0.</span>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                [disabled]="loading"
+                class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Abrir caja
+              </button>
+
+              <p class="text-xs text-slate-500">
+                La apertura quedará asociada a tu usuario y registrada con fecha y hora.
+              </p>
+            </form>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+</div>

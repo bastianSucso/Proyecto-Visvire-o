@@ -1,3 +1,4 @@
+import { HistorialStockVentaEntity } from 'src/modules/historial/entities/historial-stock-venta.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -5,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 
 @Entity('producto')
@@ -54,4 +56,7 @@ export class ProductoEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => HistorialStockVentaEntity, (hsv) => hsv.producto)
+  historialStockVenta: HistorialStockVentaEntity[];
 }

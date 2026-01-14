@@ -42,7 +42,7 @@
 
                 <span class="text-sm text-slate-600">
                   Apertura: <span class="font-medium text-slate-900">
-                    {{ cajaActual.historial.fechaApertura | date:'short' }}
+                    {{ cajaActual.historial.fechaApertura | date:'short':'America/Santiago'}}
                   </span>
                 </span> 
               </div>
@@ -60,14 +60,14 @@
               <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div class="text-xs font-medium text-slate-500">Monto inicial</div>
                 <div class="mt-1 text-lg font-semibold text-slate-900">
-                  {{ cajaActual.montoInicial }}
+                  {{ cajaActual.montoInicial | currency:'CLP':'symbol-narrow':'1.0-0' }}
                 </div>
               </div>
 
               <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div class="text-xs font-medium text-slate-500">Monto total (derivado)</div>
                 <div class="mt-1 text-lg font-semibold text-slate-900">
-                  {{ cajaActual.montoTotal }}
+                  {{ cajaActual.montoTotal | currency:'CLP':'symbol-narrow':'1.0-0' }}
                 </div>
                 <p class="mt-1 text-xs text-slate-500">
                   Se calculará “en tiempo real” con ventas cuando exista el módulo.

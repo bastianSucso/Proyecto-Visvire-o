@@ -9,6 +9,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-visvire}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-visvire123}
       POSTGRES_DB: ${POSTGRES_DB:-visvire_db}
+      TZ: UTC
+      PGTZ: UTC
+    command: ["postgres", "-c", "timezone=UTC"]
     ports:
       - "5432:5432" # DEV: sí se expone para herramientas locales
     volumes:

@@ -17,10 +17,10 @@ export class HistorialEntity {
   @PrimaryGeneratedColumn('increment', { name: 'id_historial' })
   idHistorial!: number;
 
-  @CreateDateColumn({ type: 'timestamp', name: 'fecha_apertura' })
+  @CreateDateColumn({ type: 'timestamptz', name: 'fecha_apertura' })
   fechaApertura!: Date;
 
-  @Column({ type: 'timestamp', name: 'fecha_cierre', nullable: true })
+  @Column({ type: 'timestamptz', name: 'fecha_cierre', nullable: true })
   fechaCierre!: Date | null;
 
   // Los dejamos nullable (tu intención real "por producto" va en HistorialStockVenta)

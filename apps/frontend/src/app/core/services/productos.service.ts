@@ -70,4 +70,9 @@ export class ProductosService {
     remove(id: string) {
         return this.http.delete<{ ok: true }>(`/api/productos/${id}`);
     }
+
+    listSala() {
+        return this.http.get<Producto[]>('/api/productos/sala');
+    }
+
 }

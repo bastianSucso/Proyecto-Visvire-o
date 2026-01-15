@@ -1,0 +1,204 @@
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+
+import { ProductosService, Producto } from '../../../../core/services/productos.service';
+import { CajaService, CajaActualResponse } from '../../../../core/services/caja.service';
+import { HistorialService, IncidenciaTipo } from '../../../../core/services/historial.service';
+
+@Component({
+  selector: 'app-productos-sala-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  templateUrl: 'productos-sala.page.html',
+})
+export class ProductosSalaPage implements OnInit {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private fb = inject(FormBuilder);
+
+  private productosService = inject(ProductosService);
+  private cajaService = inject(CajaService);
+  private historialService = inject(HistorialService);
+
+  // contexto de turno
+  historialId: number | null = null;
+  cajaActual: CajaActualResponse | null = null;
+
+  // lista productos
+  productos: Producto[] = [];
+  loading = false;
+  errorMsg = '';
+
+  filtro = '';
+
+  // paginación en front
+  page = 1;
+  pageSize = 20;
+
+  // modal incidencia
+  modalOpen = false;
+  selectedProducto: Producto | null = null;
+
+  incidenciaLoading = false;
+  incidenciaMsg = '';
+  incidenciaError = '';
+
+  incidenciaForm = this.fb.group({
+    tipo: ['FALTANTE' as IncidenciaTipo, [Validators.required]],
+    cantidad: [1, [Validators.required, Validators.min(1)]],
+    observacion: [''],
+  });
+
+  ngOnInit(): void {
+    // 1) lee historialId desde query param
+    this.route.queryParamMap.subscribe((qp) => {
+      const raw = qp.get('historialId');
+      this.historialId = raw ? Number(raw) : null;
+
+      // 2) si no vino, intenta deducir por cajaActual (fallback)
+      if (!this.historialId) {
+        this.cargarCajaActualParaHistorial();
+      }
+    });
+
+    // 3) carga productos
+    this.cargarProductos();
+  }
+
+  volverCaja() {
+    this.router.navigate(['/pos/caja']);
+  }
+
+  cargarCajaActualParaHistorial() {
+    this.cajaService.cajaActual().subscribe({
+      next: (res) => {
+        this.cajaActual = res;
+        this.historialId = res?.historial?.idHistorial ?? null;
+      },
+      error: () => {
+        // si falla, no bloqueamos la lista, pero no podrás registrar incidencia
+      },
+    });
+  }
+
+  cargarProductos() {
+    this.loading = true;
+    this.errorMsg = '';
+
+    // vendedor: solo activos
+    this.productosService.listSala().subscribe({
+      next: (data) => {
+        this.productos = data;
+        // vuelve a primera página cuando recargas
+        this.page = 1;
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.errorMsg = Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudieron cargar productos.');
+      },
+      complete: () => (this.loading = false),
+    });
+  }
+
+  // ====== filtrado + paginación (front) ======
+  get productosFiltrados(): Producto[] {
+    const q = (this.filtro || '').trim().toLowerCase();
+    if (!q) return this.productos;
+
+    return this.productos.filter((p) => {
+      const name = (p.name || '').toLowerCase();
+      const code = (p.internalCode || '').toLowerCase();
+      const barcode = (p.barcode || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || barcode.includes(q);
+    });
+  }
+
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.productosFiltrados.length / this.pageSize));
+  }
+
+  get pageItems(): Producto[] {
+    const start = (this.page - 1) * this.pageSize;
+    const end = start + this.pageSize;
+    return this.productosFiltrados.slice(start, end);
+  }
+
+  irPrimera() {
+    this.page = 1;
+  }
+  irAnterior() {
+    this.page = Math.max(1, this.page - 1);
+  }
+  irSiguiente() {
+    this.page = Math.min(this.totalPages, this.page + 1);
+  }
+  irUltima() {
+    this.page = this.totalPages;
+  }
+
+  // ====== incidencias ======
+  abrirModalIncidencia(p: Producto) {
+    this.selectedProducto = p;
+    this.modalOpen = true;
+    this.incidenciaMsg = '';
+    this.incidenciaError = '';
+    this.incidenciaForm.reset({
+      tipo: 'FALTANTE',
+      cantidad: 1,
+      observacion: '',
+    });
+  }
+
+  cerrarModal() {
+    this.modalOpen = false;
+    this.selectedProducto = null;
+    this.incidenciaLoading = false;
+  }
+
+  registrarIncidencia() {
+    this.incidenciaMsg = '';
+    this.incidenciaError = '';
+
+    if (!this.historialId) {
+      this.incidenciaError = 'No hay un historial activo. Vuelve a Caja y abre caja para iniciar jornada.';
+      return;
+    }
+    if (!this.selectedProducto) {
+      this.incidenciaError = 'Producto no seleccionado.';
+      return;
+    }
+    if (this.incidenciaForm.invalid) {
+      this.incidenciaForm.markAllAsTouched();
+      return;
+    }
+
+    this.incidenciaLoading = true;
+
+    const v = this.incidenciaForm.value;
+    const payload = {
+      historialId: this.historialId,
+      productoId: this.selectedProducto.id,
+      tipo: v.tipo as IncidenciaTipo,
+      cantidad: Number(v.cantidad),
+      observacion: (v.observacion ?? '').trim() || undefined,
+    };
+
+    this.historialService.crearIncidencia(payload).subscribe({
+      next: () => {
+        this.incidenciaMsg = 'Incidencia registrada correctamente.';
+        this.incidenciaLoading = false;
+      },
+      error: (err) => {
+        this.incidenciaLoading = false;
+        const msg = err?.error?.message;
+        this.incidenciaError = Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo registrar la incidencia.');
+      },
+    });
+  }
+
+  c(name: string) {
+    return this.incidenciaForm.get(name);
+  }
+}

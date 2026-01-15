@@ -1,12 +1,12 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 
 @Component({
   selector: 'app-productos-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: 'productos.page.html',
 })
 export class ProductosPage {
@@ -16,6 +16,12 @@ export class ProductosPage {
   productos: Producto[] = [];
   loading = false;
   errorMsg = '';
+
+  // UX tabla (como POS)
+  q = '';
+  pageSize = 20;
+  page = 1;
+  readonly pageSizes = [10, 20, 50, 100];
 
   isModalOpen = false;
   editing: Producto | null = null;
@@ -37,13 +43,74 @@ export class ProductosPage {
     this.loading = true;
     this.errorMsg = '';
     this.productosService.list(true).subscribe({
-      next: (data) => (this.productos = data),
+      next: (data) => {
+        this.productos = data ?? [];
+        this.page = 1; // reset al refrescar
+      },
       error: (err) => (this.errorMsg = this.mapError(err)),
       complete: () => (this.loading = false),
     });
   }
 
+  // ------- helpers tabla ----------
+  onSearchChange() {
+    this.page = 1;
+  }
+
+  onPageSizeChange() {
+    this.page = 1;
+  }
+
+  private normalize(s: any) {
+    return String(s ?? '').toLowerCase().trim();
+  }
+
+  get filtered(): Producto[] {
+    const term = this.normalize(this.q);
+    if (!term) return this.productos;
+
+    return this.productos.filter((p) => {
+      const hay = [
+        p.name,
+        p.internalCode,
+        p.barcode,
+        p.unidadBase,
+      ].map((x) => this.normalize(x)).join(' | ');
+
+      return hay.includes(term);
+    });
+  }
+
+  get totalItems() {
+    return this.filtered.length;
+  }
+
+  get totalPages() {
+    return Math.max(1, Math.ceil(this.totalItems / this.pageSize));
+  }
+
+  get pageItems(): Producto[] {
+    const start = (this.page - 1) * this.pageSize;
+    return this.filtered.slice(start, start + this.pageSize);
+  }
+
+  get fromItem() {
+    if (this.totalItems === 0) return 0;
+    return (this.page - 1) * this.pageSize + 1;
+  }
+
+  get toItem() {
+    return Math.min(this.page * this.pageSize, this.totalItems);
+  }
+
+  first() { this.page = 1; }
+  prev() { this.page = Math.max(1, this.page - 1); }
+  next() { this.page = Math.min(this.totalPages, this.page + 1); }
+  last() { this.page = this.totalPages; }
+
+  // ------- modal ----------
   openCreate() {
+    this.errorMsg = '';
     this.editing = null;
     this.isModalOpen = true;
     this.form.reset({
@@ -58,6 +125,7 @@ export class ProductosPage {
   }
 
   openEdit(p: Producto) {
+    this.errorMsg = '';
     this.editing = p;
     this.isModalOpen = true;
     this.form.reset({

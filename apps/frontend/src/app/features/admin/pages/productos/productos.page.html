@@ -1,172 +1,343 @@
-<div class="p-6 max-w-7xl mx-auto">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-semibold text-slate-900">Productos</h1>
-      <p class="text-slate-500">Registro y administración de productos y precios.</p>
-    </div>
-
-    <button
-      class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
-      (click)="openCreate()"
-    >
-      + Nuevo producto
-    </button>
-  </div>
-
-  <div *ngIf="errorMsg" class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700">
-    {{ errorMsg }}
-  </div>
-
-  <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
-    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
-      <span class="text-slate-700 font-medium">Listado</span>
-      <span *ngIf="loading" class="text-slate-400 text-sm">Cargando...</span>
-    </div>
-
-    <div class="overflow-x-auto">
-      <table class="w-full text-left">
-        <thead class="bg-slate-50 text-slate-600 text-sm">
-          <tr>
-            <th class="px-4 py-3">Nombre</th>
-            <th class="px-4 py-3">Cód. interno</th>
-            <th class="px-4 py-3">Barcode</th>
-            <th class="px-4 py-3">Unidad</th>
-            <th class="px-4 py-3">Precio costo</th>
-            <th class="px-4 py-3">Precio venta</th>
-            <th class="px-4 py-3">Ganancia</th>
-            <th class="px-4 py-3">Stock total</th>
-            <th class="px-4 py-3">Estado</th>
-            <th class="px-4 py-3 w-52">Acciones</th>
-          </tr>
-        </thead>
-
-        <tbody class="text-slate-800">
-          <tr *ngFor="let p of productos" class="border-t border-slate-100">
-            <td class="px-4 py-3 font-medium">{{ p.name }}</td>
-            <td class="px-4 py-3 text-slate-600">{{ p.internalCode }}</td>
-            <td class="px-4 py-3 text-slate-600">{{ p.barcode ?? '-' }}</td>
-            <td class="px-4 py-3 text-slate-600">{{ p.unidadBase ?? '-' }}</td>
-            <td class="px-4 py-3">{{ +p.precioCosto | currency:'CLP':'symbol-narrow':'1.0-0' }}</td>
-            <td class="px-4 py-3">{{ +p.precioVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}</td>
-            <td
-              class="px-4 py-3 font-medium"
-              [ngClass]="{
-                'text-emerald-600': p.gananciaProducto > 0,
-                'text-rose-600': p.gananciaProducto < 0,
-                'text-slate-600': p.gananciaProducto === 0
-              }"
-            >
-              {{ p.gananciaProducto | currency:'CLP':'symbol-narrow':'1.0-0' }}
-            </td>
-            <td class="px-4 py-3">{{ p.cantidadTotal }}</td>
-
-            <td class="px-4 py-3">
-            <span class="inline-flex items-center gap-2">
-              <span class="h-2 w-2 rounded-full" [class.bg-green-500]="p.isActive" [class.bg-red-500]="!p.isActive"></span>
-              <span class="text-slate-700">{{ p.isActive ? 'Activo' : 'Inactivo' }}</span>
-            </span>
-            </td>
-
-            <td class="px-4 py-3 flex gap-2">
-              <button
-                class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50"
-                (click)="openEdit(p)"
-              >
-                Editar
-              </button>
-
-              <button
-                class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50"
-                (click)="toggleActive(p)"
-              >
-                {{ p.isActive ? 'Desactivar' : 'Activar' }}
-              </button>
-
-              <button
-                class="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
-                (click)="remove(p)"
-              >
-                Eliminar
-              </button>
-            </td>
-          </tr>
-
-          <tr *ngIf="!loading && productos.length === 0">
-            <td class="px-4 py-6 text-slate-500" colspan="9">No hay productos registrados.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Modal -->
-  <div *ngIf="isModalOpen" class="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
-    <div class="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-xl">
-      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-slate-900">
-          {{ editing ? 'Editar producto' : 'Nuevo producto' }}
-        </h2>
-        <button class="text-slate-500 hover:text-slate-700" (click)="closeModal()">✕</button>
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-6xl px-4 py-6">
+    <!-- Header -->
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Productos</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Registro y administración de productos, precios y stock.
+        </p>
       </div>
 
-      <form class="p-5 space-y-4" [formGroup]="form" (ngSubmit)="save()">
-        <div class="grid grid-cols-2 gap-4">
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          (click)="load()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Refrescar
+        </button>
+
+        <button
+          type="button"
+          (click)="openCreate()"
+          class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
+        >
+          + Nuevo producto
+        </button>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div
+      *ngIf="errorMsg"
+      class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+    >
+      {{ errorMsg }}
+    </div>
+
+    <!-- Card -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="p-5 sm:p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <label class="block text-sm text-slate-700 mb-1">Nombre</label>
-            <input
-              class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-200"
-              formControlName="name"
-            />
-            <p *ngIf="c('name')?.touched && c('name')?.hasError('required')" class="text-sm text-red-600 mt-1">
-              El nombre es obligatorio.
+            <p class="text-sm font-semibold text-slate-900">Listado</p>
+            <p class="text-xs text-slate-500">
+              Catálogo administrativo (solo ADMIN). El POS consume una vista operativa separada.
             </p>
           </div>
 
-          <div>
-            <label class="block text-sm text-slate-700 mb-1">Código interno</label>
-            <input
-              class="w-full px-3 py-2 rounded-lg border border-slate-200"
-              formControlName="internalCode"
-            />
-            <p *ngIf="c('internalCode')?.touched && c('internalCode')?.hasError('required')" class="text-sm text-red-600 mt-1">
-              El código interno es obligatorio.
-            </p>
-          </div>
-
-          <div>
-            <label class="block text-sm text-slate-700 mb-1">Código de barra (opcional)</label>
-            <input class="w-full px-3 py-2 rounded-lg border border-slate-200" formControlName="barcode" />
-          </div>
-
-          <div>
-            <label class="block text-sm text-slate-700 mb-1">Unidad base (opcional)</label>
-            <input class="w-full px-3 py-2 rounded-lg border border-slate-200" formControlName="unidadBase" />
-          </div>
-
-          <div>
-            <label class="block text-sm text-slate-700 mb-1">Precio costo</label>
-            <input type="number" min="0" step="0.01" class="w-full px-3 py-2 rounded-lg border border-slate-200" formControlName="precioCosto" />
-          </div>
-
-          <div>
-            <label class="block text-sm text-slate-700 mb-1">Precio venta</label>
-            <input type="number" min="0" step="0.01" class="w-full px-3 py-2 rounded-lg border border-slate-200" formControlName="precioVenta" />
+          <!-- Loading -->
+          <div *ngIf="loading" class="flex items-center gap-3 text-sm text-slate-600">
+            <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+            Cargando productos...
           </div>
         </div>
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button
-            type="button"
-            class="px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
-            (click)="closeModal()"
-          >
-            Cancelar
-          </button>
 
-          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-            Guardar
-          </button>
+        <!-- Toolbar (buscador + filas) -->
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            [(ngModel)]="q"
+            (ngModelChange)="onSearchChange()"
+            type="text"
+            placeholder="Buscar por nombre / código / barcode..."
+            class="w-full sm:max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+
+          <div class="flex items-center justify-between gap-3 sm:justify-end">
+            <div class="text-xs text-slate-500">
+              Mostrando {{ fromItem }} - {{ toItem }} de {{ totalItems }}
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-500">Filas:</label>
+              <select
+                [(ngModel)]="pageSize"
+                (change)="onPageSizeChange()"
+                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option *ngFor="let n of pageSizes" [ngValue]="n">{{ n }}</option>
+              </select>
+            </div>
+          </div>
         </div>
-      </form>
+
+        <!-- Tabla -->
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+              <tr>
+                <th class="px-4 py-3">Producto</th>
+                <th class="px-4 py-3">Código</th>
+                <th class="px-4 py-3">Barcode</th>
+                <th class="px-4 py-3">Unidad</th>
+                <th class="px-4 py-3">Costo</th>
+                <th class="px-4 py-3">Venta</th>
+                <th class="px-4 py-3 text-center">Ganancia</th>
+                <th class="px-4 py-3">Stock</th>
+                <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody class="text-slate-800">
+              <tr *ngFor="let p of pageItems" class="border-t border-slate-100">
+                <td class="px-4 py-3 font-medium text-slate-900">{{ p.name }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ p.internalCode }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ p.barcode ?? '-' }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ p.unidadBase ?? '-' }}</td>
+
+                <td class="px-4 py-3">
+                  {{ +p.precioCosto | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                </td>
+
+                <td class="px-4 py-3">
+                  {{ +p.precioVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                </td>
+
+                <!-- Ganancia centrada con pill uniforme -->
+                <td class="px-4 py-3">
+                  <div class="flex justify-center">
+                    <span
+                      class="inline-flex min-w-[92px] justify-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
+                      [ngClass]="{
+                        'bg-emerald-50 text-emerald-700 ring-emerald-200': p.gananciaProducto > 0,
+                        'bg-rose-50 text-rose-700 ring-rose-200': p.gananciaProducto < 0,
+                        'bg-slate-100 text-slate-700 ring-slate-200': p.gananciaProducto === 0
+                      }"
+                    >
+                      {{ p.gananciaProducto | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Stock proporcionado y bonito -->
+                <td class="px-4 py-3">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                    [ngClass]="{
+                      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': p.cantidadTotal > 0,
+                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200': p.cantidadTotal === 0
+                    }"
+                  >
+                    {{ p.cantidadTotal }}
+                  </span>
+                </td>
+
+                <td class="px-4 py-3">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
+                    [ngClass]="{
+                      'bg-emerald-50 text-emerald-700 ring-emerald-200': p.isActive,
+                      'bg-slate-100 text-slate-700 ring-slate-200': !p.isActive
+                    }"
+                  >
+                    {{ p.isActive ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+
+                <!-- Acciones alineadas a la derecha -->
+                <td class="px-4 py-3">
+                  <div class="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                      (click)="openEdit(p)"
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      type="button"
+                      class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                      (click)="toggleActive(p)"
+                    >
+                      {{ p.isActive ? 'Desactivar' : 'Activar' }}
+                    </button>
+
+                    <button
+                      type="button"
+                      class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100"
+                      (click)="remove(p)"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr *ngIf="!loading && pageItems.length === 0">
+                <td class="px-4 py-6 text-slate-500" colspan="10">
+                  No hay resultados para la búsqueda.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginación (como POS) -->
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="text-xs text-slate-500">
+            Página {{ page }} / {{ totalPages }}
+          </div>
+
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              (click)="first()"
+              [disabled]="page === 1"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              «
+            </button>
+
+            <button
+              type="button"
+              (click)="prev()"
+              [disabled]="page === 1"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Anterior
+            </button>
+
+            <button
+              type="button"
+              (click)="next()"
+              [disabled]="page === totalPages"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+
+            <button
+              type="button"
+              (click)="last()"
+              [disabled]="page === totalPages"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              »
+            </button>
+          </div>
+        </div>
+
+        <!-- Nota -->
+        <p class="mt-3 text-xs text-slate-500">
+          Nota: La lista operativa (POS) se consume desde un endpoint separado, sin exposición del CRUD administrativo.
+        </p>
+      </div>
+    </div>
+
+    <!-- Modal (dejo el tuyo igual, pero con estilo ya consistente) -->
+    <div *ngIf="isModalOpen" class="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+      <div class="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-xl">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900">
+            {{ editing ? 'Editar producto' : 'Nuevo producto' }}
+          </h2>
+          <button class="text-slate-500 hover:text-slate-700" (click)="closeModal()">✕</button>
+        </div>
+
+        <form class="p-5 space-y-4" [formGroup]="form" (ngSubmit)="save()">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Nombre</label>
+              <input
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                formControlName="name"
+              />
+              <p *ngIf="c('name')?.touched && c('name')?.hasError('required')" class="mt-1 text-xs text-red-600">
+                El nombre es obligatorio.
+              </p>
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Código interno</label>
+              <input
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                formControlName="internalCode"
+              />
+              <p *ngIf="c('internalCode')?.touched && c('internalCode')?.hasError('required')" class="mt-1 text-xs text-red-600">
+                El código interno es obligatorio.
+              </p>
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Código de barra (opcional)</label>
+              <input
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                formControlName="barcode"
+              />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Unidad base (opcional)</label>
+              <input
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                formControlName="unidadBase"
+              />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Precio costo</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                formControlName="precioCosto"
+              />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Precio venta</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                formControlName="precioVenta"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              (click)="closeModal()"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="submit"
+              class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
+            >
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </div>

@@ -1,0 +1,284 @@
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-6xl px-4 py-6">
+    <!-- Header -->
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Productos en Sala</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Lista operativa para ventas. Aquí puedes reportar incidencias por producto.
+        </p>
+
+        <p *ngIf="historialId" class="mt-1 text-xs text-slate-500">
+          Historial activo: <span class="font-medium text-slate-700">#{{ historialId }}</span>
+        </p>
+
+        <p *ngIf="!historialId" class="mt-1 text-xs text-amber-700">
+          No se detecta historial activo. Puedes ver productos, pero no podrás registrar incidencias.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          (click)="volverCaja()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          ← Volver a Caja
+        </button>
+
+        <button
+          type="button"
+          (click)="cargarProductos()"
+          class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
+        >
+          Refrescar
+        </button>
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="p-5 sm:p-6">
+        <!-- Buscador + page size -->
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            [(ngModel)]="filtro"
+            (ngModelChange)="page=1"
+            placeholder="Buscar por nombre / código / barcode…"
+            class="w-full sm:max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-slate-500">Filas:</span>
+            <select
+              [(ngModel)]="pageSize"
+              (ngModelChange)="page=1"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              <option [ngValue]="10">10</option>
+              <option [ngValue]="20">20</option>
+              <option [ngValue]="50">50</option>
+              <option [ngValue]="100">100</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div *ngIf="loading" class="mt-4 flex items-center gap-3 text-sm text-slate-600">
+          <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+          Cargando productos...
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="!loading && errorMsg"
+          class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {{ errorMsg }}
+        </div>
+
+        <!-- Tabla -->
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+              <tr>
+                <th class="px-4 py-3">Producto</th>
+                <th class="px-4 py-3">Código</th>
+                <th class="px-4 py-3">Stock sala</th>
+                <th class="px-4 py-3">Precio</th>
+                <th class="px-4 py-3 w-48">Acción</th>
+              </tr>
+            </thead>
+
+            <tbody class="text-slate-800">
+              <tr *ngFor="let p of pageItems" class="border-t border-slate-100">
+                <td class="px-4 py-3 font-medium">{{ p.name }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ p.internalCode }}</td>
+
+                <td class="px-4 py-3">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                    [ngClass]="{
+                      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': p.stockSalaVenta > 0,
+                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200': p.stockSalaVenta === 0
+                    }"
+                  >
+                    {{ p.stockSalaVenta }}
+                  </span>
+                </td>
+
+                <td class="px-4 py-3">
+                  {{ +p.precioVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                </td>
+
+                <td class="px-4 py-3">
+                  <button
+                    type="button"
+                    (click)="abrirModalIncidencia(p)"
+                    [disabled]="!historialId"
+                    class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white"
+                    [ngClass]="{
+                      'bg-blue-700 hover:bg-blue-800 active:bg-blue-900': historialId,
+                      'bg-slate-300 cursor-not-allowed': !historialId
+                    }"
+                  >
+                    Reportar incidencia
+                  </button>
+                </td>
+              </tr>
+
+              <tr *ngIf="!loading && pageItems.length === 0">
+                <td class="px-4 py-6 text-slate-500" colspan="5">
+                  No hay productos para mostrar (o el filtro no encontró resultados).
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginación -->
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-slate-500">
+            Mostrando
+            <span class="font-medium text-slate-700">
+              {{ (page-1)*pageSize + (pageItems.length ? 1 : 0) }}
+            </span>
+            -
+            <span class="font-medium text-slate-700">
+              {{ (page-1)*pageSize + pageItems.length }}
+            </span>
+            de
+            <span class="font-medium text-slate-700">
+              {{ productosFiltrados.length }}
+            </span>
+          </p>
+
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              (click)="irPrimera()"
+              [disabled]="page===1"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              (click)="irAnterior()"
+              [disabled]="page===1"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
+            >
+              Anterior
+            </button>
+
+            <span class="text-sm text-slate-600">
+              Página <span class="font-medium text-slate-900">{{ page }}</span> / {{ totalPages }}
+            </span>
+
+            <button
+              type="button"
+              (click)="irSiguiente()"
+              [disabled]="page===totalPages"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+            <button
+              type="button"
+              (click)="irUltima()"
+              [disabled]="page===totalPages"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
+            >
+              »
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal incidencia -->
+    <div *ngIf="modalOpen" class="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+      <div class="w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-xl">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Registrar incidencia</h2>
+            <p class="text-sm text-slate-500">
+              Producto: <span class="font-medium text-slate-800">{{ selectedProducto?.name }}</span>
+            </p>
+          </div>
+
+          <button class="text-slate-500 hover:text-slate-700" (click)="cerrarModal()">✕</button>
+        </div>
+
+        <div class="p-5">
+          <div *ngIf="incidenciaMsg" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {{ incidenciaMsg }}
+          </div>
+
+          <div *ngIf="incidenciaError" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ incidenciaError }}
+          </div>
+
+          <form [formGroup]="incidenciaForm" (ngSubmit)="registrarIncidencia()" class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Tipo</label>
+              <select
+                formControlName="tipo"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              >
+                <option value="FALTANTE">Faltante</option>
+                <option value="EXCEDENTE">Excedente</option>
+                <option value="DANIO">Daño</option>
+                <option value="VENCIDO">Vencido</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Cantidad</label>
+              <input
+                type="number"
+                min="1"
+                formControlName="cantidad"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              />
+              <p *ngIf="c('cantidad')?.touched && c('cantidad')?.invalid" class="mt-1 text-xs text-red-600">
+                Cantidad debe ser >= 1.
+              </p>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="mb-1 block text-sm font-medium text-slate-700">Observación (opcional)</label>
+              <input
+                type="text"
+                formControlName="observacion"
+                placeholder="Ej: faltan 2 unidades, caja dañada..."
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              />
+            </div>
+
+            <div class="sm:col-span-2 flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                (click)="cerrarModal()"
+                class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                [disabled]="incidenciaLoading"
+                class="px-4 py-2 rounded-xl bg-blue-700 text-white text-sm font-semibold hover:bg-blue-800 disabled:opacity-60"
+              >
+                {{ incidenciaLoading ? 'Registrando...' : 'Registrar' }}
+              </button>
+            </div>
+          </form>
+
+          <p class="mt-3 text-xs text-slate-500">
+            Nota: registrar una incidencia no modifica el stock automáticamente.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

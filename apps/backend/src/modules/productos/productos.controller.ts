@@ -22,6 +22,12 @@ import { Roles } from '../../common/guards/roles.decorator';
 export class ProductosController {
   constructor(private readonly service: ProductosService) {}
 
+  @Get('sala')
+  @Roles('ADMIN', 'VENDEDOR')
+  findSala() {
+    return this.service.findAll(false);
+  }
+
   // GET /api/productos?includeInactive=true
   @Get()
   findAll(@Query('includeInactive') includeInactive?: string) {

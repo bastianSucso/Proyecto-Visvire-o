@@ -28,10 +28,12 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard],
     data: { roles: ['VENDEDOR', 'ADMIN'] },
     loadComponent: () =>
-      import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
+      import('./layouts/vendedor-layout/vendedor-layout.component').then((m) => m.VendedorLayoutComponent),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'home' },
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard-vendedor' },
+      { path: 'dashboard-vendedor', loadComponent: () => import('./features/vendedor/pages/dashboard/dashboard-vendedor').then(m => m.DashboarVendedordPage) },
       { path: 'caja', loadComponent: () => import('./features/vendedor/pages/caja/caja.page').then(m => m.CajaPage) },
+      {path: 'productos-sala',loadComponent: () =>import('./features/vendedor/pages/productos-sala/productos-sala.page').then(m => m.ProductosSalaPage),},
     ],
   },
 

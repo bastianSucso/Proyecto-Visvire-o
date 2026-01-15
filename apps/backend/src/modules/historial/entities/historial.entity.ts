@@ -23,14 +23,6 @@ export class HistorialEntity {
   @Column({ type: 'timestamptz', name: 'fecha_cierre', nullable: true })
   fechaCierre!: Date | null;
 
-  // Los dejamos nullable (tu intención real "por producto" va en HistorialStockVenta)
-  @Column({ type: 'int', name: 'cantidad_inicial_producto', nullable: true })
-  cantidadInicialProducto!: number | null;
-
-  @Column({ type: 'int', name: 'cantidad_final_producto', nullable: true })
-  cantidadFinalProducto!: number | null;
-
-  
   @ManyToOne(() => UserEntity, (u) => u.historiales, { nullable: false })
   @JoinColumn({ name: 'id_usuario' })
   usuario!: UserEntity;

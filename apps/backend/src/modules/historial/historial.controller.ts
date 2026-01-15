@@ -4,7 +4,7 @@ import { HistorialService } from './historial.service';
 import { CreateIncidenciaStockDto } from './dto/create-incidencia-stock.dto';
 import { Request } from 'express';
 
-@Controller('historial')
+@Controller('api/historial')
 @UseGuards(JwtAuthGuard)
 export class HistorialController {
   constructor(private readonly historialService: HistorialService) {}

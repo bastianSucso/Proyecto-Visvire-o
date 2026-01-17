@@ -5,6 +5,7 @@ import { CajaActualResponse, CajaService } from '../../../../core/services/caja.
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { HistorialService, IncidenciaTipo } from '../../../../core/services/historial.service';
 import { Router } from '@angular/router';
+import { IncidenciasService } from '../../../../core/services/incidencias.service';
 
 @Component({
   selector: 'app-caja-page',
@@ -36,7 +37,7 @@ export class CajaPage implements OnInit {
     private fb: FormBuilder,
     private cajaService: CajaService,
     private productosService: ProductosService,
-    private historialService: HistorialService,
+    private incidenciaService: IncidenciasService,
   ) {
     this.form = this.fb.group({
       montoInicial: [0, [Validators.required, Validators.min(0)]],
@@ -170,7 +171,7 @@ export class CajaPage implements OnInit {
       observacion: (v.observacion ?? '').trim() || undefined,
     };
 
-    this.historialService.crearIncidencia(payload).subscribe({
+    this.incidenciaService.crearIncidencia(payload).subscribe({
       next: () => {
         this.incidenciaMsg = 'Incidencia registrada correctamente.';
         this.incidenciaForm.patchValue({ cantidad: 1, observacion: '' });

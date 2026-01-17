@@ -6,6 +6,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { CajaService, CajaActualResponse } from '../../../../core/services/caja.service';
 import { HistorialService, IncidenciaTipo } from '../../../../core/services/historial.service';
+import { IncidenciasService } from '../../../../core/services/incidencias.service';
 
 @Component({
   selector: 'app-productos-sala-page',
@@ -20,7 +21,7 @@ export class ProductosSalaPage implements OnInit {
 
   private productosService = inject(ProductosService);
   private cajaService = inject(CajaService);
-  private historialService = inject(HistorialService);
+  private incidenciaService = inject(IncidenciasService);
 
   // contexto de turno
   historialId: number | null = null;
@@ -185,7 +186,7 @@ export class ProductosSalaPage implements OnInit {
       observacion: (v.observacion ?? '').trim() || undefined,
     };
 
-    this.historialService.crearIncidencia(payload).subscribe({
+    this.incidenciaService.crearIncidencia(payload).subscribe({
       next: () => {
         this.incidenciaMsg = 'Incidencia registrada correctamente.';
         this.incidenciaLoading = false;
@@ -201,4 +202,12 @@ export class ProductosSalaPage implements OnInit {
   c(name: string) {
     return this.incidenciaForm.get(name);
   }
+
+  verIncidencias() {
+    this.router.navigate(
+      ['/pos/incidencias'],
+      { queryParams: { view: 'turno' } }
+    );
+  }
+
 }

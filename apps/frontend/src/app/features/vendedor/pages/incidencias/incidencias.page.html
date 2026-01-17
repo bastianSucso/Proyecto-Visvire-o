@@ -1,0 +1,126 @@
+<div class="mx-auto w-full max-w-5xl px-4 py-6">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-semibold text-slate-900">
+        
+        <ng-container *ngIf="view === 'turno'; else historicoTitleTxt">
+          Incidencias — turno Actual.
+        </ng-container>
+        <ng-template #historicoTitleTxt>
+          Incidencias — Historica
+        </ng-template>
+
+      </h1>
+
+      <p class="mt-1 text-sm text-slate-500">
+        <ng-container *ngIf="view === 'turno'; else historicoTxt">
+          Incidencias registradas en el turno actual (caja abierta).
+        </ng-container>
+        <ng-template #historicoTxt>
+          Revisión de incidencias registradas por jornada.
+        </ng-template>
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button
+          type="button"
+          (click)="volver()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+        ← Volver
+      </button>
+      
+      <button
+        type="button"
+        (click)="cargar()"
+        class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
+      >
+        Refrescar
+      </button>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="errorMsg" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ errorMsg }}
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="flex items-center gap-3 text-sm text-slate-600">
+    <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+    Cargando incidencias...
+  </div>
+
+  <!-- Empty -->
+  <div *ngIf="!loading && !errorMsg && grupos.length === 0" class="rounded-2xl border border-slate-200 bg-white p-6">
+    <p class="text-sm text-slate-600">
+      <ng-container *ngIf="view === 'turno'; else emptyHistorico">
+        No hay incidencias registradas en este turno.
+      </ng-container>
+      <ng-template #emptyHistorico>
+        No tienes incidencias registradas.
+      </ng-template>
+    </p>
+  </div>
+
+  <!-- Groups -->
+  <div *ngIf="!loading && grupos.length > 0" class="space-y-4">
+    <div *ngFor="let g of grupos" class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">Jornada #{{ g.idHistorial }}</div>
+          <div class="text-xs text-slate-500">
+            Apertura:
+            {{ g.fechaApertura | date:'short':'America/Santiago' }}
+            <span *ngIf="g.fechaCierre"> · Cierre: {{ g.fechaCierre | date:'short':'America/Santiago' }}</span>
+          </div>
+        </div>
+
+        <span class="text-xs text-slate-500">Total incidencias: {{ g.items.length }}</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 text-slate-600">
+            <tr>
+              <th class="px-4 py-3 font-medium">Fecha</th>
+              <th class="px-4 py-3 font-medium">Producto</th>
+              <th class="px-4 py-3 font-medium">Tipo</th>
+              <th class="px-4 py-3 font-medium">Cantidad</th>
+              <th class="px-4 py-3 font-medium">Observación</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y divide-slate-100">
+            <tr *ngFor="let it of g.items" class="hover:bg-slate-50">
+              <td class="px-4 py-3 text-slate-700">
+                {{ it.fecha | date:'short':'America/Santiago' }}
+              </td>
+
+              <td class="px-4 py-3">
+                <div class="font-medium text-slate-900">{{ it.producto.name }}</div>
+                <div class="text-xs text-slate-500">Cód: {{ it.producto.internalCode }}</div>
+              </td>
+
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-slate-200 bg-white text-slate-700">
+                  {{ it.tipo }}
+                </span>
+              </td>
+
+              <td class="px-4 py-3 font-medium text-slate-900">
+                {{ it.cantidad }}
+              </td>
+
+              <td class="px-4 py-3 text-slate-700">
+                {{ it.observacion || '-' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>

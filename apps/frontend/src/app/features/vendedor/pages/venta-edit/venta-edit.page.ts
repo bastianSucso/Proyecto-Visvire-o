@@ -56,6 +56,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
 
   // cantidad rápida (aplica al siguiente agregado)
   cantidadRapida = 1;
+  activeSugIndex = -1;
 
   // HU-CJ-06: medio de pago (se elige al confirmar)
   medioPago: MedioPago | null = null;
@@ -104,6 +105,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
   private closeSug() {
     this.sugerencias = [];
     this.showSug = false;
+    this.activeSugIndex = -1;
   }
 
   private parseCLP(input: string): number {
@@ -113,6 +115,24 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
     const normalized = raw.replace(/[^\d]/g, ''); // deja solo dígitos
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
+  }
+
+  private resetSugSelection() {
+    this.activeSugIndex = this.sugerencias.length ? 0 : -1;
+  }
+
+  private clampSugIndex(i: number) {
+    const max = this.sugerencias.length - 1;
+    if (max < 0) return -1;
+    return Math.max(0, Math.min(i, max));
+  }
+
+  private scrollActiveSuggestionIntoView() {
+    // espera a que el DOM pinte el item activo
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>('[data-sug-active="true"]');
+      el?.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   // ---------- Computed ----------
@@ -213,6 +233,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
 
     this.sugerencias = matches;
     this.showSug = matches.length > 0;
+    this.activeSugIndex = this.showSug ? 0 : -1;
   }
 
   onScanEnter() {
@@ -254,6 +275,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
   }
 
   seleccionarSug(p: Producto) {
+    this.activeSugIndex = this.sugerencias.findIndex(x => x.id === p.id);
     this.scanError = '';
 
     const cant = Number(this.cantidadRapida);
@@ -438,5 +460,43 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
         this.confirmError = err?.error?.message ?? 'No se pudo confirmar la venta.';
       },
     });
+  }
+
+  onScanKeydown(ev: KeyboardEvent) {
+    if (!this.enEdicion) return;
+
+    // Si no hay dropdown, dejamos que Enter siga siendo "agregar" normal
+    if (!this.showSug || this.sugerencias.length === 0) {
+      if (ev.key === 'Escape') this.closeSug();
+      return;
+    }
+
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      this.activeSugIndex = this.clampSugIndex(this.activeSugIndex + 1);
+      this.scrollActiveSuggestionIntoView();
+      return;
+    }
+
+    if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      this.activeSugIndex = this.clampSugIndex(this.activeSugIndex - 1);
+      this.scrollActiveSuggestionIntoView();
+      return;
+    }
+
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const idx = this.activeSugIndex >= 0 ? this.activeSugIndex : 0;
+      const p = this.sugerencias[idx];
+      if (p) this.seleccionarSug(p);
+      return;
+    }
+
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      this.closeSug();
+      return;
+    }
   }
 }

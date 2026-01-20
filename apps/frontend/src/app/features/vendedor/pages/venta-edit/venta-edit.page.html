@@ -291,36 +291,49 @@
                   disabled:bg-slate-50"
             [ngModel]="scan"
             (ngModelChange)="onScanChange($event)"
-            (keydown.enter)="onScanEnter()"
+            (keydown)="onScanKeydown($event)"
             [disabled]="!enEdicion || savingItemId !== null"
             placeholder="Código de barras, código interno o nombre (Enter agrega)"
             autocomplete="off"
           />
+
           <!-- sugerencias -->
           <div
             *ngIf="showSug"
-            class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+            class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
+                  overflow-hidden max-h-60 overflow-auto"
           >
             <button
               type="button"
-              *ngFor="let p of sugerencias"
-              (keydown.enter)="$event.preventDefault(); onScanEnter()"
-              class="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between"
-              
+              *ngFor="let p of sugerencias; let i = index"
+              (mousedown)="$event.preventDefault()"
+              (mouseenter)="activeSugIndex = i"
               (click)="seleccionarSug(p)"
+              class="w-full px-3 py-2 text-left flex items-center justify-between
+                    transition focus:outline-none"
+              [ngClass]="
+                i === activeSugIndex
+                  ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                  : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+              "
             >
               <div class="min-w-0">
-                <p class="text-sm font-medium text-slate-900 truncate">{{ p.name }}</p>
+                <p class="text-sm font-semibold text-slate-900 truncate">
+                  {{ p.name }}
+                </p>
                 <p class="text-xs text-slate-500 truncate">
-                  {{ p.internalCode }} <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                  {{ p.internalCode }}
+                  <span *ngIf="p.barcode">• {{ p.barcode }}</span>
                 </p>
               </div>
+
               <div class="text-sm font-semibold text-slate-900 tabular-nums">
-                ${{ p.precioVenta }}
+                {{ p.precioVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
               </div>
             </button>
           </div>
         </div>
+
 
         <p class="mt-2 text-xs text-slate-500">
           Enter agrega automáticamente · Escáner compatible

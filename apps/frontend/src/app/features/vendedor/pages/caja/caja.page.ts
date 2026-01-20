@@ -6,6 +6,8 @@ import { ProductosService, Producto } from '../../../../core/services/productos.
 import { HistorialService, IncidenciaTipo } from '../../../../core/services/historial.service';
 import { Router } from '@angular/router';
 import { IncidenciasService } from '../../../../core/services/incidencias.service';
+import { VentaListItem, VentasService } from '../../../../core/services/ventas.service';
+
 
 @Component({
   selector: 'app-caja-page',
@@ -29,6 +31,14 @@ export class CajaPage implements OnInit {
   incidenciaError = '';
   incidenciaLoading = false;
 
+  //nueva venta
+  creandoVenta = false;
+  ventaError = '';
+
+  ventas: VentaListItem[] = [];
+  ventasLoading = false;
+  ventasError = '';
+
   form;
   incidenciaForm;
 
@@ -38,6 +48,7 @@ export class CajaPage implements OnInit {
     private cajaService: CajaService,
     private productosService: ProductosService,
     private incidenciaService: IncidenciasService,
+    private ventasService: VentasService,
   ) {
     this.form = this.fb.group({
       montoInicial: [0, [Validators.required, Validators.min(0)]],
@@ -49,6 +60,50 @@ export class CajaPage implements OnInit {
       cantidad: [1, [Validators.required, Validators.min(1)]],
       observacion: [''],
     });
+  }
+
+  private toNumberMoney(v: unknown): number {
+    const n = Number(v ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  get cajaAbierta(): boolean {
+    return this.cajaActual?.estado === 'ABIERTA';
+  }
+  
+  get ventasEnEdicion(): VentaListItem[] {
+    return this.ventas.filter(v => v.estado === 'EN_EDICION');
+  }
+  get ventasConfirmadas(): VentaListItem[] {
+    return this.ventas.filter(v => v.estado === 'CONFIRMADA');
+  }
+  get ventasConfirmadasTurno(): VentaListItem[] {
+    return (this.ventas ?? []).filter(v => v.estado === 'CONFIRMADA');
+  }
+
+  get totalVentasCLP(): number {
+    return this.ventasConfirmadasTurno.reduce((acc, v) => acc + this.toNumberMoney(v.totalVenta), 0);
+  }
+
+  get totalEfectivoCLP(): number {
+    return this.ventasConfirmadasTurno
+      .filter(v => v.medioPago === 'EFECTIVO')
+      .reduce((acc, v) => acc + this.toNumberMoney(v.totalVenta), 0);
+  }
+
+  get totalTarjetaCLP(): number {
+    return this.ventasConfirmadasTurno
+      .filter(v => v.medioPago === 'TARJETA')
+      .reduce((acc, v) => acc + this.toNumberMoney(v.totalVenta), 0);
+  }
+
+  get montoInicialCLP(): number {
+    return this.toNumberMoney(this.cajaActual?.montoInicial);
+  }
+
+  // Si quieres “Monto total caja” = inicial + ventas confirmadas
+  get montoTotalCajaCLP(): number {
+    return this.montoInicialCLP + this.totalVentasCLP;
   }
 
   ngOnInit() {
@@ -66,6 +121,7 @@ export class CajaPage implements OnInit {
         // si hay caja abierta, cargamos productos operativos
         if (this.cajaActual?.estado === 'ABIERTA') {
           this.cargarProductosSala();
+          this.cargarVentasTurno();
         } else {
           this.productos = [];
         }
@@ -96,6 +152,7 @@ export class CajaPage implements OnInit {
         // al abrir caja, cargar productos para incidencias
         if (this.cajaActual?.estado === 'ABIERTA') {
           this.cargarProductosSala();
+          this.cargarVentasTurno();
         }
       },
       error: (err) => {
@@ -139,11 +196,11 @@ export class CajaPage implements OnInit {
   }
 
   irAProductosSala() {
-  const historialId = this.cajaActual?.historial?.idHistorial;
-  this.router.navigate(['/pos/productos-sala'], {
-    queryParams: { historialId: historialId ?? null },
-  });
-}
+    const historialId = this.cajaActual?.historial?.idHistorial;
+    this.router.navigate(['/pos/productos-sala'], {
+      queryParams: { historialId: historialId ?? null },
+    });
+  }
 
   registrarIncidencia() {
     this.incidenciaMsg = '';
@@ -184,4 +241,71 @@ export class CajaPage implements OnInit {
       },
     });
   }
+
+  nuevaVenta() {
+    this.ventaError = '';
+
+    if (!this.cajaAbierta) {
+      this.ventaError = 'No se puede crear una venta si la caja no está abierta.';
+      return;
+    }
+
+    this.creandoVenta = true;
+
+    this.ventasService.crearVenta().subscribe({
+      next: (venta) => {
+        this.creandoVenta = false;
+        this.router.navigate(['/pos/ventas', venta.idVenta]);
+      },
+      error: (err) => {
+        this.creandoVenta = false;
+        this.ventaError = err?.error?.message ?? 'No se pudo crear la venta.';
+      },
+    });
+  }
+
+  cargarVentasTurno() {
+    const historialId = this.cajaActual?.historial?.idHistorial;
+    if (!historialId) return;
+
+    this.ventasLoading = true;
+    this.ventasError = '';
+
+    this.ventasService.listar(historialId).subscribe({
+      next: (data) => (this.ventas = data ?? []),
+      error: (err) => {
+        this.ventasError = err?.error?.message ?? 'No se pudieron cargar las ventas del turno.';
+      },
+      complete: () => (this.ventasLoading = false),
+    });
+  }
+  
+  continuarVenta(idVenta: number) {
+    this.router.navigate(['/pos/ventas', idVenta]);
+  }
+
+  verVenta(idVenta: number) {
+    this.router.navigate(['/pos/ventas', idVenta]); // misma vista, pero bloqueada por estado
+  }
+
+  eliminarVentaEnEdicion(idVenta: number) {
+    if (!this.cajaAbierta) return;
+
+    const ok = window.confirm(`¿Seguro que deseas eliminar la Venta #${idVenta}?\n\nEsta acción no se puede deshacer.`);
+    if (!ok) return;
+
+    this.ventaError = '';
+
+    this.ventasService.eliminarVenta(idVenta).subscribe({
+      next: () => {
+        // refrescar lista
+        this.cargarVentasTurno();
+      },
+      error: (err) => {
+        this.ventaError = err?.error?.message ?? 'No se pudo eliminar la venta.';
+      }
+    });
+  }
+
+
 }

@@ -1,5 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgIf } from '@angular/common';
 import { FormsModule, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
@@ -11,7 +11,7 @@ import { IncidenciasService } from '../../../../core/services/incidencias.servic
 @Component({
   selector: 'app-productos-sala-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [NgIf, CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: 'productos-sala.page.html',
 })
 export class ProductosSalaPage implements OnInit {

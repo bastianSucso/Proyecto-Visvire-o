@@ -1,0 +1,330 @@
+<div class="min-h-[calc(100vh-64px)] bg-slate-50">
+  <!-- Header -->
+  <div class="mx-auto max-w-6xl px-4 py-5">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">
+          Venta #{{ venta?.idVenta }}
+        </h1>
+
+        <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <span>Estado:</span>
+
+          <span
+            class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+            [ngClass]="enEdicion ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
+          >
+            {{ venta?.estado }}
+          </span>
+
+          <span class="text-slate-400">•</span>
+
+          <span>
+            Creada:
+            <span class="text-slate-700 font-medium">
+              {{ venta?.fechaCreacion | date:'dd-MM-yy, HH:mm' }}
+            </span>
+          </span>
+
+          <ng-container *ngIf="venta?.fechaConfirmacion">
+            <span class="text-slate-400">•</span>
+            <span>
+              Confirmada:
+              <span class="text-slate-700 font-medium">
+                {{ venta?.fechaConfirmacion | date:'dd-MM-yy, HH:mm' }}
+              </span>
+            </span>
+          </ng-container>
+        </div>
+
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          (click)="volver()"
+        >
+          Volver
+        </button>
+
+        <button
+          type="button"
+          class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+          (click)="confirmarVenta()"
+          [disabled]="!enEdicion || totalNumero <= 0 || confirmando"
+        >
+          {{ confirmando ? 'Confirmando...' : 'Confirmar venta' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="mx-auto max-w-6xl px-4 pb-28">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <!-- BOLETA (zona grande) -->
+      <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white">
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-900">Boleta</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Productos agregados a la venta.</p>
+          </div>
+          <div class="text-xs text-slate-500">
+            {{ venta?.items?.length ?? 0 }} ítems
+          </div>
+        </div>
+
+        <div class="px-4 py-3">
+          <div *ngIf="!(venta?.items?.length)" class="text-sm text-slate-500 py-6 text-center">
+            No hay productos agregados todavía.
+          </div>
+
+          <div *ngIf="(venta?.items?.length ?? 0) > 0" class="overflow-auto">
+            <table class="w-full text-left">
+              <thead class="text-xs text-slate-500">
+                <tr class="border-b border-slate-100">
+                  <th class="py-2 pr-3">Producto</th>
+                  <th class="py-2 pr-3 w-28 text-right">Precio</th>
+                  <th class="py-2 pr-3 w-32 text-center">Cant.</th>
+                  <th class="py-2 pr-3 w-28 text-right">Subtotal</th>
+                  <th class="py-2 w-12"></th>
+                </tr>
+              </thead>
+
+              <tbody class="text-sm">
+                <tr
+                  *ngFor="let it of venta?.items"
+                  class="border-b border-slate-100 last:border-b-0"
+                >
+                  <td class="py-3 pr-3">
+                    <div class="font-medium text-slate-900 leading-5">
+                      {{ it.nombreProducto }}
+                    </div>
+                    <div class="text-xs text-slate-500 mt-0.5">
+                      ID: {{ it.productoId }}
+                    </div>
+                  </td>
+
+                  <td class="py-3 pr-3 text-right tabular-nums text-slate-700">
+                    {{ it.precioUnitario | currency:'CLP':'symbol-narrow':'1.0-0'}}
+                  </td>
+
+                  <td class="py-3 pr-4">
+                    <div class="flex items-center justify-center">
+                      <input
+                        type="number"
+                        min="1"
+                        class="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900 text-center tabular-nums
+                              focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-50"
+                        [(ngModel)]="editCantidad[it.idItem]"
+                        [disabled]="!enEdicion || savingItemId === it.idItem"
+                        (blur)="guardarCantidad(it)"
+                      />
+                    </div>
+                  </td>
+                  <td class="py-3 pr-3 text-right tabular-nums font-semibold text-slate-900">
+                    {{ it.subtotal | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  </td>
+
+                  <td class="py-3 text-right">
+                    <button
+                      type="button"
+                      class="rounded-lg px-2 py-2 text-slate-400 hover:text-red-600 disabled:opacity-40"
+                      [disabled]="!enEdicion || savingItemId === it.idItem"
+                      (click)="eliminarItem(it)"
+                      title="Eliminar"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div *ngIf="itemError" class="mt-3 text-sm text-red-600">
+            {{ itemError }}
+          </div>
+        </div>
+      </div>
+
+      <!-- CAJA (derecha) -->
+      <div class="rounded-2xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-4 py-3">
+          <h2 class="text-sm font-semibold text-slate-900">Caja</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Total y medio de pago.</p>
+        </div>
+
+        <div class="px-4 py-4 space-y-4">
+          <!-- TOTAL -->
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+            <p class="text-xs text-slate-500">TOTAL</p>
+            <p class="text-3xl font-semibold text-slate-900 tabular-nums mt-1">
+              {{ totalCLP | currency:'CLP':'symbol-narrow':'1.0-0' }}
+            </p>
+            <p class="text-xs text-slate-500 mt-1">
+              Cantidad total:
+              <span class="font-medium text-slate-700">{{ venta?.cantidadTotal ?? 0 }}</span>
+            </p>
+          </div>
+
+          <!-- MEDIO DE PAGO -->
+          <div>
+            <p class="text-xs font-medium text-slate-600 mb-2">Medio de pago</p>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="rounded-xl border px-3 py-2 text-sm font-semibold transition
+                      disabled:opacity-50"
+                [disabled]="!enEdicion"
+                (click)="setMedioPago('EFECTIVO')"
+                [ngClass]="medioPago === 'EFECTIVO'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'"
+              >
+                Efectivo
+              </button>
+
+              <button
+                type="button"
+                class="rounded-xl border px-3 py-2 text-sm font-semibold transition
+                      disabled:opacity-50"
+                [disabled]="!enEdicion"
+                (click)="setMedioPago('TARJETA')"
+                [ngClass]="medioPago === 'TARJETA'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'"
+              >
+                Tarjeta
+              </button>
+            </div>
+
+            <p *ngIf="enEdicion && !medioPago" class="mt-2 text-xs text-slate-500">
+              Selecciona un medio de pago para confirmar.
+            </p>
+
+            <!-- Si la venta ya está confirmada, mostrarlo fijo -->
+            <p *ngIf="!enEdicion && venta?.medioPago" class="mt-2 text-xs text-slate-500">
+              Medio de pago: <span class="font-medium text-slate-700">{{ venta?.medioPago }}</span>
+            </p>
+          </div>
+
+          <!-- CAJA REGISTRADORA: SOLO EFECTIVO -->
+          <div *ngIf="enEdicion && medioPago === 'EFECTIVO'" class="rounded-2xl border border-slate-200 bg-white p-3">
+            <label class="block text-xs font-medium text-slate-600">
+              Monto recibido
+            </label>
+
+            <input
+              type="text"
+              inputmode="numeric"
+              class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900
+                    focus:outline-none focus:ring-2 focus:ring-blue-200"
+              [ngModel]="montoRecibidoStr"
+              (ngModelChange)="onMontoRecibidoChange($event)"
+              placeholder="Ej: 10000"
+            />
+
+            <p *ngIf="montoRecibidoError" class="mt-2 text-sm text-red-600">
+              {{ montoRecibidoError }}
+            </p>
+
+            <!-- Cambio / Faltan -->
+            <div *ngIf="montoRecibidoStr?.trim()" class="mt-3 flex items-center justify-between">
+              <p class="text-xs text-slate-500">{{ cambioTexto }}</p>
+
+              <p
+                class="text-sm font-semibold tabular-nums"
+                [ngClass]="cambio >= 0 ? 'text-emerald-700' : 'text-red-600'"
+              >
+                {{ (cambio >= 0 ? cambio : (cambio * -1)) | currency:'CLP':'symbol-narrow':'1.0-0' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- CONFIRMAR -->
+          <button
+            type="button"
+            class="w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white
+                  hover:bg-blue-800 disabled:opacity-50"
+            (click)="confirmarVenta()"
+            [disabled]="
+              !enEdicion ||
+              totalNumero <= 0 ||
+              confirmando ||
+              !medioPago ||
+              (medioPago === 'EFECTIVO' && (montoRecibidoStr.trim().length === 0 || cambio < 0))
+            "
+          >
+            {{ confirmando ? 'Confirmando...' : 'Confirmar venta' }}
+          </button>
+
+          <div *ngIf="confirmError" class="text-sm text-red-600">
+            {{ confirmError }}
+          </div>
+
+          <div *ngIf="confirmMsg" class="text-sm text-emerald-700">
+            {{ confirmMsg }}
+          </div>
+
+          <p class="text-xs text-slate-500">
+            Una vez confirmada, no se podrá modificar.
+          </p>
+        </div>
+      </div>
+
+    </div>
+    <div class="mt-6">
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <label class="block text-sm font-medium text-slate-700 mb-2">
+          Buscar / Escanear producto
+        </label>
+
+        <div class="relative">
+          <input
+            type="text"
+            class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-50"
+            [ngModel]="scan"
+            (ngModelChange)="onScanChange($event)"
+            (keydown.enter)="onScanEnter()"
+            [disabled]="!enEdicion || savingItemId !== null"
+            placeholder="Código de barras, código interno o nombre (Enter agrega)"
+            autocomplete="off"
+          />
+
+          <!-- sugerencias -->
+          <div
+            *ngIf="showSug"
+            class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+          >
+            <button
+              type="button"
+              *ngFor="let p of sugerencias"
+              class="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between"
+              (click)="seleccionarSug(p)"
+            >
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-slate-900 truncate">{{ p.name }}</p>
+                <p class="text-xs text-slate-500 truncate">
+                  {{ p.internalCode }} <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                </p>
+              </div>
+              <div class="text-sm font-semibold text-slate-900 tabular-nums">
+                ${{ p.precioVenta }}
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <p class="mt-2 text-xs text-slate-500">
+          Enter agrega automáticamente · Escáner compatible
+        </p>
+        <p *ngIf="scanError" class="mt-2 text-sm text-red-600">
+            {{ scanError }}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

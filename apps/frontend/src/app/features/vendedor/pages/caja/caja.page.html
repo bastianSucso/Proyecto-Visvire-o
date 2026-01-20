@@ -58,25 +58,79 @@
             </div>
 
 
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div class="text-xs font-medium text-slate-500">Monto inicial</div>
                 <div class="mt-1 text-lg font-semibold text-slate-900">
-                  {{ cajaActual.montoInicial | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  {{ montoInicialCLP | currency:'CLP':'symbol-narrow':'1.0-0' }}
                 </div>
               </div>
 
               <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div class="text-xs font-medium text-slate-500">Monto total (derivado)</div>
+                <div class="text-xs font-medium text-slate-500">Ventas (total)</div>
                 <div class="mt-1 text-lg font-semibold text-slate-900">
-                  {{ cajaActual.montoTotal | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  {{ totalVentasCLP | currency:'CLP':'symbol-narrow':'1.0-0' }}
                 </div>
                 <p class="mt-1 text-xs text-slate-500">
-                  Se calculará “en tiempo real” con ventas cuando exista el módulo.
+                  Solo ventas confirmadas del turno.
                 </p>
               </div>
+
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="text-xs font-medium text-slate-500">Efectivo</div>
+                <div class="mt-1 text-lg font-semibold text-slate-900">
+                  {{ totalEfectivoCLP | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="text-xs font-medium text-slate-500">Tarjeta</div>
+                <div class="mt-1 text-lg font-semibold text-slate-900">
+                  {{ totalTarjetaCLP | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                </div>
+              </div>
             </div>
-              
+
+            <div class="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium text-slate-700">Monto total caja</div>
+                <div class="text-lg font-semibold text-slate-900 tabular-nums">
+                  {{ montoTotalCajaCLP | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                </div>
+              </div>
+              <p class="mt-1 text-xs text-slate-500">
+                Monto inicial + ventas confirmadas (total).
+              </p>
+            </div>
+
+
+            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 class="text-sm font-medium text-blue-900">Ventas</h2>
+                  <p class="text-xs text-blue-700">
+                    Crea una venta para comenzar a registrar productos (estado: En edición).
+                  </p>
+                </div>
+
+                <button
+                  class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
+                  [disabled]="!cajaAbierta || creandoVenta"
+                  (click)="nuevaVenta()"
+                >
+                  {{ creandoVenta ? 'Creando...' : 'Nueva venta' }}
+                </button>
+              </div>
+
+              <p *ngIf="!cajaAbierta" class="mt-3 text-sm text-gray-500">
+                Debes abrir caja para crear una venta.
+              </p>
+
+              <p *ngIf="ventaError" class="mt-3 text-sm text-red-600">
+                {{ ventaError }}
+              </p>
+            </div>
+            
             <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -97,11 +151,128 @@
                 </button>
               </div>
             </div>
+            <!-- Ventas del turno -->
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h3 class="text-sm font-semibold text-slate-900">Ventas del turno</h3>
+                  <p class="text-xs text-slate-500 mt-1">
+                    Retoma ventas en edición o revisa ventas confirmadas.
+                  </p>
+                </div>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-4">
-              <p class="text-sm text-slate-600">
-                La caja se encuentra abierta. El cierre de caja se implementará en una historia posterior.
-              </p>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  (click)="cargarVentasTurno()"
+                  [disabled]="ventasLoading"
+                >
+                  Refrescar
+                </button>
+              </div>
+
+              <div *ngIf="ventasError" class="mt-3 text-sm text-red-600">
+                {{ ventasError }}
+              </div>
+
+              <div *ngIf="ventasLoading" class="mt-3 text-sm text-slate-500">
+                Cargando ventas...
+              </div>
+
+              <div *ngIf="!ventasLoading && !ventasError" class="mt-4 space-y-4">
+
+                <!-- EN EDICION -->
+                <div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-slate-700">
+                      En edición ({{ ventasEnEdicion.length }})
+                    </p>
+                  </div>
+
+                  <div *ngIf="ventasEnEdicion.length === 0" class="mt-2 text-sm text-slate-500">
+                    No hay ventas en edición.
+                  </div>
+
+                  <div *ngIf="ventasEnEdicion.length > 0" class="mt-2 space-y-2 max-h-56 overflow-auto pr-1">
+                    <div
+                      *ngFor="let v of ventasEnEdicion"
+                      class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-semibold text-slate-900">Venta #{{ v.idVenta }}</span>
+                          <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                            EN_EDICION
+                          </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5 truncate">
+                          {{ v.cantidadTotal }} ítems · Total:{{ v.totalVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                        </p>
+                      </div>
+
+                      <div class="shrink-0 flex items-center gap-2">
+                        <button
+                          type="button"
+                          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          (click)="eliminarVentaEnEdicion(v.idVenta)"
+                          title="Eliminar venta"
+                        >
+                          Eliminar
+                        </button>
+
+                        <button
+                          type="button"
+                          class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                          (click)="continuarVenta(v.idVenta)"
+                        >
+                          Continuar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- CONFIRMADAS -->
+                <div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-slate-700">
+                      Confirmadas ({{ ventasConfirmadas.length }})
+                    </p>
+                  </div>
+
+                  <div *ngIf="ventasConfirmadas.length === 0" class="mt-2 text-sm text-slate-500">
+                    Aún no hay ventas confirmadas.
+                  </div>
+
+                  <div *ngIf="ventasConfirmadas.length > 0" class="mt-2 space-y-2 max-h-56 overflow-auto pr-1">
+                    <div
+                      *ngFor="let v of ventasConfirmadas"
+                      class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-semibold text-slate-900">Venta #{{ v.idVenta }}</span>
+                          <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                            CONFIRMADA
+                          </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5 truncate">
+                          {{ v.cantidadTotal }} ítems · Total: {{ v.totalVenta | currency:'CLP':'symbol-narrow':'1.0-0'}}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="shrink-0 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        (click)="verVenta(v.idVenta)"
+                      >
+                        Ver
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </div>
           </div>
 

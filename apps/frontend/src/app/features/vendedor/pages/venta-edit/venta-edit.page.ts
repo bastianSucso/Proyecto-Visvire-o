@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { AfterViewChecked, AfterViewInit, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -17,11 +17,16 @@ import { ProductosService, Producto } from '../../../../core/services/productos.
   imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './venta-edit.page.html',
 })
-export class VentaEditPage implements OnInit {
+
+export class VentaEditPage implements OnInit, AfterViewChecked  {
+  @ViewChild('scanInput') scanInput?: ElementRef<HTMLInputElement>;
+
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private ventasService = inject(VentasService);
   private productosService = inject(ProductosService);
+
+  private didAutoFocus = false;
 
   idVenta!: number;
 
@@ -58,6 +63,20 @@ export class VentaEditPage implements OnInit {
   // Caja registradora (solo UI, no se persiste)
   montoRecibidoStr = ''; // input de texto para permitir “1234”, “1.234”, etc.
   montoRecibidoError = '';
+
+  ngAfterViewChecked(): void {
+    if (this.didAutoFocus) return;
+    if (!this.enEdicion) return;
+
+    const el = this.scanInput?.nativeElement;
+    if (!el || el.disabled) return;
+
+    requestAnimationFrame(() => {
+      el.focus();
+      el.select();
+      this.didAutoFocus = true;
+    });
+  }
 
   ngOnInit(): void {
     const raw = this.route.snapshot.paramMap.get('id');
@@ -142,14 +161,16 @@ export class VentaEditPage implements OnInit {
 
         // Si backend ya trae medioPago (confirmada), reflejarlo
         this.medioPago = res.medioPago ?? null;
-
+        this.didAutoFocus = false;
         this.loading = false;
+        
       },
       error: (err) => {
         this.loading = false;
         this.errorMsg = err?.error?.message ?? 'No se pudo cargar la venta.';
       },
     });
+    
   }
 
   cargarProductos() {
@@ -272,11 +293,13 @@ export class VentaEditPage implements OnInit {
           this.scan = '';
           this.cantidadRapida = 1;
           this.closeSug();
+          this.didAutoFocus = false;
         },
         error: (err) => {
           this.savingItemId = null;
           const msg = err?.error?.message;
           this.scanError = Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo agregar el producto.');
+          this.didAutoFocus = false;
         },
       });
   }

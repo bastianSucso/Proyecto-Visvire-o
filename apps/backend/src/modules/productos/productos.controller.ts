@@ -28,6 +28,13 @@ export class ProductosController {
     return this.service.findAll(false);
   }
 
+  @Get('suggest-internal-code')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  suggestInternalCode() {
+    return this.service.suggestInternalCode();
+  }
+
   @Get()
   @Roles('ADMIN', 'VENDEDOR')
   findAll(@Query('includeInactive') includeInactive?: string) {
@@ -63,4 +70,5 @@ export class ProductosController {
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }
+
 }

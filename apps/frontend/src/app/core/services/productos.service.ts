@@ -75,4 +75,8 @@ export class ProductosService {
         return this.http.get<Producto[]>('/api/productos/sala');
     }
 
+    suggestInternalCode() {
+        return this.http.get<{ internalCode: string }>(`/api/productos/suggest-internal-code`);
+    }
+
 }

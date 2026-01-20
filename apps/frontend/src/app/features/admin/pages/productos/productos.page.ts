@@ -113,6 +113,7 @@ export class ProductosPage {
     this.errorMsg = '';
     this.editing = null;
     this.isModalOpen = true;
+
     this.form.reset({
       name: '',
       internalCode: '',
@@ -121,7 +122,17 @@ export class ProductosPage {
       precioCosto: 0,
       precioVenta: 0,
     });
+
     this.form.enable();
+
+    this.productosService.suggestInternalCode().subscribe({
+      next: (res) => {
+        const ctrl = this.form.get('internalCode');
+        if (ctrl && !ctrl.value) ctrl.setValue(res.internalCode);
+      },
+      error: () => {
+      },
+    });
   }
 
   openEdit(p: Producto) {

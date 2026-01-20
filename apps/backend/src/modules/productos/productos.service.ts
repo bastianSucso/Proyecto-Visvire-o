@@ -130,4 +130,23 @@ export class ProductosService {
     await this.repo.remove(p);
     return { ok: true };
   }
+
+  async suggestInternalCode() {
+    const row = await this.repo
+      .createQueryBuilder('p')
+      .select("MAX(CAST(p.internalCode AS INT))", 'max')
+      .where("p.internalCode ~ '^[0-9]+$'")
+      .getRawOne<{ max: string | null }>();
+
+    const nextNumber = Number(row?.max ?? 0) + 1;
+
+    const formatted = nextNumber
+      .toString()
+      .padStart(6, '0'); // ← 6 dígitos
+
+    return { internalCode: formatted };
+  }
+
+
+
 }

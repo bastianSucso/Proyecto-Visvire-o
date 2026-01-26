@@ -6,7 +6,7 @@ import { IncidenciasService, IncidenciaDto } from '../../../../core/services/inc
 type Vista = 'historico' | 'turno';
 
 type Grupo = {
-  idHistorial: number;
+  idSesionCaja: number;
   fechaApertura: string;
   fechaCierre: string | null;
   items: IncidenciaDto[];
@@ -22,6 +22,7 @@ export class IncidenciasPage implements OnInit {
   private incidenciasApi = inject(IncidenciasService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+
   view: Vista = 'historico';
 
   loading = false;
@@ -50,14 +51,13 @@ export class IncidenciasPage implements OnInit {
     req$.subscribe({
       next: (data) => {
         this.incidencias = data ?? [];
-        this.grupos = this.agruparPorHistorial(this.incidencias);
+        this.grupos = this.agruparPorSesionCaja(this.incidencias);
       },
       error: (e) => {
-        // Si tu backend retorna 404 cuando no hay turno activo:
         if (e?.status === 404 && this.view === 'turno') {
           this.incidencias = [];
           this.grupos = [];
-          this.errorMsg = 'No hay turno activo (caja abierta) para mostrar incidencias.';
+          this.errorMsg = 'No hay una sesión activa (caja abierta) para mostrar incidencias.';
           return;
         }
 
@@ -67,36 +67,35 @@ export class IncidenciasPage implements OnInit {
     });
   }
 
-  private agruparPorHistorial(data: IncidenciaDto[]): Grupo[] {
+  private agruparPorSesionCaja(data: IncidenciaDto[]): Grupo[] {
     const map = new Map<number, Grupo>();
 
     for (const it of data) {
-      const id = it.historial.idHistorial;
+      const ses = (it as any).sesionCaja; 
+      const id = ses.idSesionCaja;
+
       if (!map.has(id)) {
         map.set(id, {
-          idHistorial: id,
-          fechaApertura: it.historial.fechaApertura,
-          fechaCierre: it.historial.fechaCierre,
+          idSesionCaja: id,
+          fechaApertura: ses.fechaApertura,
+          fechaCierre: ses.fechaCierre,
           items: [],
         });
       }
+
       map.get(id)!.items.push(it);
     }
 
-    // Orden: jornada más reciente arriba
     return Array.from(map.values()).sort(
       (a, b) => new Date(b.fechaApertura).getTime() - new Date(a.fechaApertura).getTime(),
     );
   }
-  
+
   volver() {
     if (this.view === 'turno') {
-      // vuelve a la operación del turno
       this.router.navigate(['/pos/productos-sala']);
     } else {
-      // vuelve al dashboard del vendedor
       this.router.navigate(['/pos/dashboard-vendedor']);
     }
   }
-  
 }

@@ -1,4 +1,4 @@
-import { HistorialStockVentaEntity } from 'src/modules/historial/entities/historial-stock-venta.entity';
+import { HistorialStockVentaEntity } from '../../../modules/historial/entities/historial-stock-venta.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,

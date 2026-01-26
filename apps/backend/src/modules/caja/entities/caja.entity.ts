@@ -1,26 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm';
-import { HistorialEntity } from '../../historial/entities/historial.entity';
-
-export enum CajaEstado {
-  ABIERTA = 'ABIERTA',
-  CERRADA = 'CERRADA',
-}
+import { SesionCajaEntity } from '../../historial/entities/sesion-caja.entity';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity('caja')
 export class CajaEntity {
   @PrimaryGeneratedColumn('increment', { name: 'id_caja' })
   idCaja!: number;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'monto_inicial' })
-  montoInicial!: string;
+  @Column({ type: 'varchar', length: 30, name: 'numero'})
+  numero!: string;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'monto_final', nullable: true })
-  montoFinal!: string | null;
+  @Column({ type: 'boolean', default: true, name: 'activa' })
+  activa!: boolean;
 
-  @Column({ type: 'enum', enum: CajaEstado, default: CajaEstado.ABIERTA, name: 'estado' })
-  estado!: CajaEstado;
-
-  @OneToOne(() => HistorialEntity, (h) => h.caja, { nullable: false })
-  @JoinColumn({ name: 'id_historial' })
-  historial!: HistorialEntity;
+  @OneToMany(() => SesionCajaEntity, (s) => s.caja)
+  sesiones!: SesionCajaEntity[];
 }

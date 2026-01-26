@@ -29,8 +29,8 @@ export interface VentaResponse {
   estado: VentaEstado;
   fechaCreacion: string;
   fechaConfirmacion: string | null
-  usuarioId: number;
-  historialId: number;
+  usuarioId: string;
+  sesionCajaId: number;
   totalVenta?: string;
   cantidadTotal?: number;
   items?: VentaItemResponse[];
@@ -64,8 +64,8 @@ export class VentasService {
     return this.http.patch<VentaResponse>(`/api/ventas/${idVenta}/confirmar`, body);
   }
     
-  listar(historialId: number) {
-    return this.http.get<VentaListItem[]>(`/api/ventas?historialId=${historialId}`);
+  listar(sesionCajaId: number) {
+    return this.http.get<VentaListItem[]>(`/api/ventas?sesionCajaId=${sesionCajaId}`);
   }
   
   eliminarVenta(idVenta: number) {

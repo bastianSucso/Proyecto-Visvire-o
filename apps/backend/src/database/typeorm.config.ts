@@ -18,8 +18,8 @@ export function typeOrmConfig(): DataSourceOptions {
     // Vamos a buscar entidades en tus módulos
     entities: [__dirname + '/../modules/**/entities/*.entity{.ts,.js}'],
 
-    // Migraciones (luego las usamos de verdad)
-    migrations: [__dirname + '/migrations/*{.ts,.js}'],
+    // Migraciones 
+    migrations: [__dirname + '/../migrations/*{.ts,.js}'],
 
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   };

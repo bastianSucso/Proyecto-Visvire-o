@@ -8,7 +8,7 @@ import * as ms from 'ms';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { UserEntity } from 'src/modules/users/entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 
 @Module({
   imports: [

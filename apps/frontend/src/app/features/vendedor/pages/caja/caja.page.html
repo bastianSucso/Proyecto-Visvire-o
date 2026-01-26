@@ -33,17 +33,17 @@
                 <span
                   class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
                   [ngClass]="{
-                    'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': cajaActual.estado === 'ABIERTA',
-                    'bg-slate-100 text-slate-700 ring-1 ring-slate-200': cajaActual.estado !== 'ABIERTA'
+                    'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': cajaActual.sesionCaja.estado === 'ABIERTA',
+                    'bg-slate-100 text-slate-700 ring-1 ring-slate-200': cajaActual.sesionCaja.estado!== 'ABIERTA'
                   }"
                 >
-                  {{ cajaActual.estado }}
+                  {{ cajaActual.sesionCaja.estado }}
                 </span>
 
                 <span class="text-sm text-slate-600">
                   Apertura:
                   <span class="font-medium text-slate-900">
-                    {{ cajaActual.historial.fechaApertura | date:'short':'America/Santiago' }}
+                    {{ cajaActual.sesionCaja.fechaApertura | date:'short':'America/Santiago' }}
                   </span>
                 </span>
               </div>
@@ -291,6 +291,16 @@
 
             <form [formGroup]="form" (ngSubmit)="abrirCaja()" class="space-y-4">
               <div>
+                <label class="mb-1 block text-sm font-medium text-slate-700">Caja física</label>
+                <select
+                  formControlName="cajaId"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+                  <option [ngValue]="null">Selecciona una caja…</option>
+                  <option *ngFor="let c of cajas" [ngValue]="c.idCaja">
+                    {{ c.numero }}
+                  </option>
+                </select>
                 <label class="mb-1 block text-sm font-medium text-slate-700">
                   Monto inicial
                 </label>

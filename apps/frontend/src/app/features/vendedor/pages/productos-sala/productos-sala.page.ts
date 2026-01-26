@@ -5,8 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { CajaService, CajaActualResponse } from '../../../../core/services/caja.service';
-import { HistorialService, IncidenciaTipo } from '../../../../core/services/historial.service';
-import { IncidenciasService } from '../../../../core/services/incidencias.service';
+import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
 
 @Component({
   selector: 'app-productos-sala-page',
@@ -23,8 +22,8 @@ export class ProductosSalaPage implements OnInit {
   private cajaService = inject(CajaService);
   private incidenciaService = inject(IncidenciasService);
 
-  // contexto de turno
-  historialId: number | null = null;
+  // contexto de sesión caja (turno)
+  sesionCajaId: number | null = null;
   cajaActual: CajaActualResponse | null = null;
 
   // lista productos
@@ -34,7 +33,7 @@ export class ProductosSalaPage implements OnInit {
 
   filtro = '';
 
-  // paginación en front
+  // paginación
   page = 1;
   pageSize = 20;
 
@@ -53,18 +52,15 @@ export class ProductosSalaPage implements OnInit {
   });
 
   ngOnInit(): void {
-    // 1) lee historialId desde query param
     this.route.queryParamMap.subscribe((qp) => {
-      const raw = qp.get('historialId');
-      this.historialId = raw ? Number(raw) : null;
+      const raw = qp.get('sesionCajaId');
+      this.sesionCajaId = raw ? Number(raw) : null;
 
-      // 2) si no vino, intenta deducir por cajaActual (fallback)
-      if (!this.historialId) {
-        this.cargarCajaActualParaHistorial();
+      if (!this.sesionCajaId) {
+        this.cargarCajaActualParaSesion();
       }
     });
 
-    // 3) carga productos
     this.cargarProductos();
   }
 
@@ -72,11 +68,11 @@ export class ProductosSalaPage implements OnInit {
     this.router.navigate(['/pos/caja']);
   }
 
-  cargarCajaActualParaHistorial() {
+  cargarCajaActualParaSesion() {
     this.cajaService.cajaActual().subscribe({
       next: (res) => {
         this.cajaActual = res;
-        this.historialId = res?.historial?.idHistorial ?? null;
+        this.sesionCajaId = res?.sesionCaja?.idSesionCaja ?? null;
       },
       error: () => {
         // si falla, no bloqueamos la lista, pero no podrás registrar incidencia
@@ -88,11 +84,9 @@ export class ProductosSalaPage implements OnInit {
     this.loading = true;
     this.errorMsg = '';
 
-    // vendedor: solo activos
     this.productosService.listSala().subscribe({
       next: (data) => {
-        this.productos = data;
-        // vuelve a primera página cuando recargas
+        this.productos = data ?? [];
         this.page = 1;
       },
       error: (err) => {
@@ -103,7 +97,7 @@ export class ProductosSalaPage implements OnInit {
     });
   }
 
-  // ====== filtrado + paginación (front) ======
+  // ====== filtrado + paginación ======
   get productosFiltrados(): Producto[] {
     const q = (this.filtro || '').trim().toLowerCase();
     if (!q) return this.productos;
@@ -126,18 +120,10 @@ export class ProductosSalaPage implements OnInit {
     return this.productosFiltrados.slice(start, end);
   }
 
-  irPrimera() {
-    this.page = 1;
-  }
-  irAnterior() {
-    this.page = Math.max(1, this.page - 1);
-  }
-  irSiguiente() {
-    this.page = Math.min(this.totalPages, this.page + 1);
-  }
-  irUltima() {
-    this.page = this.totalPages;
-  }
+  irPrimera() { this.page = 1; }
+  irAnterior() { this.page = Math.max(1, this.page - 1); }
+  irSiguiente() { this.page = Math.min(this.totalPages, this.page + 1); }
+  irUltima() { this.page = this.totalPages; }
 
   // ====== incidencias ======
   abrirModalIncidencia(p: Producto) {
@@ -162,8 +148,8 @@ export class ProductosSalaPage implements OnInit {
     this.incidenciaMsg = '';
     this.incidenciaError = '';
 
-    if (!this.historialId) {
-      this.incidenciaError = 'No hay un historial activo. Vuelve a Caja y abre caja para iniciar jornada.';
+    if (!this.sesionCajaId) {
+      this.incidenciaError = 'No hay una sesión activa. Vuelve a Caja y abre caja para iniciar la jornada.';
       return;
     }
     if (!this.selectedProducto) {
@@ -179,7 +165,7 @@ export class ProductosSalaPage implements OnInit {
 
     const v = this.incidenciaForm.value;
     const payload = {
-      historialId: this.historialId,
+      sesionCajaId: this.sesionCajaId,
       productoId: this.selectedProducto.id,
       tipo: v.tipo as IncidenciaTipo,
       cantidad: Number(v.cantidad),
@@ -204,10 +190,6 @@ export class ProductosSalaPage implements OnInit {
   }
 
   verIncidencias() {
-    this.router.navigate(
-      ['/pos/incidencias'],
-      { queryParams: { view: 'turno' } }
-    );
+    this.router.navigate(['/pos/incidencias'], { queryParams: { view: 'turno' } });
   }
-
 }

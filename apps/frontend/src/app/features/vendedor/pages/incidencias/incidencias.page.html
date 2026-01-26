@@ -69,7 +69,7 @@
     <div *ngFor="let g of grupos" class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div class="p-4 border-b border-slate-100 flex items-center justify-between">
         <div>
-          <div class="text-sm font-semibold text-slate-900">Jornada #{{ g.idHistorial }}</div>
+          <div class="text-sm font-semibold text-slate-900">Jornada #{{ g.idSesionCaja }}</div>
           <div class="text-xs text-slate-500">
             Apertura:
             {{ g.fechaApertura | date:'short':'America/Santiago' }}

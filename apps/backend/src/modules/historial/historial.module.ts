@@ -1,16 +1,16 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { HistorialEntity } from './entities/historial.entity';
 import { HistorialStockVentaEntity } from './entities/historial-stock-venta.entity';
-import { HistorialController } from './historial.controller';
 import { HistorialService } from './historial.service';
 import { IncidenciaStockEntity } from './entities/incidencia-stock.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
+import { SesionCajaEntity } from './entities/sesion-caja.entity';
+import { SesionCajaController } from './historial.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([HistorialEntity, HistorialStockVentaEntity, IncidenciaStockEntity, ProductoEntity])],
+  imports: [TypeOrmModule.forFeature([SesionCajaEntity, HistorialStockVentaEntity, IncidenciaStockEntity, ProductoEntity])],
   exports: [TypeOrmModule, HistorialService],
-  controllers: [HistorialController],
+  controllers: [SesionCajaController],
   providers: [HistorialService],
 })
 export class HistorialModule {}

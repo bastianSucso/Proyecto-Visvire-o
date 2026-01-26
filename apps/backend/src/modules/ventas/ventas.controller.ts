@@ -28,13 +28,11 @@ export class VentasController {
     return this.service.eliminarVenta(req.user.id, Number(idVenta));
   }
 
-  // HU-CJ-04: Agregar item
   @Post(':idVenta/items')
   agregarItem(@Req() req: any, @Param('idVenta') idVenta: string, @Body() dto: AddItemVentaDto) {
     return this.service.agregarItem(req.user.id, Number(idVenta), dto);
   }
 
-  // HU-CJ-04: Modificar cantidad
   @Patch(':idVenta/items/:idItem')
   actualizarItem(
     @Req() req: any,
@@ -55,10 +53,10 @@ export class VentasController {
   eliminarItem(@Req() req: any, @Param('idVenta') idVenta: string, @Param('idItem') idItem: string) {
     return this.service.eliminarItem(req.user.id, Number(idVenta), Number(idItem));
   }
-  
+    
   @Get()
-  list(@Req() req: any, @Query('historialId') historialId?: string) {
-    return this.service.listarVentas(req.user.id, historialId ? Number(historialId) : undefined);
+  list(@Req() req: any, @Query('sesionCajaId') sesionCajaId?: string) {
+    return this.service.listarVentas(req.user.id, sesionCajaId ? Number(sesionCajaId) : undefined);
   }
 
 }

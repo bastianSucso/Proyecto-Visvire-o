@@ -1,13 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CajaActualResponse, CajaService } from '../../../../core/services/caja.service';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
-import { HistorialService, IncidenciaTipo } from '../../../../core/services/historial.service';
 import { Router } from '@angular/router';
-import { IncidenciasService } from '../../../../core/services/incidencias.service';
+import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
 import { VentaListItem, VentasService } from '../../../../core/services/ventas.service';
 
+  type CajaFisica = {
+    idCaja: number;
+    numero: string;
+    activa: boolean;
+  };
 
 @Component({
   selector: 'app-caja-page',
@@ -39,8 +43,12 @@ export class CajaPage implements OnInit {
   ventasLoading = false;
   ventasError = '';
 
-  form;
-  incidenciaForm;
+  form!: FormGroup;
+  incidenciaForm!: FormGroup;
+
+  cajas: CajaFisica[] = [];
+  cajasLoading = false;
+  cajasError = '';
 
   constructor(
     private router: Router,
@@ -51,6 +59,7 @@ export class CajaPage implements OnInit {
     private ventasService: VentasService,
   ) {
     this.form = this.fb.group({
+      cajaId: [null],
       montoInicial: [0, [Validators.required, Validators.min(0)]],
     });
 
@@ -68,7 +77,7 @@ export class CajaPage implements OnInit {
   }
 
   get cajaAbierta(): boolean {
-    return this.cajaActual?.estado === 'ABIERTA';
+    return this.cajaActual?.sesionCaja.estado === 'ABIERTA';
   }
   
   get ventasEnEdicion(): VentaListItem[] {
@@ -98,16 +107,29 @@ export class CajaPage implements OnInit {
   }
 
   get montoInicialCLP(): number {
-    return this.toNumberMoney(this.cajaActual?.montoInicial);
+    return this.toNumberMoney(this.cajaActual?.sesionCaja.montoInicial);
   }
 
-  // Si quieres “Monto total caja” = inicial + ventas confirmadas
   get montoTotalCajaCLP(): number {
     return this.montoInicialCLP + this.totalVentasCLP;
   }
 
   ngOnInit() {
     this.cargarCajaActual();
+    this.cargarCajasFisicas();
+  }
+
+  cargarCajasFisicas() {
+    this.cajasLoading = true;
+    this.cajasError = '';
+
+    this.cajaService.listarCajasFisicas(true).subscribe({
+      next: (data) => (this.cajas = data ?? []),
+      error: (err) => {
+        this.cajasError = err?.error?.message ?? 'No se pudieron cargar cajas físicas.';
+      },
+      complete: () => (this.cajasLoading = false),
+    });
   }
 
   cargarCajaActual() {
@@ -118,8 +140,7 @@ export class CajaPage implements OnInit {
         this.cajaActual = res;
         this.loading = false;
 
-        // si hay caja abierta, cargamos productos operativos
-        if (this.cajaActual?.estado === 'ABIERTA') {
+        if (this.cajaActual?.sesionCaja.estado === 'ABIERTA') {
           this.cargarProductosSala();
           this.cargarVentasTurno();
         } else {
@@ -141,16 +162,20 @@ export class CajaPage implements OnInit {
 
     this.loading = true;
     this.errorMsg = '';
+    const rawCajaId = this.form.value.cajaId;
+  
 
-    const monto = Number(this.form.value.montoInicial);
+    const payload = {
+      montoInicial: Number(this.form.value.montoInicial),
+      cajaId: rawCajaId === null || rawCajaId === '' ? undefined : Number(rawCajaId),
+    };
 
-    this.cajaService.abrirCaja(monto).subscribe({
+    this.cajaService.abrirCaja(payload).subscribe({
       next: (res) => {
         this.cajaActual = res;
         this.loading = false;
 
-        // al abrir caja, cargar productos para incidencias
-        if (this.cajaActual?.estado === 'ABIERTA') {
+        if (this.cajaActual?.sesionCaja.estado === 'ABIERTA') {
           this.cargarProductosSala();
           this.cargarVentasTurno();
         }
@@ -162,12 +187,13 @@ export class CajaPage implements OnInit {
     });
   }
 
+
   cargarProductosSala() {
     this.productosLoading = true;
     this.productosError = '';
     this.productosService.list(false).subscribe({
       next: (data) => {
-        // muestra solo activos y opcionalmente solo stock en sala >= 0 (ya lo es)
+
         this.productos = data;
       },
       error: (err) => {
@@ -196,9 +222,9 @@ export class CajaPage implements OnInit {
   }
 
   irAProductosSala() {
-    const historialId = this.cajaActual?.historial?.idHistorial;
+    const sesionCajaId = this.cajaActual?.sesionCaja.idSesionCaja;
     this.router.navigate(['/pos/productos-sala'], {
-      queryParams: { historialId: historialId ?? null },
+      queryParams: { sesionCajaId: this.cajaActual?.sesionCaja.idSesionCaja},
     });
   }
 
@@ -206,7 +232,7 @@ export class CajaPage implements OnInit {
     this.incidenciaMsg = '';
     this.incidenciaError = '';
 
-    if (!this.cajaActual?.historial?.idHistorial) {
+    if (!this.cajaActual?.sesionCaja.idSesionCaja) {
       this.incidenciaError = 'No hay historial activo asociado a la caja.';
       return;
     }
@@ -221,7 +247,7 @@ export class CajaPage implements OnInit {
     const v = this.incidenciaForm.value;
 
     const payload = {
-      historialId: this.cajaActual.historial.idHistorial,
+      sesionCajaId: this.cajaActual.sesionCaja.idSesionCaja,
       productoId: String(v.productoId),
       tipo: v.tipo as IncidenciaTipo,
       cantidad: Number(v.cantidad),
@@ -265,13 +291,13 @@ export class CajaPage implements OnInit {
   }
 
   cargarVentasTurno() {
-    const historialId = this.cajaActual?.historial?.idHistorial;
-    if (!historialId) return;
+    const sesionCajaId = this.cajaActual?.sesionCaja.idSesionCaja;
+    if (!sesionCajaId) return;
 
     this.ventasLoading = true;
     this.ventasError = '';
 
-    this.ventasService.listar(historialId).subscribe({
+    this.ventasService.listar(sesionCajaId).subscribe({
       next: (data) => (this.ventas = data ?? []),
       error: (err) => {
         this.ventasError = err?.error?.message ?? 'No se pudieron cargar las ventas del turno.';
@@ -285,7 +311,7 @@ export class CajaPage implements OnInit {
   }
 
   verVenta(idVenta: number) {
-    this.router.navigate(['/pos/ventas', idVenta]); // misma vista, pero bloqueada por estado
+    this.router.navigate(['/pos/ventas', idVenta]); 
   }
 
   eliminarVentaEnEdicion(idVenta: number) {
@@ -298,7 +324,6 @@ export class CajaPage implements OnInit {
 
     this.ventasService.eliminarVenta(idVenta).subscribe({
       next: () => {
-        // refrescar lista
         this.cargarVentasTurno();
       },
       error: (err) => {

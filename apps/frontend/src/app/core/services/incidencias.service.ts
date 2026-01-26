@@ -15,7 +15,7 @@ export interface IncidenciaDto {
 }
 
 export interface CreateIncidenciaStockDto {
-  historialId: number;
+  sesionCajaId: number;
   productoId: string;
   tipo: IncidenciaTipo;
   cantidad: number;
@@ -27,14 +27,14 @@ export class IncidenciasService {
     private http = inject(HttpClient);
 
     crearIncidencia(dto: CreateIncidenciaStockDto): Observable<IncidenciaDto> {
-    return this.http.post<IncidenciaDto>('/api/historial/incidencias', dto);
+    return this.http.post<IncidenciaDto>('/api/sesion-caja/incidencias', dto);
     }
 
     misIncidencias(): Observable<IncidenciaDto[]> {
-        return this.http.get<IncidenciaDto[]>('/api/historial/incidencias/mias');
+        return this.http.get<IncidenciaDto[]>('/api/sesion-caja/incidencias/mias');
     }
 
     misIncidenciasTurno(): Observable<IncidenciaDto[]> {
-        return this.http.get<IncidenciaDto[]>('/api/historial/incidencias/mias/turno');
+        return this.http.get<IncidenciaDto[]>('/api/sesion-caja/incidencias/mias/turno');
     }
 }

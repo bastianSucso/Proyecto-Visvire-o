@@ -13,7 +13,7 @@ services:
       PGTZ: UTC
     command: ["postgres", "-c", "timezone=UTC"]
     ports:
-      - "5432:5432" # DEV: sí se expone para herramientas locales
+      - "5432:5432" 
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

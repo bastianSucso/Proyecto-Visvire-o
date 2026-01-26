@@ -6,21 +6,21 @@ import {
   JoinColumn,
   Unique,
 } from 'typeorm';
-import { HistorialEntity } from './historial.entity';
+import { SesionCajaEntity } from './sesion-caja.entity';
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 
 @Entity('historial_stock_venta')
-@Unique('ux_historial_producto', ['historial', 'producto'])
+@Unique('ux_sesion_caja_producto', ['sesionCaja', 'producto'])
 export class HistorialStockVentaEntity {
   @PrimaryGeneratedColumn('increment', { name: 'id_historial_stock_venta' })
   id!: number;
 
-  @ManyToOne(() => HistorialEntity, (h) => h.stocksVenta, {
+  @ManyToOne(() => SesionCajaEntity, (s) => s.stocksVenta, {
     nullable: false,
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'id_historial' })
-  historial!: HistorialEntity;
+  @JoinColumn({ name: 'id_sesion_caja' })
+  sesionCaja!: SesionCajaEntity;
 
   @ManyToOne(() => ProductoEntity, (p) => p.historialStockVenta, {
     nullable: false,

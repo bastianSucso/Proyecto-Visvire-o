@@ -2,7 +2,7 @@ import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, IsIn } from 'class
 
 export class CreateIncidenciaStockDto {
   @IsNotEmpty()
-  historialId!: number;
+  sesionCajaId!: number;
 
   @IsNotEmpty()
   productoId!: string;

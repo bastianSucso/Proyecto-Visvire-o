@@ -1,8 +1,11 @@
-import { Type } from 'class-transformer';
-import { IsNumber, Min } from 'class-validator';
+import { IsNumber, Min, IsOptional } from 'class-validator';
 
 export class AbrirCajaDto {
-  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  cajaId?: number;
+
   @IsNumber()
   @Min(0)
   montoInicial!: number;

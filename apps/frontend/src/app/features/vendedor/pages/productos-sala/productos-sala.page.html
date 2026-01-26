@@ -8,11 +8,11 @@
           Lista operativa para ventas. Aquí puedes reportar incidencias por producto.
         </p>
 
-        <p *ngIf="historialId" class="mt-1 text-xs text-slate-500">
-          Historial activo: <span class="font-medium text-slate-700">#{{ historialId }}</span>
+        <p *ngIf="sesionCajaId " class="mt-1 text-xs text-slate-500">
+          Historial activo: <span class="font-medium text-slate-700">#{{ sesionCajaId  }}</span>
         </p>
 
-        <p *ngIf="!historialId" class="mt-1 text-xs text-amber-700">
+        <p *ngIf="!sesionCajaId " class="mt-1 text-xs text-amber-700">
           No se detecta historial activo. Puedes ver productos, pero no podrás registrar incidencias.
         </p>
       </div>
@@ -121,11 +121,11 @@
                   <button
                     type="button"
                     (click)="abrirModalIncidencia(p)"
-                    [disabled]="!historialId"
+                    [disabled]="!sesionCajaId "
                     class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white"
                     [ngClass]="{
-                      'bg-blue-700 hover:bg-blue-800 active:bg-blue-900': historialId,
-                      'bg-slate-300 cursor-not-allowed': !historialId
+                      'bg-blue-700 hover:bg-blue-800 active:bg-blue-900': sesionCajaId ,
+                      'bg-slate-300 cursor-not-allowed': !sesionCajaId 
                     }"
                   >
                     Reportar incidencia

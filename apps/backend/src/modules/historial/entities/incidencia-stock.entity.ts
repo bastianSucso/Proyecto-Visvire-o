@@ -1,7 +1,7 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn,
 } from 'typeorm';
-import { HistorialEntity } from './historial.entity';
+import { SesionCajaEntity } from './sesion-caja.entity';
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 
@@ -12,9 +12,9 @@ export class IncidenciaStockEntity {
   @PrimaryGeneratedColumn('increment', { name: 'id_incidencia_stock' })
   id!: number;
 
-  @ManyToOne(() => HistorialEntity, { nullable: false, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'id_historial' })
-  historial!: HistorialEntity;
+  @ManyToOne(() => SesionCajaEntity, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'id_sesion_caja' }) 
+  sesionCaja!: SesionCajaEntity;
 
   @ManyToOne(() => ProductoEntity, { nullable: false })
   @JoinColumn({ name: 'id_producto' })

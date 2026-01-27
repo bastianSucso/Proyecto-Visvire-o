@@ -29,7 +29,6 @@ export interface VentaResponse {
   estado: VentaEstado;
   fechaCreacion: string;
   fechaConfirmacion: string | null
-  usuarioId: string;
   sesionCajaId: number;
   totalVenta?: string;
   cantidadTotal?: number;

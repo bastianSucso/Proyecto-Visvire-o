@@ -7,7 +7,6 @@ import {
   OneToMany,
   JoinColumn,
 } from 'typeorm';
-import { UserEntity } from '../../users/entities/user.entity';
 import { SesionCajaEntity } from '../../historial/entities/sesion-caja.entity';
 import { VentaItemEntity } from './venta-item.entity';
 
@@ -44,10 +43,6 @@ export class VentaEntity {
 
   @Column({ type: 'enum', enum: MedioPago, name: 'medio_pago', nullable: true })
   medioPago!: MedioPago | null;
-
-  @ManyToOne(() => UserEntity, { nullable: false })
-  @JoinColumn({ name: 'id_usuario' })
-  usuario!: UserEntity;
 
   @ManyToOne(() => SesionCajaEntity, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_sesioncaja' }) 

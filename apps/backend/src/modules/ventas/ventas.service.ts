@@ -53,7 +53,6 @@ export class VentasService {
       estado: v.estado,
       fechaCreacion: v.fechaCreacion,
       fechaConfirmacion: v.fechaConfirmacion ?? null,
-      usuarioId: (v.usuario as any)?.id,
       sesionCajaId: (v.sesionCaja as any)?.id,
       totalVenta: v.totalVenta,
       cantidadTotal: v.cantidadTotal,
@@ -102,12 +101,14 @@ export class VentasService {
     const venta = await ventaRepoTx.findOne({
       where: { idVenta },
       relations: withItems
-        ? { usuario: true, sesionCaja: true, items: { producto: true } }
-        : { usuario: true, sesionCaja: true },
+        ? { sesionCaja: { usuario: true }, items: { producto: true } }
+        : { sesionCaja: { usuario: true } },
     });
 
     if (!venta) throw new NotFoundException('Venta no encontrada');
-    if ((venta.usuario as any)?.id !== userId) throw new ForbiddenException('Acceso denegado');
+    if ((venta.sesionCaja as any)?.usuario?.id !== userId) {
+      throw new ForbiddenException('Acceso denegado');
+    }
 
     return venta;
   }
@@ -121,8 +122,7 @@ export class VentasService {
 
     const venta = ventaRepoTx.create({
       estado: VentaEstado.EN_EDICION,
-      usuario: { id: userId } as any,
-      sesionCaja: { id: sesion.id } as any, // ✅ AQUÍ
+      sesionCaja: { id: sesion.id } as any,
       totalVenta: '0.00',
       cantidadTotal: 0,
       fechaConfirmacion: null,
@@ -132,7 +132,7 @@ export class VentasService {
 
       const full = await ventaRepoTx.findOne({
         where: { idVenta: saved.idVenta },
-        relations: { usuario: true, sesionCaja: true, items: { producto: true } },
+        relations: { sesionCaja: { usuario: true }, items: { producto: true } },
       });
 
       return this.toVentaResponse(full!);
@@ -144,11 +144,13 @@ export class VentasService {
 
     const venta = await this.ventaRepo.findOne({
       where: { idVenta },
-      relations: { usuario: true, sesionCaja: true, items: { producto: true } },
+      relations: { sesionCaja: { usuario: true }, items: { producto: true } },
     });
 
     if (!venta) throw new NotFoundException('Venta no encontrada');
-    if ((venta.usuario as any)?.id !== userId) throw new ForbiddenException('Acceso denegado');
+    if ((venta.sesionCaja as any)?.usuario?.id !== userId) {
+      throw new ForbiddenException('Acceso denegado');
+    }
 
     return this.toVentaResponse(venta);
   }
@@ -210,7 +212,7 @@ export class VentasService {
 
       const full = await manager.getRepository(VentaEntity).findOne({
         where: { idVenta: venta.idVenta },
-        relations: { usuario: true, sesionCaja: true, items: { producto: true } },
+        relations: { sesionCaja: { usuario: true }, items: { producto: true } },
       });
 
       return this.toVentaResponse(full!);
@@ -253,7 +255,7 @@ export class VentasService {
 
       const full = await manager.getRepository(VentaEntity).findOne({
         where: { idVenta: venta.idVenta },
-        relations: { usuario: true, sesionCaja: true, items: { producto: true } },
+        relations: { sesionCaja: { usuario: true }, items: { producto: true } },
       });
 
       return this.toVentaResponse(full!);
@@ -283,7 +285,7 @@ export class VentasService {
 
       const full = await manager.getRepository(VentaEntity).findOne({
         where: { idVenta: venta.idVenta },
-        relations: { usuario: true, sesionCaja: true, items: { producto: true } },
+        relations: { sesionCaja: { usuario: true }, items: { producto: true } },
       });
 
       return this.toVentaResponse(full!);
@@ -326,7 +328,7 @@ export class VentasService {
 
       const full = await ventaRepoTx.findOne({
         where: { idVenta: venta.idVenta },
-        relations: { usuario: true, sesionCaja: true, items: { producto: true } },
+        relations: { sesionCaja: { usuario: true }, items: { producto: true } },
       });
 
       return this.toVentaResponse(full!);
@@ -336,7 +338,7 @@ export class VentasService {
   async listarVentas(userId: string, sesionCajaId?: number) {
     if (!userId) throw new BadRequestException('Token inválido');
 
-    const where: any = { usuario: { id: userId } };
+    const where: any = { sesionCaja: { usuario: { id: userId } } };
 
     if (sesionCajaId !== undefined) {
       if (!Number.isFinite(sesionCajaId) || sesionCajaId <= 0) {
@@ -374,11 +376,13 @@ export class VentasService {
 
       const venta = await ventaRepoTx.findOne({
         where: { idVenta },
-        relations: { usuario: true, sesionCaja: true },
+        relations: { sesionCaja: { usuario: true } },
       });
 
       if (!venta) throw new NotFoundException('Venta no encontrada');
-      if ((venta.usuario as any)?.id !== userId) throw new ForbiddenException('Acceso denegado');
+      if ((venta.sesionCaja as any)?.usuario?.id !== userId) {
+        throw new ForbiddenException('Acceso denegado');
+      }
 
       if ((venta.sesionCaja as any)?.id !== sesionAbierta.id) {
         throw new ForbiddenException('No puedes eliminar una venta de otra sesión.');

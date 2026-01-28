@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export type IncidenciaTipo = 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
@@ -11,7 +11,8 @@ export interface IncidenciaDto {
   cantidad: number;
   observacion: string | null;
   producto: { id: string; name: string; internalCode: string; barcode?: string | null };
-  historial: { idHistorial: number; fechaApertura: string; fechaCierre: string | null };
+  ubicacion?: { id: string; nombre: string; tipo: string };
+  sesionCaja: { id: number; fechaApertura: string; fechaCierre: string | null };
 }
 
 export interface CreateIncidenciaStockDto {

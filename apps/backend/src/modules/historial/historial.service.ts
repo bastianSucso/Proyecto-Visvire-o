@@ -5,6 +5,7 @@ import { IncidenciaStockEntity } from './entities/incidencia-stock.entity';
 import { SesionCajaEntity } from './entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import { CreateIncidenciaStockDto } from './dto/create-incidencia-stock.dto';
+import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 
 @Injectable()
 export class HistorialService {
@@ -17,6 +18,9 @@ export class HistorialService {
 
     @InjectRepository(IncidenciaStockEntity)
     private readonly incidenciaRepo: Repository<IncidenciaStockEntity>,
+
+    @InjectRepository(UbicacionEntity)
+    private readonly ubicacionRepo: Repository<UbicacionEntity>,
   ) {}
 
   async crearIncidencia(dto: CreateIncidenciaStockDto, usuarioId: string) {
@@ -24,16 +28,29 @@ export class HistorialService {
     if (!sesionId) throw new BadRequestException('Falta sesionCajaId (o historialId)');
 
     const sesionCaja = await this.sesionRepo.findOne({
-      where: { id: sesionId },
+      where: {
+        id: sesionId,
+        usuario: { idUsuario: usuarioId },
+        fechaCierre: IsNull(),
+      },
     });
-    if (!sesionCaja) throw new BadRequestException('Sesión de caja no existe');
+    if (!sesionCaja) {
+      throw new BadRequestException('Sesión de caja no existe o no está activa');
+    }
 
     const producto = await this.productoRepo.findOne({ where: { id: dto.productoId } });
     if (!producto) throw new BadRequestException('Producto no existe');
 
+    const sala = await this.ubicacionRepo.findOne({
+      where: { tipo: 'SALA_VENTA', activa: true } as any,
+      order: { createdAt: 'ASC' },
+    });
+    if (!sala) throw new BadRequestException('No existe sala de ventas activa');
+
     const inc = this.incidenciaRepo.create({
       sesionCaja, 
       producto,
+      ubicacion: sala,
       usuario: { idUsuario: usuarioId } as any,
       tipo: dto.tipo,
       cantidad: dto.cantidad,
@@ -51,6 +68,7 @@ export class HistorialService {
       ],
       relations: {
         producto: true,
+        ubicacion: true,
         sesionCaja: true,
       },
       order: {
@@ -75,7 +93,7 @@ export class HistorialService {
       where: {
         sesionCaja: { id: sesionActiva.id },
       },
-      relations: { producto: true, sesionCaja: true },
+      relations: { producto: true, ubicacion: true, sesionCaja: true },
       order: { fecha: 'DESC' },
     });
   }

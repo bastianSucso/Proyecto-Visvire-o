@@ -1,4 +1,5 @@
-import { HistorialStockVentaEntity } from '../../../modules/historial/entities/historial-stock-venta.entity';
+import { StockSesionCajaEntity } from '../../../modules/historial/entities/stock-sesion-caja.entity';
+import { ProductoStockEntity } from './producto-stock.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -33,13 +34,6 @@ export class ProductoEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   unidadBase: string | null;
 
-  // cantidades (según MER)
-  @Column({ type: 'int', default: 0 })
-  stockBodega: number; // cantidad_bodega
-
-  @Column({ type: 'int', default: 0 })
-  stockSalaVenta: number; // cantidad_sala_ventas
-
   // precios
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   precioCosto: string; // precio_base_producto
@@ -57,6 +51,9 @@ export class ProductoEntity {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => HistorialStockVentaEntity, (hsv) => hsv.producto)
-  historialStockVenta: HistorialStockVentaEntity[];
+  @OneToMany(() => ProductoStockEntity, (ps) => ps.producto)
+  stocks: ProductoStockEntity[];
+
+  @OneToMany(() => StockSesionCajaEntity, (ss) => ss.producto)
+  stockSesionesCaja: StockSesionCajaEntity[];
 }

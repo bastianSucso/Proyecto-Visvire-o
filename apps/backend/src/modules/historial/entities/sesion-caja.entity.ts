@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { UserEntity } from '../../users/entities/user.entity';
 import { CajaEntity } from '../../caja/entities/caja.entity';
-import { HistorialStockVentaEntity } from './historial-stock-venta.entity';
+import { StockSesionCajaEntity } from './stock-sesion-caja.entity';
 
 export enum SesionCajaEstado {
   ABIERTA = 'ABIERTA',
@@ -58,6 +58,6 @@ export class SesionCajaEntity {
   @JoinColumn({ name: 'id_usuario_abre' })
   usuario!: UserEntity;
 
-  @OneToMany(() => HistorialStockVentaEntity, (hsv) => hsv.sesionCaja)
-  stocksVenta!: HistorialStockVentaEntity[];
+  @OneToMany(() => StockSesionCajaEntity, (ss) => ss.sesionCaja)
+  stocksVenta!: StockSesionCajaEntity[];
 }

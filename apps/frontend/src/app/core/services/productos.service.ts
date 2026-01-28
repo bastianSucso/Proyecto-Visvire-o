@@ -7,15 +7,14 @@ export interface Producto {
   internalCode: string;
   barcode: string | null;
   unidadBase: string | null;
-  stockBodega: number;
-  stockSalaVenta: number;
+  stockSalaVenta?: number;
   precioCosto: string;
   precioVenta: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 
-  cantidadTotal: number;
+  cantidadTotal?: number;
   gananciaProducto: number;
 }
 
@@ -26,8 +25,6 @@ export interface CreateProductoDto {
   unidadBase?: string;
   precioCosto: number;
   precioVenta: number;
-  stockBodega?: number;
-  stockSalaVenta?: number;
 }
 
 export interface UpdateProductoDto {
@@ -37,8 +34,6 @@ export interface UpdateProductoDto {
   unidadBase?: string | null;
   precioCosto?: number;
   precioVenta?: number;
-  stockBodega?: number;
-  stockSalaVenta?: number;
   isActive?: boolean;
 }
 

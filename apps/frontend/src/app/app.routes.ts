@@ -20,6 +20,8 @@ export const routes: Routes = [
       {path: 'dashboard', loadComponent: () =>import('./features/admin/pages/dashboard/dashboard.page').then(m => m.DashboardPage),},
       {path: 'users', loadComponent: () => import('./features/admin/pages/users/users.page').then(m => m.UsersPage),},
       {path: 'productos', loadComponent: () => import('./features/admin/pages/productos/productos.page').then(m => m.ProductosPage),},
+      {path: 'bodegas', loadComponent: () => import('./features/admin/pages/bodegas/bodegas.page').then(m => m.BodegasPage),},
+      {path: 'cajas', loadComponent: () => import('./features/admin/pages/cajas/cajas.page').then(m => m.CajasPage),},
     ],
   },
 

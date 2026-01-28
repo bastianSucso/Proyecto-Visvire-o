@@ -4,28 +4,65 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { ProductoEntity } from './entities/producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
+import { ProductoStockEntity } from './entities/producto-stock.entity';
+import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 
 @Injectable()
 export class ProductosService {
   constructor(
     @InjectRepository(ProductoEntity)
     private readonly repo: Repository<ProductoEntity>,
+    @InjectRepository(ProductoStockEntity)
+    private readonly stockRepo: Repository<ProductoStockEntity>,
+    @InjectRepository(UbicacionEntity)
+    private readonly ubicacionRepo: Repository<UbicacionEntity>,
   ) {}
 
   // Derivados según MER (no persistidos)
-  private toResponse(p: ProductoEntity) {
+  private toResponse(
+    p: ProductoEntity,
+    extra?: { cantidadTotal?: number; stockSalaVenta?: number },
+  ) {
     const costo = Number(p.precioCosto);
     const venta = Number(p.precioVenta);
+    const cantidadTotal = extra?.cantidadTotal ?? 0;
+    const stockSalaVenta = extra?.stockSalaVenta;
 
     return {
-      ...p,
-      cantidadTotal: p.stockBodega + p.stockSalaVenta,
+      id: p.id,
+      name: p.name,
+      internalCode: p.internalCode,
+      barcode: p.barcode,
+      unidadBase: p.unidadBase,
+      precioCosto: p.precioCosto,
+      precioVenta: p.precioVenta,
+      isActive: p.isActive,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      ...(stockSalaVenta !== undefined ? { stockSalaVenta } : {}),
+      cantidadTotal,
       gananciaProducto: Number((venta - costo).toFixed(2)),
     };
+  }
+
+  private async getSalaVentaActivaOrThrow(): Promise<UbicacionEntity> {
+    const sala = await this.ubicacionRepo.findOne({
+      where: { tipo: 'SALA_VENTA', activa: true } as any,
+      order: { createdAt: 'ASC' },
+    });
+    if (!sala) throw new NotFoundException('No existe sala de ventas activa.');
+    return sala;
+  }
+
+  private async getCantidadTotalByProductoId(id: string): Promise<number> {
+    const stocks = await this.stockRepo.find({
+      where: { producto: { id } } as any,
+    });
+    return stocks.reduce((sum, s) => sum + (s.cantidad ?? 0), 0);
   }
 
   async findAll(includeInactive = false) {
@@ -33,14 +70,40 @@ export class ProductosService {
     const items = await this.repo.find({
       where,
       order: { createdAt: 'DESC' },
+      relations: { stocks: true },
     });
-    return items.map((p) => this.toResponse(p));
+
+    return items.map((p) => {
+      const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + (s.cantidad ?? 0), 0);
+      return this.toResponse(p, { cantidadTotal });
+    });
   }
 
   async findOne(id: string) {
-    const p = await this.repo.findOne({ where: { id } });
+    const p = await this.repo.findOne({
+      where: { id },
+      relations: { stocks: true },
+    });
     if (!p) throw new NotFoundException('Producto no encontrado');
-    return this.toResponse(p);
+    const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + (s.cantidad ?? 0), 0);
+    return this.toResponse(p, { cantidadTotal });
+  }
+
+  async findSala() {
+    const sala = await this.getSalaVentaActivaOrThrow();
+
+    const qb = this.repo
+      .createQueryBuilder('p')
+      .leftJoin('p.stocks', 'ps', 'ps.id_ubicacion = :idUb', { idUb: sala.id })
+      .addSelect('COALESCE(ps.cantidad, 0)', 'stockSalaVenta')
+      .where('p.isActive = :active', { active: true })
+      .orderBy('p.name', 'ASC');
+
+    const { entities, raw } = await qb.getRawAndEntities();
+
+    return entities.map((p, i) =>
+      this.toResponse(p, { stockSalaVenta: Number(raw[i]?.stockSalaVenta ?? 0) }),
+    );
   }
 
   async create(dto: CreateProductoDto) {
@@ -64,15 +127,31 @@ export class ProductosService {
       internalCode,
       barcode,
       unidadBase: dto.unidadBase?.trim() || null,
-      stockBodega: dto.stockBodega ?? 0,
-      stockSalaVenta: dto.stockSalaVenta ?? 0,
       precioCosto: dto.precioCosto.toFixed(2),
       precioVenta: dto.precioVenta.toFixed(2),
       isActive: true,
     });
 
     const saved = await this.repo.save(entity);
-    return this.toResponse(saved);
+
+    const ubicaciones = await this.ubicacionRepo.find({
+      where: { activa: true } as any,
+      order: { createdAt: 'ASC' },
+    });
+
+    if (ubicaciones.length > 0) {
+      const stocks = ubicaciones.map((u) =>
+        this.stockRepo.create({
+          producto: saved,
+          ubicacion: u,
+          cantidad: 0,
+        }),
+      );
+      await this.stockRepo.save(stocks);
+    }
+
+    const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
+    return this.toResponse(saved, { cantidadTotal });
   }
 
   async update(id: string, dto: UpdateProductoDto) {
@@ -113,7 +192,8 @@ export class ProductosService {
     if (dto.isActive !== undefined) existing.isActive = dto.isActive;
 
     const saved = await this.repo.save(existing);
-    return this.toResponse(saved);
+    const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
+    return this.toResponse(saved, { cantidadTotal });
   }
 
   async setActive(id: string, isActive: boolean) {
@@ -121,7 +201,8 @@ export class ProductosService {
     if (!p) throw new NotFoundException('Producto no encontrado');
     p.isActive = isActive;
     const saved = await this.repo.save(p);
-    return this.toResponse(saved);
+    const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
+    return this.toResponse(saved, { cantidadTotal });
   }
 
   async remove(id: string) {

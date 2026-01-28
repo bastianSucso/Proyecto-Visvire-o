@@ -4,6 +4,7 @@ import {
 import { SesionCajaEntity } from './sesion-caja.entity';
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 import { UserEntity } from '../../users/entities/user.entity';
+import { UbicacionEntity } from '../../ubicaciones/entities/ubicacion.entity';
 
 export type IncidenciaTipo = 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
 
@@ -19,6 +20,10 @@ export class IncidenciaStockEntity {
   @ManyToOne(() => ProductoEntity, { nullable: false })
   @JoinColumn({ name: 'id_producto' })
   producto!: ProductoEntity;
+
+  @ManyToOne(() => UbicacionEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_ubicacion' })
+  ubicacion!: UbicacionEntity;
 
   @ManyToOne(() => UserEntity, { nullable: false })
   @JoinColumn({ name: 'id_usuario' })

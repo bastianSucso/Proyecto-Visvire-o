@@ -39,16 +39,4 @@ export class CreateProductoDto {
   @Min(0)
   precioVenta: number;
 
-  // stocks iniciales (opcionales; default 0 en entity)
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  stockBodega?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  stockSalaVenta?: number;
 }

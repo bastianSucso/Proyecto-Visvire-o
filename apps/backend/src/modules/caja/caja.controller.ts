@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -66,5 +67,11 @@ export class CajaController {
     @Body() dto: UpdateCajaDto,
   ) {
     return this.cajaService.actualizarCajaFisica(idCaja, dto);
+  }
+
+  @Roles('ADMIN')
+  @Delete('admin/:idCaja')
+  eliminarCajaFisica(@Param('idCaja', ParseIntPipe) idCaja: number) {
+    return this.cajaService.eliminarCajaFisica(idCaja);
   }
 }

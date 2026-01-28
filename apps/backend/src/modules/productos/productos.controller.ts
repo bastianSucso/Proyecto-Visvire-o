@@ -25,7 +25,7 @@ export class ProductosController {
   @Get('sala')
   @Roles('ADMIN', 'VENDEDOR')
   findSala() {
-    return this.service.findAll(false);
+    return this.service.findSala();
   }
 
   @Get('suggest-internal-code')

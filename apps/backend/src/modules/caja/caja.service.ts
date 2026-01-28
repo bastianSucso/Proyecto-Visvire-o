@@ -5,12 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 
 import { CajaEntity } from './entities/caja.entity';
 import { SesionCajaEntity, SesionCajaEstado } from '../historial/entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
-import { HistorialStockVentaEntity } from '../historial/entities/historial-stock-venta.entity';
+import { StockSesionCajaEntity } from '../historial/entities/stock-sesion-caja.entity';
+import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
+import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 
 import { AbrirCajaDto } from './dto/abrir-caja.dto';
 import { UpdateCajaDto } from './dto/update-caja.dto';
@@ -23,7 +25,9 @@ export class CajaService {
     @InjectRepository(CajaEntity) private readonly cajaRepo: Repository<CajaEntity>,
     @InjectRepository(SesionCajaEntity) private readonly sesionRepo: Repository<SesionCajaEntity>,
     @InjectRepository(ProductoEntity) private readonly productoRepo: Repository<ProductoEntity>,
-    @InjectRepository(HistorialStockVentaEntity) private readonly hsvRepo: Repository<HistorialStockVentaEntity>,
+    @InjectRepository(StockSesionCajaEntity) private readonly stockSesionRepo: Repository<StockSesionCajaEntity>,
+    @InjectRepository(ProductoStockEntity) private readonly productoStockRepo: Repository<ProductoStockEntity>,
+    @InjectRepository(UbicacionEntity) private readonly ubicacionRepo: Repository<UbicacionEntity>,
   ) {}
 
   // =========================
@@ -56,6 +60,15 @@ export class CajaService {
     const caja = await this.cajaRepo.findOne({ where: { idCaja } });
     if (!caja) throw new NotFoundException(`Caja física #${idCaja} no existe`);
     return caja;
+  }
+
+  private async getSalaVentaActivaOrThrow(): Promise<UbicacionEntity> {
+    const sala = await this.ubicacionRepo.findOne({
+      where: { tipo: 'SALA_VENTA', activa: true } as any,
+      order: { createdAt: 'ASC' },
+    });
+    if (!sala) throw new BadRequestException('No existe sala de ventas activa.');
+    return sala;
   }
 
   // =========================
@@ -122,6 +135,20 @@ export class CajaService {
     return { idCaja: saved.idCaja, numero: saved.numero, activa: saved.activa };
   }
 
+  async eliminarCajaFisica(idCaja: number) {
+    const caja = await this.getCajaFisicaByIdOrThrow(idCaja);
+
+    const sesiones = await this.sesionRepo.count({ where: { caja: { idCaja } } as any });
+    if (sesiones > 0) {
+      throw new ConflictException(
+        'No se puede eliminar: la caja tiene referencias. Desactívala en su lugar.',
+      );
+    }
+
+    await this.cajaRepo.remove(caja);
+    return { ok: true };
+  }
+
   // =========================
   // VENDEDOR: abrir / actual
   // =========================
@@ -163,7 +190,10 @@ export class CajaService {
     return this.dataSource.transaction(async (manager) => {
       const sesionRepoTx = manager.getRepository(SesionCajaEntity);
       const productoRepoTx = manager.getRepository(ProductoEntity);
-      const hsvRepoTx = manager.getRepository(HistorialStockVentaEntity);
+      const stockSesionRepoTx = manager.getRepository(StockSesionCajaEntity);
+      const productoStockRepoTx = manager.getRepository(ProductoStockEntity);
+
+      const sala = await this.getSalaVentaActivaOrThrow();
 
       const sesion = sesionRepoTx.create({
         caja: cajaFisica,
@@ -179,21 +209,36 @@ export class CajaService {
       // snapshot stock inicial por producto
       const productos = await productoRepoTx.find({
         where: { isActive: true },
-        select: ['id', 'stockSalaVenta'],
+        select: ['id'],
       });
 
       if (productos.length > 0) {
+        const productoIds = productos.map((p) => p.id);
+
+        const stocks = await productoStockRepoTx.find({
+          where: {
+            ubicacion: { id: sala.id },
+            producto: { id: In(productoIds) } as any,
+          } as any,
+          relations: { producto: true },
+        });
+
+        const stockMap = new Map(
+          stocks.map((s) => [s.producto.id, Math.max(0, s.cantidad ?? 0)]),
+        );
+
         const values = productos.map((p) => ({
           sesionCaja: { id: sesionGuardada.id } as any,
           producto: { id: p.id } as any,
-          stockInicial: Math.max(0, p.stockSalaVenta ?? 0),
+          ubicacion: { id: sala.id } as any,
+          stockInicial: stockMap.get(p.id) ?? 0,
           stockFinal: null,
         }));
 
-        await hsvRepoTx
+        await stockSesionRepoTx
           .createQueryBuilder()
           .insert()
-          .into(HistorialStockVentaEntity)
+          .into(StockSesionCajaEntity)
           .values(values)
           .execute();
       }

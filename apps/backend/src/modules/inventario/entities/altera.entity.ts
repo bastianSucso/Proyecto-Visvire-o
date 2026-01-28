@@ -10,6 +10,7 @@ import { ProductoEntity } from '../../productos/entities/producto.entity';
 import { UbicacionEntity } from '../../ubicaciones/entities/ubicacion.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 import { InventarioDocumentoEntity } from './inventario-documento.entity';
+import { VentaEntity } from '../../ventas/entities/venta.entity';
 
 export type AlteraTipo = 'INGRESO' | 'AJUSTE' | 'SALIDA' | 'TRASPASO';
 
@@ -53,4 +54,8 @@ export class AlteraEntity {
   @ManyToOne(() => InventarioDocumentoEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'id_documento' })
   documento!: InventarioDocumentoEntity | null;
+
+  @ManyToOne(() => VentaEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'id_venta' })
+  venta!: VentaEntity | null;
 }

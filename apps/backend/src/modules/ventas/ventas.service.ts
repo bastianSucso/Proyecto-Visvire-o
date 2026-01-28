@@ -10,6 +10,9 @@ import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 
 import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
+import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
+import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
+import { AlteraEntity } from '../inventario/entities/altera.entity';
 
 import { VentaEntity, VentaEstado } from './entities/venta.entity';
 import { VentaItemEntity } from './entities/venta-item.entity';
@@ -25,6 +28,9 @@ export class VentasService {
     @InjectRepository(VentaItemEntity) private readonly itemRepo: Repository<VentaItemEntity>,
     @InjectRepository(SesionCajaEntity) private readonly sesionRepo: Repository<SesionCajaEntity>,
     @InjectRepository(ProductoEntity) private readonly productoRepo: Repository<ProductoEntity>,
+    @InjectRepository(UbicacionEntity) private readonly ubicacionRepo: Repository<UbicacionEntity>,
+    @InjectRepository(ProductoStockEntity) private readonly stockRepo: Repository<ProductoStockEntity>,
+    @InjectRepository(AlteraEntity) private readonly alteraRepo: Repository<AlteraEntity>,
   ) {}
 
   private async getSesionAbiertaOrFail(userId: string) {
@@ -300,8 +306,26 @@ export class VentasService {
 
     return this.dataSource.transaction(async (manager) => {
       const ventaRepoTx = manager.getRepository(VentaEntity);
+      const stockRepoTx = manager.getRepository(ProductoStockEntity);
+      const ubicacionRepoTx = manager.getRepository(UbicacionEntity);
+      const alteraRepoTx = manager.getRepository(AlteraEntity);
 
-      const venta = await this.getVentaOrFail(manager, userId, idVenta, false);
+      const ventaLocked = await ventaRepoTx.findOne({
+        where: { idVenta },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!ventaLocked) throw new NotFoundException('Venta no encontrada');
+
+      const venta = await ventaRepoTx.findOne({
+        where: { idVenta },
+        relations: { sesionCaja: { usuario: true }, items: { producto: true } },
+      });
+
+      if (!venta) throw new NotFoundException('Venta no encontrada');
+      if ((venta.sesionCaja as any)?.usuario?.idUsuario !== userId) {
+        throw new ForbiddenException('Acceso denegado');
+      }
 
       if (venta.estado !== VentaEstado.EN_EDICION) {
         throw new ConflictException('La venta no está en edición o ya fue confirmada.');
@@ -313,6 +337,72 @@ export class VentasService {
 
       if (Number(totals.totalVenta) <= 0) {
         throw new ConflictException('No se puede confirmar una venta con total igual a 0.');
+      }
+
+      const sala = await ubicacionRepoTx.findOne({
+        where: { tipo: 'SALA_VENTA', activa: true },
+        order: { createdAt: 'ASC' },
+      });
+      if (!sala) throw new ConflictException('No hay sala de ventas activa.');
+
+      const items = venta.items ?? [];
+      if (items.length === 0) {
+        throw new ConflictException('No se puede confirmar una venta sin productos.');
+      }
+
+      for (const it of items) {
+        const productoId = (it.producto as any)?.id;
+        if (!productoId) throw new BadRequestException('Producto inválido en la venta.');
+
+        const stockRow = await stockRepoTx.findOne({
+          where: {
+            producto: { id: productoId } as any,
+            ubicacion: { id: sala.id } as any,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        const disponible = stockRow?.cantidad ?? 0;
+        if (disponible < it.cantidad) {
+          const nombre = (it.producto as any)?.name ?? 'Producto';
+          throw new ConflictException(
+            `Stock insuficiente para ${nombre}. Disponible: ${disponible}.`,
+          );
+        }
+      }
+
+      for (const it of items) {
+        const productoId = (it.producto as any)?.id;
+        const stockRow = await stockRepoTx.findOne({
+          where: {
+            producto: { id: productoId } as any,
+            ubicacion: { id: sala.id } as any,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        const disponible = stockRow?.cantidad ?? 0;
+        if (!stockRow) {
+          throw new ConflictException('Stock no inicializado para un producto.');
+        }
+
+        stockRow.cantidad = disponible - it.cantidad;
+        await stockRepoTx.save(stockRow);
+
+        const mov = alteraRepoTx.create({
+          tipo: 'SALIDA',
+          cantidad: it.cantidad,
+          motivo: `Salida por venta #${venta.idVenta}`,
+          producto: { id: productoId } as ProductoEntity,
+          ubicacion: sala,
+          origen: null,
+          destino: null,
+          usuario: { idUsuario: userId } as any,
+          documento: null,
+          venta: { idVenta: venta.idVenta } as any,
+        });
+
+        await alteraRepoTx.save(mov);
       }
 
       await ventaRepoTx.update(

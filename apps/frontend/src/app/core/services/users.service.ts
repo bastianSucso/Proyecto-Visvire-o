@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { UserRole } from './auth.service';
 
 export interface UserDto {
-  id: string;
+  idUsuario: string;
   email: string;
   nombre?: string;
   apellido?: string;

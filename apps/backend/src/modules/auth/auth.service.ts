@@ -24,15 +24,15 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
     if (!user.isActive) throw new ForbiddenException('Usuario deshabilitado');
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
+    const ok = await bcrypt.compare(password, user.password);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
 
-    const payload = { sub: user.id, role: user.role };
+    const payload = { sub: user.idUsuario, role: user.role };
     const accessToken = await this.jwt.signAsync(payload);
 
     return {
       accessToken,
-      user: { id: user.id, email: user.email, role: user.role },
+      user: { idUsuario: user.idUsuario, email: user.email, role: user.role },
     };
   }
 }

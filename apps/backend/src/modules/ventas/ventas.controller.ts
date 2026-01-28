@@ -15,22 +15,22 @@ export class VentasController {
 
   @Post()
   crear(@Req() req: any) {
-    return this.service.crearVenta(req.user.id);
+    return this.service.crearVenta(req.user.idUsuario);
   }
 
   @Get(':idVenta')
   obtener(@Req() req: any, @Param('idVenta') idVenta: string) {
-    return this.service.obtenerVenta(req.user.id, Number(idVenta));
+    return this.service.obtenerVenta(req.user.idUsuario, Number(idVenta));
   }
 
   @Delete(':idVenta')
   eliminarVenta(@Req() req: any, @Param('idVenta') idVenta: string) {
-    return this.service.eliminarVenta(req.user.id, Number(idVenta));
+    return this.service.eliminarVenta(req.user.idUsuario, Number(idVenta));
   }
 
   @Post(':idVenta/items')
   agregarItem(@Req() req: any, @Param('idVenta') idVenta: string, @Body() dto: AddItemVentaDto) {
-    return this.service.agregarItem(req.user.id, Number(idVenta), dto);
+    return this.service.agregarItem(req.user.idUsuario, Number(idVenta), dto);
   }
 
   @Patch(':idVenta/items/:idItem')
@@ -40,23 +40,23 @@ export class VentasController {
     @Param('idItem') idItem: string,
     @Body() dto: UpdateItemVentaDto,
   ) {
-    return this.service.actualizarItem(req.user.id, Number(idVenta), Number(idItem), dto);
+    return this.service.actualizarItem(req.user.idUsuario, Number(idVenta), Number(idItem), dto);
   }
 
   @Patch(':idVenta/confirmar')
   confirmar(@Req() req: any, @Param('idVenta') idVenta: string, @Body() dto: ConfirmarVentaDto,) {
-    return this.service.confirmarVenta(req.user.id, Number(idVenta), dto);
+    return this.service.confirmarVenta(req.user.idUsuario, Number(idVenta), dto);
   }
 
   // HU-CJ-04: Eliminar item
   @Delete(':idVenta/items/:idItem')
   eliminarItem(@Req() req: any, @Param('idVenta') idVenta: string, @Param('idItem') idItem: string) {
-    return this.service.eliminarItem(req.user.id, Number(idVenta), Number(idItem));
+    return this.service.eliminarItem(req.user.idUsuario, Number(idVenta), Number(idItem));
   }
     
   @Get()
   list(@Req() req: any, @Query('sesionCajaId') sesionCajaId?: string) {
-    return this.service.listarVentas(req.user.id, sesionCajaId ? Number(sesionCajaId) : undefined);
+    return this.service.listarVentas(req.user.idUsuario, sesionCajaId ? Number(sesionCajaId) : undefined);
   }
 
 }

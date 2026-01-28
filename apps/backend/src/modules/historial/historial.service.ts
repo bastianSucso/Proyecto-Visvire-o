@@ -34,7 +34,7 @@ export class HistorialService {
     const inc = this.incidenciaRepo.create({
       sesionCaja, 
       producto,
-      usuario: { id: usuarioId } as any,
+      usuario: { idUsuario: usuarioId } as any,
       tipo: dto.tipo,
       cantidad: dto.cantidad,
       observacion: dto.observacion ?? null,
@@ -47,7 +47,7 @@ export class HistorialService {
 
     return this.incidenciaRepo.find({
       where: [
-        { sesionCaja: { usuario: { id: userId } } },
+        { sesionCaja: { usuario: { idUsuario: userId } } },
       ],
       relations: {
         producto: true,
@@ -63,7 +63,7 @@ export class HistorialService {
     // ✅ buscamos la sesión ABIERTA más reciente donde el usuario abrió
     const sesionActiva = await this.sesionRepo.findOne({
       where: {
-        usuario: { id: userId },
+        usuario: { idUsuario: userId },
         fechaCierre: IsNull(),
       },
       order: { fechaApertura: 'DESC' },

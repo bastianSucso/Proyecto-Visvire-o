@@ -146,7 +146,7 @@ export class CajaService {
 
     // Regla 1: un usuario solo puede tener 1 sesión abierta
     const sesionUsuario = await this.sesionRepo.findOne({
-      where: { usuario: { id: userId }, fechaCierre: IsNull() },
+      where: { usuario: { idUsuario: userId }, fechaCierre: IsNull() },
     });
     if (sesionUsuario) {
       throw new ConflictException('Ya tienes una sesión de caja ABIERTA.');
@@ -167,7 +167,7 @@ export class CajaService {
 
       const sesion = sesionRepoTx.create({
         caja: cajaFisica,
-        usuario: { id: userId } as any,
+        usuario: { idUsuario: userId } as any,
         fechaCierre: null,
         montoInicial: monto.toFixed(2),
         montoFinal: null,
@@ -221,7 +221,7 @@ export class CajaService {
 
     // Profesional: si el usuario tiene sesión abierta, devolvemos ESA (no “la default”)
     const sesionUsuario = await this.sesionRepo.findOne({
-      where: { usuario: { id: userId }, fechaCierre: IsNull() },
+      where: { usuario: { idUsuario: userId }, fechaCierre: IsNull() },
       relations: { caja: true, usuario: true },
       order: { fechaApertura: 'DESC' },
     });
@@ -242,7 +242,7 @@ export class CajaService {
         montoInicial: sesionUsuario.montoInicial,
         montoFinal: sesionUsuario.montoFinal,
         usuario: {
-          id: (sesionUsuario.usuario as any)?.id,
+          idUsuario: (sesionUsuario.usuario as any)?.idUsuario,
           email: (sesionUsuario.usuario as any)?.email,
         },
       },

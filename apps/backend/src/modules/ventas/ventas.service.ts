@@ -31,7 +31,7 @@ export class VentasService {
     if (!userId) throw new BadRequestException('Token inválido: no viene id/sub');
 
     const sesion = await this.sesionRepo.findOne({
-      where: { usuario: { id: userId }, fechaCierre: IsNull() },
+      where: { usuario: { idUsuario: userId }, fechaCierre: IsNull() },
       relations: { caja: true, usuario: true },
       order: { fechaApertura: 'DESC' },
     });
@@ -106,7 +106,7 @@ export class VentasService {
     });
 
     if (!venta) throw new NotFoundException('Venta no encontrada');
-    if ((venta.sesionCaja as any)?.usuario?.id !== userId) {
+    if ((venta.sesionCaja as any)?.usuario?.idUsuario !== userId) {
       throw new ForbiddenException('Acceso denegado');
     }
 
@@ -148,7 +148,7 @@ export class VentasService {
     });
 
     if (!venta) throw new NotFoundException('Venta no encontrada');
-    if ((venta.sesionCaja as any)?.usuario?.id !== userId) {
+    if ((venta.sesionCaja as any)?.usuario?.idUsuario !== userId) {
       throw new ForbiddenException('Acceso denegado');
     }
 
@@ -338,7 +338,7 @@ export class VentasService {
   async listarVentas(userId: string, sesionCajaId?: number) {
     if (!userId) throw new BadRequestException('Token inválido');
 
-    const where: any = { sesionCaja: { usuario: { id: userId } } };
+    const where: any = { sesionCaja: { usuario: { idUsuario: userId } } };
 
     if (sesionCajaId !== undefined) {
       if (!Number.isFinite(sesionCajaId) || sesionCajaId <= 0) {
@@ -380,7 +380,7 @@ export class VentasService {
       });
 
       if (!venta) throw new NotFoundException('Venta no encontrada');
-      if ((venta.sesionCaja as any)?.usuario?.id !== userId) {
+      if ((venta.sesionCaja as any)?.usuario?.idUsuario !== userId) {
         throw new ForbiddenException('Acceso denegado');
       }
 

@@ -25,11 +25,11 @@ async function seedAdmin() {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(pass, 10);
+  const password = await bcrypt.hash(pass, 10);
 
   const admin = repo.create({
     email,
-    passwordHash,
+    password,
     role: 'ADMIN',
     isActive: true,
     nombre: 'Admin',

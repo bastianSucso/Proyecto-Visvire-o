@@ -111,7 +111,7 @@ export class CajaPage implements OnInit {
   }
 
   get montoTotalCajaCLP(): number {
-    return this.montoInicialCLP + this.totalVentasCLP;
+    return this.montoInicialCLP + this.totalEfectivoCLP;
   }
 
   ngOnInit() {

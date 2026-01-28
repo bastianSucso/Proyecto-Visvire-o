@@ -7,7 +7,7 @@ export type UserRole = 'ADMIN' | 'VENDEDOR';
 
 interface LoginResponse {
   accessToken: string;
-  user: { id: string; email: string; role: UserRole };
+  user: { idUsuario: string; email: string; role: UserRole };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -39,7 +39,7 @@ export class AuthService {
     return localStorage.getItem(this.TOKEN_KEY);
   }
 
-  get user(): { id: string; email: string; role: UserRole } | null {
+  get user(): { idUsuario: string; email: string; role: UserRole } | null {
     const raw = localStorage.getItem(this.USER_KEY);
     return raw ? JSON.parse(raw) : null;
   }

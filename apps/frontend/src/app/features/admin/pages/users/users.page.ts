@@ -181,14 +181,14 @@ export class UsersPage {
     // edición: password opcional
     if (v.password) payload.password = v.password;
 
-    this.usersApi.update(this.editing.id, payload).subscribe({
+    this.usersApi.update(this.editing.idUsuario, payload).subscribe({
       next: () => { this.closeModal(); this.refresh(); },
       error: (e) => (this.errorMsg = e?.error?.message || 'Error al actualizar usuario'),
     });
   }
 
   toggleActive(u: UserDto) {
-    this.usersApi.setActive(u.id, !u.isActive).subscribe({
+    this.usersApi.setActive(u.idUsuario, !u.isActive).subscribe({
       next: () => this.refresh(),
       error: (e) => (this.errorMsg = e?.error?.message || 'No se pudo actualizar estado'),
     });
@@ -198,7 +198,7 @@ export class UsersPage {
     const ok = confirm(`¿Eliminar al usuario ${u.email}? Esta acción no se puede deshacer.`);
     if (!ok) return;
 
-    this.usersApi.delete(u.id).subscribe({
+    this.usersApi.delete(u.idUsuario).subscribe({
       next: () => this.refresh(),
       error: (e) => (this.errorMsg = e?.error?.message || 'No se pudo eliminar el usuario'),
     });

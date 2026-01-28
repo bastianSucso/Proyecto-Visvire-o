@@ -29,13 +29,13 @@ export class CajaController {
   @Roles('VENDEDOR')
   @Post('abrir')
   abrir(@Req() req: any, @Body() dto: AbrirCajaDto) {
-    return this.cajaService.abrirCaja(req.user.id, dto);
+    return this.cajaService.abrirCaja(req.user.idUsuario, dto);
   }
 
   @Roles('VENDEDOR')
   @Get('actual')
   actual(@Req() req: any) {
-    return this.cajaService.cajaActual(req.user.id);
+    return this.cajaService.cajaActual(req.user.idUsuario);
   }
 
   @Roles('VENDEDOR')

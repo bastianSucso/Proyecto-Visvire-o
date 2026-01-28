@@ -5,8 +5,8 @@ export type UserRole = 'ADMIN' | 'VENDEDOR';
 
 @Entity('users')
 export class UserEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn('uuid', { name: 'id_usuario' })
+  idUsuario: string;
 
   @Column({ unique: true })
   email: string;
@@ -18,7 +18,7 @@ export class UserEntity {
   apellido?: string;
 
   @Column()
-  passwordHash: string;
+  password: string;
 
   @Column({ type: 'enum', enum: ['ADMIN', 'VENDEDOR'], default: 'VENDEDOR' })
   role: UserRole;

@@ -15,7 +15,7 @@ export class UsersService {
   async list() {
     const users = await this.repo.find({ order: { createdAt: 'DESC' } });
     // nunca devolver hash
-    return users.map(({ passwordHash, ...u }) => u);
+    return users.map(({ password, ...u }) => u);
   }
 
   async create(dto: CreateUserDto) {
@@ -24,24 +24,24 @@ export class UsersService {
     const exists = await this.repo.findOne({ where: { email } });
     if (exists) throw new BadRequestException('El correo ya está registrado');
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const password = await bcrypt.hash(dto.password, 10);
 
     const user = this.repo.create({
       email,
       nombre: dto.nombre?.trim(),
       apellido: dto.apellido?.trim(),
       role: dto.role,
-      passwordHash,
+      password,
       isActive: true,
     });
 
     const saved = await this.repo.save(user);
-    const { passwordHash: _, ...safe } = saved;
+    const { password: _, ...safe } = saved;
     return safe;
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    const user = await this.repo.findOne({ where: { id } });
+    const user = await this.repo.findOne({ where: { idUsuario: id } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
     if (dto.email) {
@@ -59,11 +59,11 @@ export class UsersService {
     if (dto.isActive !== undefined) user.isActive = dto.isActive;
 
     if (dto.password) {
-      user.passwordHash = await bcrypt.hash(dto.password, 10);
+      user.password = await bcrypt.hash(dto.password, 10);
     }
 
     const saved = await this.repo.save(user);
-    const { passwordHash, ...safe } = saved;
+    const { password, ...safe } = saved;
     return safe;
   }
 
@@ -72,8 +72,8 @@ export class UsersService {
   }
 
   async remove(id: string): Promise<void> {
-  const user = await this.repo.findOne({ where: { id } });
-  if (!user) throw new NotFoundException('Usuario no encontrado');
-    await this.repo.delete(id);
+    const user = await this.repo.findOne({ where: { idUsuario: id } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    await this.repo.delete({ idUsuario: id });
   }
 }

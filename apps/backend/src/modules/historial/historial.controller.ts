@@ -10,16 +10,16 @@ export class SesionCajaController {
 
   @Post('incidencias')
   crearIncidencia(@Body() dto: CreateIncidenciaStockDto, @Req() req: any) {
-    return this.historialService.crearIncidencia(dto, req.user.id);
+    return this.historialService.crearIncidencia(dto, req.user.idUsuario);
   }
 
   @Get('incidencias/mias')
   listarMisIncidencias(@Req() req: any) {
-    return this.historialService.listarIncidenciasPorUsuario(req.user.id);
+    return this.historialService.listarIncidenciasPorUsuario(req.user.idUsuario);
   }
 
   @Get('incidencias/mias/turno')
   listarMisIncidenciasTurno(@Req() req: any) {
-    return this.historialService.listarIncidenciasTurnoActual(req.user.id);
+    return this.historialService.listarIncidenciasTurnoActual(req.user.idUsuario);
   }
 }

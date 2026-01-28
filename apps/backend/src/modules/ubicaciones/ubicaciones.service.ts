@@ -14,6 +14,8 @@ import { ProductoStockEntity } from '../productos/entities/producto-stock.entity
 import { StockSesionCajaEntity } from '../historial/entities/stock-sesion-caja.entity';
 import { IncidenciaStockEntity } from '../historial/entities/incidencia-stock.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
+import { AlteraEntity } from '../inventario/entities/altera.entity';
+import { InventarioDocumentoEntity } from '../inventario/entities/inventario-documento.entity';
 
 @Injectable()
 export class UbicacionesService implements OnModuleInit {
@@ -28,6 +30,10 @@ export class UbicacionesService implements OnModuleInit {
     private readonly stockSesionRepo: Repository<StockSesionCajaEntity>,
     @InjectRepository(IncidenciaStockEntity)
     private readonly incidenciaRepo: Repository<IncidenciaStockEntity>,
+    @InjectRepository(AlteraEntity)
+    private readonly alteraRepo: Repository<AlteraEntity>,
+    @InjectRepository(InventarioDocumentoEntity)
+    private readonly documentoRepo: Repository<InventarioDocumentoEntity>,
   ) {}
 
   async onModuleInit() {
@@ -126,12 +132,33 @@ export class UbicacionesService implements OnModuleInit {
   }
 
   private async hasReferences(id: string): Promise<boolean> {
-    const [sesionCount, incidenciaCount] = await Promise.all([
+    const [
+      sesionCount,
+      incidenciaCount,
+      alteraCount,
+      origenCount,
+      destinoCount,
+      docOrigenCount,
+      docDestinoCount,
+    ] = await Promise.all([
       this.stockSesionRepo.count({ where: { ubicacion: { id } } as any }),
       this.incidenciaRepo.count({ where: { ubicacion: { id } } as any }),
+      this.alteraRepo.count({ where: { ubicacion: { id } } as any }),
+      this.alteraRepo.count({ where: { origen: { id } } as any }),
+      this.alteraRepo.count({ where: { destino: { id } } as any }),
+      this.documentoRepo.count({ where: { origen: { id } } as any }),
+      this.documentoRepo.count({ where: { destino: { id } } as any }),
     ]);
 
-    return sesionCount > 0 || incidenciaCount > 0;
+    return (
+      sesionCount > 0 ||
+      incidenciaCount > 0 ||
+      alteraCount > 0 ||
+      origenCount > 0 ||
+      destinoCount > 0 ||
+      docOrigenCount > 0 ||
+      docDestinoCount > 0
+    );
   }
 
   async remove(id: string) {

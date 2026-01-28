@@ -7,6 +7,8 @@ import { ProductoStockEntity } from '../productos/entities/producto-stock.entity
 import { StockSesionCajaEntity } from '../historial/entities/stock-sesion-caja.entity';
 import { IncidenciaStockEntity } from '../historial/entities/incidencia-stock.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
+import { AlteraEntity } from '../inventario/entities/altera.entity';
+import { InventarioDocumentoEntity } from '../inventario/entities/inventario-documento.entity';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { ProductoEntity } from '../productos/entities/producto.entity';
       ProductoEntity,
       StockSesionCajaEntity,
       IncidenciaStockEntity,
+      AlteraEntity,
+      InventarioDocumentoEntity,
     ]),
   ],
   controllers: [UbicacionesController],

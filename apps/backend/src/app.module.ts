@@ -10,6 +10,7 @@ import { HistorialModule } from './modules/historial/historial.module';
 import { CajaModule } from './modules/caja/caja.module';
 import { VentasModule } from './modules/ventas/ventas.module';
 import { UbicacionesModule } from './modules/ubicaciones/ubicaciones.module';
+import { InventarioModule } from './modules/inventario/inventario.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UbicacionesModule } from './modules/ubicaciones/ubicaciones.module';
     AuthModule,
     ProductosModule,
     UbicacionesModule,
+    InventarioModule,
     HistorialModule,
     CajaModule,
     VentasModule,

@@ -1,16 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { InventarioService } from './inventario.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -20,11 +8,6 @@ import { CreateAjusteDto } from './dto/create-ajuste.dto';
 import { CreateTraspasoDto } from './dto/create-traspaso.dto';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
-import { AddDocumentoItemDto } from './dto/add-documento-item.dto';
-import { UpdateDocumentoItemDto } from './dto/update-documento-item.dto';
-import { UpdateDocumentoDto } from './dto/update-documento.dto';
-import { ConfirmDocumentoIngresoDto } from './dto/confirm-documento-ingreso.dto';
-import { ConfirmDocumentoTraspasoDto } from './dto/confirm-documento-traspaso.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/inventario')
@@ -62,29 +45,10 @@ export class InventarioController {
     return this.inventarioService.crearDocumentoTraspaso(dto, req.user.idUsuario);
   }
 
-
   @Roles('ADMIN')
-  @Post('documentos/ingreso/confirmar')
-  confirmarDocumentoIngreso(@Body() dto: ConfirmDocumentoIngresoDto, @Req() req: any) {
-    return this.inventarioService.confirmarDocumentoIngreso(dto, req.user.idUsuario);
-  }
-
-  @Roles('ADMIN')
-  @Post('documentos/traspaso/confirmar')
-  confirmarDocumentoTraspaso(@Body() dto: ConfirmDocumentoTraspasoDto, @Req() req: any) {
-    return this.inventarioService.confirmarDocumentoTraspaso(dto, req.user.idUsuario);
-  }
-
-  @Roles('ADMIN')
-  @Post('documentos/:id/confirmar')
-  confirmarDocumento(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    return this.inventarioService.confirmarDocumento(id, req.user.idUsuario);
-  }
-
-  @Roles('ADMIN')
-  @Get('documentos/:id')
-  obtenerDocumento(@Param('id', ParseIntPipe) id: number) {
-    return this.inventarioService.obtenerDocumento(id);
+  @Get('documentos/:documentoRef')
+  obtenerDocumento(@Param('documentoRef') documentoRef: string) {
+    return this.inventarioService.obtenerDocumento(documentoRef);
   }
 
   @Roles('ADMIN')

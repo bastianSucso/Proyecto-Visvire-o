@@ -22,30 +22,26 @@ export interface InventarioDocumentoItem {
   cantidad: number;
   unidadBase: string | null;
   barcode: string | null;
-  producto: { id: string; name: string; internalCode: string; barcode: string | null };
+  producto: { id: string; name: string; internalCode: string; barcode: string | null } | null;
 }
 
 export interface InventarioDocumento {
-  id: number;
+  documentoRef: string;
   tipo: 'INGRESO' | 'TRASPASO';
-  estado: 'BORRADOR' | 'CONFIRMADO' | 'ANULADO';
   origen: { id: string; nombre: string; tipo: string } | null;
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;
-  fechaCreacion: string;
-  fechaConfirmacion: string | null;
+  fecha: string;
   items: InventarioDocumentoItem[];
 }
 
 export interface InventarioDocumentoResumen {
-  id: number;
+  documentoRef: string;
   tipo: 'INGRESO' | 'TRASPASO';
-  estado: 'BORRADOR' | 'CONFIRMADO' | 'ANULADO';
   origen: { id: string; nombre: string; tipo: string } | null;
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;
-  fechaCreacion: string;
-  fechaConfirmacion: string | null;
+  fecha: string;
   itemsCount: number;
   totalCantidad: number;
 }
@@ -61,7 +57,7 @@ export interface InventarioMovimiento {
   origen: { id: string; nombre: string; tipo: string } | null;
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;
-  documento: { id: number; tipo: string } | null;
+  documentoRef: string | null;
 }
 
 export interface CreateIngresoDto {
@@ -84,38 +80,20 @@ export interface CreateTraspasoDto {
   cantidad: number;
 }
 
+export interface DocumentoItemInput {
+  productoId: string;
+  cantidad: number;
+}
+
 export interface CreateDocumentoIngresoDto {
   destinoId: string;
+  items: DocumentoItemInput[];
 }
 
 export interface CreateDocumentoTraspasoDto {
   origenId: string;
   destinoId: string;
-}
-
-export interface AddDocumentoItemDto {
-  productoId: string;
-  cantidad: number;
-}
-
-export interface UpdateDocumentoItemDto {
-  cantidad: number;
-}
-
-export interface UpdateDocumentoDto {
-  origenId?: string;
-  destinoId?: string;
-}
-
-export interface ConfirmDocumentoIngresoDto {
-  destinoId: string;
-  items: { productoId: string; cantidad: number }[];
-}
-
-export interface ConfirmDocumentoTraspasoDto {
-  origenId: string;
-  destinoId: string;
-  items: { productoId: string; cantidad: number }[];
+  items: DocumentoItemInput[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -155,38 +133,7 @@ export class InventarioService {
     return this.http.post<InventarioDocumento>('/api/inventario/documentos/traspaso', dto);
   }
 
-  actualizarDocumento(id: number, dto: UpdateDocumentoDto) {
-    return this.http.patch<InventarioDocumento>(`/api/inventario/documentos/${id}`, dto);
-  }
-
-  agregarItemDocumento(id: number, dto: AddDocumentoItemDto) {
-    return this.http.post<InventarioDocumento>(`/api/inventario/documentos/${id}/items`, dto);
-  }
-
-  actualizarItemDocumento(id: number, itemId: number, dto: UpdateDocumentoItemDto) {
-    return this.http.patch<InventarioDocumento>(
-      `/api/inventario/documentos/${id}/items/${itemId}`,
-      dto,
-    );
-  }
-
-  eliminarItemDocumento(id: number, itemId: number) {
-    return this.http.delete<InventarioDocumento>(`/api/inventario/documentos/${id}/items/${itemId}`);
-  }
-
-  confirmarDocumento(id: number) {
-    return this.http.post<InventarioDocumento>(`/api/inventario/documentos/${id}/confirmar`, {});
-  }
-
-  confirmarDocumentoIngreso(dto: ConfirmDocumentoIngresoDto) {
-    return this.http.post<InventarioDocumento>('/api/inventario/documentos/ingreso/confirmar', dto);
-  }
-
-  confirmarDocumentoTraspaso(dto: ConfirmDocumentoTraspasoDto) {
-    return this.http.post<InventarioDocumento>('/api/inventario/documentos/traspaso/confirmar', dto);
-  }
-
-  obtenerDocumento(id: number) {
-    return this.http.get<InventarioDocumento>(`/api/inventario/documentos/${id}`);
+  obtenerDocumento(documentoRef: string) {
+    return this.http.get<InventarioDocumento>(`/api/inventario/documentos/${documentoRef}`);
   }
 }

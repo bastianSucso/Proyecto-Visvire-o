@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { DataSource, ILike, In, Repository } from 'typeorm';
 import { AlteraEntity } from './entities/altera.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
@@ -13,15 +14,8 @@ import { UserEntity } from '../users/entities/user.entity';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
 import { CreateAjusteDto } from './dto/create-ajuste.dto';
 import { CreateTraspasoDto } from './dto/create-traspaso.dto';
-import { InventarioDocumentoEntity } from './entities/inventario-documento.entity';
-import { InventarioDocumentoItemEntity } from './entities/inventario-documento-item.entity';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
-import { AddDocumentoItemDto } from './dto/add-documento-item.dto';
-import { UpdateDocumentoItemDto } from './dto/update-documento-item.dto';
-import { UpdateDocumentoDto } from './dto/update-documento.dto';
-import { ConfirmDocumentoIngresoDto } from './dto/confirm-documento-ingreso.dto';
-import { ConfirmDocumentoTraspasoDto } from './dto/confirm-documento-traspaso.dto';
 
 @Injectable()
 export class InventarioService {
@@ -35,10 +29,6 @@ export class InventarioService {
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity)
     private readonly stockRepo: Repository<ProductoStockEntity>,
-    @InjectRepository(InventarioDocumentoEntity)
-    private readonly docRepo: Repository<InventarioDocumentoEntity>,
-    @InjectRepository(InventarioDocumentoItemEntity)
-    private readonly itemRepo: Repository<InventarioDocumentoItemEntity>,
   ) {}
 
   private async getProductoOrThrow(productoId: string) {
@@ -53,327 +43,82 @@ export class InventarioService {
     return ubicacion;
   }
 
-  private async getStockRow(productoId: string, ubicacionId: string) {
-    const existing = await this.stockRepo.findOne({
-      where: {
-        producto: { id: productoId },
-        ubicacion: { id: ubicacionId },
-      } as any,
-      relations: { producto: true, ubicacion: true },
-    });
-
-    if (existing) return existing;
-
-    const producto = await this.getProductoOrThrow(productoId);
-    const ubicacion = await this.getUbicacionOrThrow(ubicacionId);
-
-    return this.stockRepo.create({
-      producto,
-      ubicacion,
-      cantidad: 0,
-    });
-  }
-
-  private async getDocumentoOrThrow(id: number) {
-    const doc = await this.docRepo.findOne({
-      where: { id },
-      relations: { items: { producto: true }, origen: true, destino: true, usuario: true },
-    });
-    if (!doc) throw new NotFoundException('Documento no encontrado');
-    return doc;
-  }
-
-  private assertBorrador(doc: InventarioDocumentoEntity) {
-    if (doc.estado !== 'BORRADOR') {
-      throw new BadRequestException('El documento no está en borrador');
+  private parseCantidad(raw: number) {
+    const cantidad = Number(raw);
+    if (!Number.isInteger(cantidad) || cantidad < 1) {
+      throw new BadRequestException('cantidad debe ser entero >= 1');
     }
+    return cantidad;
+  }
+
+  private resolveDestinoFromMov(mov: AlteraEntity) {
+    if (mov.destino) return mov.destino;
+    if (mov.tipo === 'INGRESO' && mov.ubicacion) return mov.ubicacion;
+    return null;
+  }
+
+  private toDocumentoResponse(documentoRef: string, items: AlteraEntity[]) {
+    const first = items[0];
+    const fecha = items.reduce((max, it) => (it.fecha > max ? it.fecha : max), first.fecha);
+    const origen = first.origen
+      ? { id: first.origen.id, nombre: first.origen.nombre, tipo: first.origen.tipo }
+      : null;
+    const destinoEntity = this.resolveDestinoFromMov(first);
+    const destino = destinoEntity
+      ? { id: destinoEntity.id, nombre: destinoEntity.nombre, tipo: destinoEntity.tipo }
+      : null;
+    const usuario = first.usuario ? { id: first.usuario.idUsuario, email: first.usuario.email } : null;
+
+    return {
+      documentoRef,
+      tipo: first.tipo,
+      origen,
+      destino,
+      usuario,
+      fecha,
+      items: items.map((it) => ({
+        id: it.id,
+        cantidad: it.cantidad,
+        unidadBase: it.producto?.unidadBase ?? null,
+        barcode: it.producto?.barcode ?? null,
+        producto: it.producto
+          ? {
+              id: it.producto.id,
+              name: it.producto.name,
+              internalCode: it.producto.internalCode,
+              barcode: it.producto.barcode ?? null,
+            }
+          : null,
+      })),
+    };
   }
 
   async crearDocumentoIngreso(dto: CreateDocumentoIngresoDto, usuarioId: string) {
-    const destino = await this.getUbicacionOrThrow(dto.destinoId);
-
-    const doc = this.docRepo.create({
-      tipo: 'INGRESO',
-      estado: 'BORRADOR',
-      origen: null,
-      destino,
-      usuario: { idUsuario: usuarioId } as UserEntity,
-      fechaConfirmacion: null,
-    });
-
-    return this.docRepo.save(doc);
-  }
-
-  async crearDocumentoTraspaso(dto: CreateDocumentoTraspasoDto, usuarioId: string) {
-    if (dto.origenId === dto.destinoId) {
-      throw new BadRequestException('origen y destino no pueden ser iguales');
-    }
-
-    const origen = await this.getUbicacionOrThrow(dto.origenId);
-    const destino = await this.getUbicacionOrThrow(dto.destinoId);
-
-    const doc = this.docRepo.create({
-      tipo: 'TRASPASO',
-      estado: 'BORRADOR',
-      origen,
-      destino,
-      usuario: { idUsuario: usuarioId } as UserEntity,
-      fechaConfirmacion: null,
-    });
-
-    return this.docRepo.save(doc);
-  }
-
-  async actualizarDocumento(id: number, dto: UpdateDocumentoDto) {
-    const doc = await this.getDocumentoOrThrow(id);
-    this.assertBorrador(doc);
-
-    if (dto.origenId !== undefined) {
-      doc.origen = dto.origenId ? await this.getUbicacionOrThrow(dto.origenId) : null;
-    }
-
-    if (dto.destinoId !== undefined) {
-      doc.destino = dto.destinoId ? await this.getUbicacionOrThrow(dto.destinoId) : null;
-    }
-
-    return this.docRepo.save(doc);
-  }
-
-  async agregarItemDocumento(id: number, dto: AddDocumentoItemDto) {
-    const doc = await this.getDocumentoOrThrow(id);
-    this.assertBorrador(doc);
-
-    const cantidad = Number(dto.cantidad);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
-    }
-
-    const producto = await this.getProductoOrThrow(dto.productoId);
-
-    await this.dataSource.transaction(async (manager) => {
-      await manager
-        .createQueryBuilder()
-        .insert()
-        .into(InventarioDocumentoItemEntity)
-        .values({
-          documento: { id: doc.id } as any,
-          producto: { id: producto.id } as any,
-          cantidad,
-          unidadBase: producto.unidadBase ?? null,
-          barcode: producto.barcode ?? null,
-        })
-        .onConflict(`("id_documento", "id_producto") DO UPDATE SET
-          cantidad = "inventario_documento_item"."cantidad" + EXCLUDED."cantidad",
-          unidad_base = EXCLUDED."unidad_base",
-          barcode = EXCLUDED."barcode"`)
-        .execute();
-    });
-
-    return this.getDocumentoOrThrow(id);
-  }
-
-  async actualizarItemDocumento(id: number, itemId: number, dto: UpdateDocumentoItemDto) {
-    const doc = await this.getDocumentoOrThrow(id);
-    this.assertBorrador(doc);
-
-    const cantidad = Number(dto.cantidad);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
-    }
-
-    const item = await this.itemRepo.findOne({
-      where: { id: itemId, documento: { id: doc.id } as any } as any,
-    });
-    if (!item) throw new NotFoundException('Item no encontrado');
-
-    item.cantidad = cantidad;
-    await this.itemRepo.save(item);
-    return this.getDocumentoOrThrow(id);
-  }
-
-  async eliminarItemDocumento(id: number, itemId: number) {
-    const doc = await this.getDocumentoOrThrow(id);
-    this.assertBorrador(doc);
-
-    const item = await this.itemRepo.findOne({
-      where: { id: itemId, documento: { id: doc.id } as any } as any,
-    });
-    if (!item) throw new NotFoundException('Item no encontrado');
-
-    await this.itemRepo.remove(item);
-    return this.getDocumentoOrThrow(id);
-  }
-
-  async confirmarDocumento(id: number, usuarioId: string) {
-    const doc = await this.getDocumentoOrThrow(id);
-    this.assertBorrador(doc);
-
-    if (!doc.items || doc.items.length === 0) {
-      throw new BadRequestException('El documento no tiene items');
-    }
-
-    return this.dataSource.transaction(async (manager) => {
-      const stockRepoTx = manager.getRepository(ProductoStockEntity);
-      const alteraRepoTx = manager.getRepository(AlteraEntity);
-      const docRepoTx = manager.getRepository(InventarioDocumentoEntity);
-
-      if (doc.tipo === 'INGRESO') {
-        if (!doc.destino) throw new BadRequestException('Destino requerido');
-
-        for (const item of doc.items) {
-          const stock = await stockRepoTx.findOne({
-            where: {
-              producto: { id: item.producto.id },
-              ubicacion: { id: doc.destino.id },
-            } as any,
-          });
-
-          if (stock) {
-            stock.cantidad = (stock.cantidad ?? 0) + item.cantidad;
-            await stockRepoTx.save(stock);
-          } else {
-            await stockRepoTx.save(
-              stockRepoTx.create({
-                producto: { id: item.producto.id } as any,
-                ubicacion: { id: doc.destino.id } as any,
-                cantidad: item.cantidad,
-              }),
-            );
-          }
-
-          await alteraRepoTx.save(
-            alteraRepoTx.create({
-              tipo: 'INGRESO',
-              cantidad: item.cantidad,
-              motivo: null,
-              producto: { id: item.producto.id } as any,
-              ubicacion: { id: doc.destino.id } as any,
-              origen: null,
-              destino: null,
-              usuario: { idUsuario: usuarioId } as UserEntity,
-              documento: { id: doc.id } as any,
-            }),
-          );
-        }
-      } else if (doc.tipo === 'TRASPASO') {
-        if (!doc.origen || !doc.destino) throw new BadRequestException('Origen y destino requeridos');
-
-        for (const item of doc.items) {
-          const stockOrigen = await stockRepoTx.findOne({
-            where: {
-              producto: { id: item.producto.id },
-              ubicacion: { id: doc.origen.id },
-            } as any,
-          });
-
-          const origenActual = stockOrigen?.cantidad ?? 0;
-          if (origenActual < item.cantidad) {
-            throw new BadRequestException('Stock insuficiente en ubicación origen');
-          }
-
-          stockOrigen!.cantidad = origenActual - item.cantidad;
-          await stockRepoTx.save(stockOrigen!);
-
-          const stockDestino = await stockRepoTx.findOne({
-            where: {
-              producto: { id: item.producto.id },
-              ubicacion: { id: doc.destino.id },
-            } as any,
-          });
-
-          if (stockDestino) {
-            stockDestino.cantidad = (stockDestino.cantidad ?? 0) + item.cantidad;
-            await stockRepoTx.save(stockDestino);
-          } else {
-            await stockRepoTx.save(
-              stockRepoTx.create({
-                producto: { id: item.producto.id } as any,
-                ubicacion: { id: doc.destino.id } as any,
-                cantidad: item.cantidad,
-              }),
-            );
-          }
-
-          await alteraRepoTx.save(
-            alteraRepoTx.create({
-              tipo: 'TRASPASO',
-              cantidad: item.cantidad,
-              motivo: null,
-              producto: { id: item.producto.id } as any,
-              ubicacion: null,
-              origen: { id: doc.origen.id } as any,
-              destino: { id: doc.destino.id } as any,
-              usuario: { idUsuario: usuarioId } as UserEntity,
-              documento: { id: doc.id } as any,
-            }),
-          );
-        }
-      }
-
-      doc.estado = 'CONFIRMADO';
-      doc.fechaConfirmacion = new Date();
-      await docRepoTx.save(doc);
-
-      const docFull = await docRepoTx.findOne({
-        where: { id: doc.id },
-        relations: { items: { producto: true }, origen: true, destino: true, usuario: true },
-      });
-      if (!docFull) throw new NotFoundException('Documento no encontrado');
-      return docFull;
-    });
-  }
-
-  async confirmarDocumentoIngreso(dto: ConfirmDocumentoIngresoDto, usuarioId: string) {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('El documento no tiene items');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const destino = await this.getUbicacionOrThrow(dto.destinoId);
+    const documentoRef = randomUUID();
+
+    await this.dataSource.transaction(async (manager) => {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
-      const docRepoTx = manager.getRepository(InventarioDocumentoEntity);
-      const itemRepoTx = manager.getRepository(InventarioDocumentoItemEntity);
-
-      const destino = await this.getUbicacionOrThrow(dto.destinoId);
-
-      const doc = await docRepoTx.save(
-        docRepoTx.create({
-          tipo: 'INGRESO',
-          estado: 'CONFIRMADO',
-          origen: null,
-          destino,
-          usuario: { idUsuario: usuarioId } as UserEntity,
-          fechaConfirmacion: new Date(),
-        }),
-      );
 
       for (const it of dto.items) {
+        const cantidad = this.parseCantidad(it.cantidad);
         const producto = await this.getProductoOrThrow(it.productoId);
-        const cantidad = Number(it.cantidad);
-        if (!Number.isInteger(cantidad) || cantidad < 1) {
-          throw new BadRequestException('cantidad debe ser entero >= 1');
-        }
 
-        await itemRepoTx.save(
-          itemRepoTx.create({
-            documento: { id: doc.id } as any,
-            producto: { id: producto.id } as any,
-            cantidad,
-            unidadBase: producto.unidadBase ?? null,
-            barcode: producto.barcode ?? null,
-          }),
-        );
-
-        const stock = await stockRepoTx.findOne({
+        const stockRow = await stockRepoTx.findOne({
           where: {
             producto: { id: producto.id },
             ubicacion: { id: destino.id },
           } as any,
         });
 
-        if (stock) {
-          stock.cantidad = (stock.cantidad ?? 0) + cantidad;
-          await stockRepoTx.save(stock);
+        if (stockRow) {
+          stockRow.cantidad = (stockRow.cantidad ?? 0) + cantidad;
+          await stockRepoTx.save(stockRow);
         } else {
           await stockRepoTx.save(
             stockRepoTx.create({
@@ -394,21 +139,16 @@ export class InventarioService {
             origen: null,
             destino: null,
             usuario: { idUsuario: usuarioId } as UserEntity,
-            documento: { id: doc.id } as any,
+            documentoRef,
           }),
         );
       }
-
-      const docFull = await docRepoTx.findOne({
-        where: { id: doc.id },
-        relations: { items: { producto: true }, origen: true, destino: true, usuario: true },
-      });
-      if (!docFull) throw new NotFoundException('Documento no encontrado');
-      return docFull;
     });
+
+    return this.obtenerDocumento(documentoRef);
   }
 
-  async confirmarDocumentoTraspaso(dto: ConfirmDocumentoTraspasoDto, usuarioId: string) {
+  async crearDocumentoTraspaso(dto: CreateDocumentoTraspasoDto, usuarioId: string) {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('El documento no tiene items');
     }
@@ -417,42 +157,17 @@ export class InventarioService {
       throw new BadRequestException('origen y destino no pueden ser iguales');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const origen = await this.getUbicacionOrThrow(dto.origenId);
+    const destino = await this.getUbicacionOrThrow(dto.destinoId);
+    const documentoRef = randomUUID();
+
+    await this.dataSource.transaction(async (manager) => {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
-      const docRepoTx = manager.getRepository(InventarioDocumentoEntity);
-      const itemRepoTx = manager.getRepository(InventarioDocumentoItemEntity);
-
-      const origen = await this.getUbicacionOrThrow(dto.origenId);
-      const destino = await this.getUbicacionOrThrow(dto.destinoId);
-
-      const doc = await docRepoTx.save(
-        docRepoTx.create({
-          tipo: 'TRASPASO',
-          estado: 'CONFIRMADO',
-          origen,
-          destino,
-          usuario: { idUsuario: usuarioId } as UserEntity,
-          fechaConfirmacion: new Date(),
-        }),
-      );
 
       for (const it of dto.items) {
+        const cantidad = this.parseCantidad(it.cantidad);
         const producto = await this.getProductoOrThrow(it.productoId);
-        const cantidad = Number(it.cantidad);
-        if (!Number.isInteger(cantidad) || cantidad < 1) {
-          throw new BadRequestException('cantidad debe ser entero >= 1');
-        }
-
-        await itemRepoTx.save(
-          itemRepoTx.create({
-            documento: { id: doc.id } as any,
-            producto: { id: producto.id } as any,
-            cantidad,
-            unidadBase: producto.unidadBase ?? null,
-            barcode: producto.barcode ?? null,
-          }),
-        );
 
         const stockOrigen = await stockRepoTx.findOne({
           where: {
@@ -499,22 +214,27 @@ export class InventarioService {
             origen: { id: origen.id } as any,
             destino: { id: destino.id } as any,
             usuario: { idUsuario: usuarioId } as UserEntity,
-            documento: { id: doc.id } as any,
+            documentoRef,
           }),
         );
       }
-
-      const docFull = await docRepoTx.findOne({
-        where: { id: doc.id },
-        relations: { items: { producto: true }, origen: true, destino: true, usuario: true },
-      });
-      if (!docFull) throw new NotFoundException('Documento no encontrado');
-      return docFull;
     });
+
+    return this.obtenerDocumento(documentoRef);
   }
 
-  async obtenerDocumento(id: number) {
-    return this.getDocumentoOrThrow(id);
+  async obtenerDocumento(documentoRef: string) {
+    const items = await this.alteraRepo.find({
+      where: { documentoRef } as any,
+      relations: { producto: true, ubicacion: true, origen: true, destino: true, usuario: true },
+      order: { fecha: 'ASC' },
+    });
+
+    if (!items || items.length === 0) {
+      throw new NotFoundException('Documento no encontrado');
+    }
+
+    return this.toDocumentoResponse(documentoRef, items);
   }
 
   async registrarIngreso(dto: CreateIngresoDto, usuarioId: string) {
@@ -750,7 +470,6 @@ export class InventarioService {
         origen: true,
         destino: true,
         usuario: true,
-        documento: true,
       },
       order: { fecha: 'DESC' },
       take,
@@ -780,38 +499,70 @@ export class InventarioService {
       usuario: m.usuario
         ? { id: m.usuario.idUsuario, email: m.usuario.email }
         : null,
-      documento: m.documento
-        ? { id: m.documento.id, tipo: m.documento.tipo }
-        : null,
+      documentoRef: m.documentoRef ?? null,
     }));
   }
 
   async listarDocumentos(limit = 200) {
     const take = Math.min(Math.max(Number(limit) || 200, 1), 500);
 
-    const docs = await this.docRepo.find({
-      relations: { items: true, origen: true, destino: true, usuario: true },
-      order: { fechaCreacion: 'DESC' },
-      take,
+    const raw = await this.alteraRepo
+      .createQueryBuilder('a')
+      .select('a.documentoRef', 'documentoRef')
+      .addSelect('MAX(a.fecha)', 'fecha')
+      .where('a.documentoRef IS NOT NULL')
+      .groupBy('a.documentoRef')
+      .orderBy('MAX(a.fecha)', 'DESC')
+      .limit(take)
+      .getRawMany();
+
+    const refs = raw.map((r) => r.documentoRef).filter(Boolean);
+    if (refs.length === 0) return [];
+
+    const items = await this.alteraRepo.find({
+      where: { documentoRef: In(refs) } as any,
+      relations: { producto: true, ubicacion: true, origen: true, destino: true, usuario: true },
+      order: { fecha: 'DESC' },
     });
 
-    return docs.map((d) => {
-      const items = d.items ?? [];
-      const itemsCount = items.length;
-      const totalCantidad = items.reduce((sum, it) => sum + (it.cantidad ?? 0), 0);
+    const grouped = new Map<string, AlteraEntity[]>();
+    for (const item of items) {
+      const ref = item.documentoRef ?? '';
+      if (!ref) continue;
+      if (!grouped.has(ref)) grouped.set(ref, []);
+      grouped.get(ref)!.push(item);
+    }
 
-      return {
-        id: d.id,
-        tipo: d.tipo,
-        estado: d.estado,
-        origen: d.origen ? { id: d.origen.id, nombre: d.origen.nombre, tipo: d.origen.tipo } : null,
-        destino: d.destino ? { id: d.destino.id, nombre: d.destino.nombre, tipo: d.destino.tipo } : null,
-        usuario: d.usuario ? { id: d.usuario.idUsuario, email: d.usuario.email } : null,
-        fechaCreacion: d.fechaCreacion,
-        fechaConfirmacion: d.fechaConfirmacion,
-        itemsCount,
-        totalCantidad,
-      };
-    });
+    return refs
+      .map((ref) => {
+        const group = grouped.get(ref);
+        if (!group || group.length === 0) return null;
+        const first = group[0];
+        const itemsCount = group.length;
+        const totalCantidad = group.reduce((sum, it) => sum + (it.cantidad ?? 0), 0);
+        const fecha = group.reduce((max, it) => (it.fecha > max ? it.fecha : max), first.fecha);
+        const origen = first.origen
+          ? { id: first.origen.id, nombre: first.origen.nombre, tipo: first.origen.tipo }
+          : null;
+        const destinoEntity = this.resolveDestinoFromMov(first);
+        const destino = destinoEntity
+          ? { id: destinoEntity.id, nombre: destinoEntity.nombre, tipo: destinoEntity.tipo }
+          : null;
+        const usuario = first.usuario
+          ? { id: first.usuario.idUsuario, email: first.usuario.email }
+          : null;
+
+        return {
+          documentoRef: ref,
+          tipo: first.tipo,
+          origen,
+          destino,
+          usuario,
+          fecha,
+          itemsCount,
+          totalCantidad,
+        };
+      })
+      .filter(Boolean);
   }
 }

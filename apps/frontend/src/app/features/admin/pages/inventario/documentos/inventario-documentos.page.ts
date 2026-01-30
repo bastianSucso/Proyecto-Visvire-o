@@ -64,9 +64,8 @@ export class InventarioDocumentosPage {
 
     return this.documentos.filter((d) => {
       const hay = [
-        d.id,
+        d.documentoRef,
         d.tipo,
-        d.estado,
         d.origen?.nombre,
         d.destino?.nombre,
         d.usuario?.email,

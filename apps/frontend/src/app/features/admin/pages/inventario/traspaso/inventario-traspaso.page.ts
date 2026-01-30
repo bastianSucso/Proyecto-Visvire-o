@@ -291,10 +291,10 @@ export class InventarioTraspasoPage {
       items: this.items.map((it) => ({ productoId: it.id, cantidad: it.cantidad })),
     };
 
-    this.inventarioService.confirmarDocumentoTraspaso(payload).subscribe({
+    this.inventarioService.crearDocumentoTraspaso(payload).subscribe({
       next: (doc) => {
         this.successMsg = 'Traspaso confirmado correctamente.';
-        this.router.navigate(['/admin/inventario/documentos', doc.id]);
+        this.router.navigate(['/admin/inventario/documentos', doc.documentoRef]);
       },
       error: (err) => {
         this.errorMsg = err?.error?.message ?? 'No se pudo confirmar.';

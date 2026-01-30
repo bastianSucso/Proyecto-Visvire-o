@@ -126,13 +126,13 @@
                 </td>
                 <td class="px-4 py-3 text-right">
                   <a
-                    *ngIf="m.documento"
-                    [routerLink]="['/admin/inventario/documentos', m.documento.id]"
+                    *ngIf="m.documentoRef"
+                    [routerLink]="['/admin/inventario/documentos', m.documentoRef]"
                     class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     Ver
                   </a>
-                  <span *ngIf="!m.documento" class="text-xs text-slate-400">-</span>
+                  <span *ngIf="!m.documentoRef" class="text-xs text-slate-400">-</span>
                 </td>
               </tr>
 

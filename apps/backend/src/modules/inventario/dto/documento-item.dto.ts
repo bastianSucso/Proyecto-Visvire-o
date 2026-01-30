@@ -1,6 +1,6 @@
 import { IsInt, IsUUID, Min } from 'class-validator';
 
-export class AddDocumentoItemDto {
+export class DocumentoItemDto {
   @IsUUID()
   productoId!: string;
 

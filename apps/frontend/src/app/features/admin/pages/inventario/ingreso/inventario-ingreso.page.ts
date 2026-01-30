@@ -250,10 +250,10 @@ export class InventarioIngresoPage {
       items: this.items.map((it) => ({ productoId: it.id, cantidad: it.cantidad })),
     };
 
-    this.inventarioService.confirmarDocumentoIngreso(payload).subscribe({
+    this.inventarioService.crearDocumentoIngreso(payload).subscribe({
       next: (doc) => {
         this.successMsg = 'Ingreso confirmado correctamente.';
-        this.router.navigate(['/admin/inventario/documentos', doc.id]);
+        this.router.navigate(['/admin/inventario/documentos', doc.documentoRef]);
       },
       error: (err) => {
         this.errorMsg = err?.error?.message ?? 'No se pudo confirmar.';

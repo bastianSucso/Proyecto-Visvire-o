@@ -19,15 +19,14 @@ export class InventarioDocumentoPage {
   errorMsg = '';
 
   ngOnInit() {
-    const raw = this.route.snapshot.paramMap.get('id');
-    const id = Number(raw);
-    if (!id || Number.isNaN(id)) {
-      this.errorMsg = 'ID de documento inválido.';
+    const documentoRef = this.route.snapshot.paramMap.get('documentoRef');
+    if (!documentoRef) {
+      this.errorMsg = 'Documento inválido.';
       return;
     }
 
     this.loading = true;
-    this.inventarioService.obtenerDocumento(id).subscribe({
+    this.inventarioService.obtenerDocumento(documentoRef).subscribe({
       next: (doc) => (this.documento = doc),
       error: (err) => (this.errorMsg = err?.error?.message ?? 'No se pudo cargar el documento.'),
       complete: () => (this.loading = false),

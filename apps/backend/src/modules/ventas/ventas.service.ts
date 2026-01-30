@@ -398,7 +398,6 @@ export class VentasService {
           origen: null,
           destino: null,
           usuario: { idUsuario: userId } as any,
-          documento: null,
           venta: { idVenta: venta.idVenta } as any,
         });
 

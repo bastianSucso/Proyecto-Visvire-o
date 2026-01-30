@@ -9,7 +9,6 @@ import {
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 import { UbicacionEntity } from '../../ubicaciones/entities/ubicacion.entity';
 import { UserEntity } from '../../users/entities/user.entity';
-import { InventarioDocumentoEntity } from './inventario-documento.entity';
 import { VentaEntity } from '../../ventas/entities/venta.entity';
 
 export type AlteraTipo = 'INGRESO' | 'AJUSTE' | 'SALIDA' | 'TRASPASO';
@@ -27,6 +26,9 @@ export class AlteraEntity {
 
   @Column({ type: 'varchar', length: 300, nullable: true })
   motivo!: string | null;
+
+  @Column({ type: 'uuid', name: 'documento_ref', nullable: true })
+  documentoRef!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'fecha' })
   fecha!: Date;
@@ -50,10 +52,6 @@ export class AlteraEntity {
   @ManyToOne(() => UserEntity, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_usuario' })
   usuario!: UserEntity;
-
-  @ManyToOne(() => InventarioDocumentoEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'id_documento' })
-  documento!: InventarioDocumentoEntity | null;
 
   @ManyToOne(() => VentaEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'id_venta' })

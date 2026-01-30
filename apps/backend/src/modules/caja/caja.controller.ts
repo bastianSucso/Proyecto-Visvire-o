@@ -46,6 +46,30 @@ export class CajaController {
     return this.cajaService.listarCajasFisicas({ onlyActive });
   }
 
+  @Roles('VENDEDOR')
+  @Get('resumen/actual')
+  resumenActual(@Req() req: any) {
+    return this.cajaService.previsualizarResumen(req.user.idUsuario);
+  }
+
+  @Roles('VENDEDOR')
+  @Get('sesiones/cerradas')
+  listarSesionesCerradas(@Req() req: any) {
+    return this.cajaService.listarSesionesCerradas(req.user.idUsuario);
+  }
+
+  @Roles('VENDEDOR')
+  @Get('resumen/:sesionCajaId')
+  resumenSesion(@Req() req: any, @Param('sesionCajaId', ParseIntPipe) sesionCajaId: number) {
+    return this.cajaService.resumenSesion(req.user.idUsuario, sesionCajaId);
+  }
+
+  @Roles('VENDEDOR')
+  @Post('cerrar')
+  cerrar(@Req() req: any) {
+    return this.cajaService.cerrarCaja(req.user.idUsuario);
+  }
+
  
   @Roles('ADMIN')
   @Post('admin')

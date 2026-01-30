@@ -255,7 +255,7 @@
               totalNumero <= 0 ||
               confirmando ||
               !medioPago ||
-              (medioPago === 'EFECTIVO' && (montoRecibidoStr.trim().length === 0 || cambio < 0))
+              (medioPago === 'EFECTIVO' && montoRecibidoStr.trim().length > 0 && cambio < 0)
             "
           >
             {{ confirmando ? 'Confirmando...' : 'Confirmar venta' }}

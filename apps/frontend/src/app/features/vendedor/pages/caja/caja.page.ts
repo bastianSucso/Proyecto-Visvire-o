@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { CajaActualResponse, CajaService } from '../../../../core/services/caja.service';
+import { RouterModule } from '@angular/router';
+import { CajaActualResponse, CajaResumenResponse, CajaService } from '../../../../core/services/caja.service';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { Router } from '@angular/router';
 import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
@@ -16,11 +17,14 @@ import { VentaListItem, VentasService } from '../../../../core/services/ventas.s
 @Component({
   selector: 'app-caja-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
   templateUrl: './caja.page.html',
 })
 export class CajaPage implements OnInit {
   cajaActual: CajaActualResponse | null = null;
+  resumen: CajaResumenResponse | null = null;
+  resumenLoading = false;
+  resumenError = '';
   loading = false;
   errorMsg = '';
 
@@ -91,16 +95,19 @@ export class CajaPage implements OnInit {
   }
 
   get totalVentasCLP(): number {
+    if (this.resumen) return this.toNumberMoney(this.resumen.totalVentas);
     return this.ventasConfirmadasTurno.reduce((acc, v) => acc + this.toNumberMoney(v.totalVenta), 0);
   }
 
   get totalEfectivoCLP(): number {
+    if (this.resumen) return this.toNumberMoney(this.resumen.totalEfectivo);
     return this.ventasConfirmadasTurno
       .filter(v => v.medioPago === 'EFECTIVO')
       .reduce((acc, v) => acc + this.toNumberMoney(v.totalVenta), 0);
   }
 
   get totalTarjetaCLP(): number {
+    if (this.resumen) return this.toNumberMoney(this.resumen.totalTarjeta);
     return this.ventasConfirmadasTurno
       .filter(v => v.medioPago === 'TARJETA')
       .reduce((acc, v) => acc + this.toNumberMoney(v.totalVenta), 0);
@@ -111,7 +118,13 @@ export class CajaPage implements OnInit {
   }
 
   get montoTotalCajaCLP(): number {
+    if (this.resumen) return this.toNumberMoney(this.resumen.montoTotalCaja);
     return this.montoInicialCLP + this.totalEfectivoCLP;
+  }
+
+  get cantidadVentasTurno(): number {
+    if (this.resumen) return this.resumen.cantidadVentas;
+    return this.ventasConfirmadasTurno.length;
   }
 
   ngOnInit() {
@@ -140,17 +153,53 @@ export class CajaPage implements OnInit {
         this.cajaActual = res;
         this.loading = false;
 
+        if (!this.cajaActual) {
+          this.resumen = null;
+          this.productos = [];
+          return;
+        }
+
         if (this.cajaActual?.sesionCaja.estado === 'ABIERTA') {
           this.cargarProductosSala();
           this.cargarVentasTurno();
+          this.cargarResumenActual();
         } else {
           this.productos = [];
+          this.cargarResumenSesion();
         }
       },
       error: (err) => {
         this.loading = false;
         this.errorMsg = err?.error?.message ?? 'Error al obtener estado de caja.';
       },
+    });
+  }
+
+  cargarResumenActual() {
+    this.resumenLoading = true;
+    this.resumenError = '';
+    this.cajaService.resumenActual().subscribe({
+      next: (data) => (this.resumen = data),
+      error: (err) => {
+        this.resumen = null;
+        this.resumenError = err?.error?.message ?? 'No se pudo cargar el resumen.';
+      },
+      complete: () => (this.resumenLoading = false),
+    });
+  }
+
+  cargarResumenSesion() {
+    const sesionCajaId = this.cajaActual?.sesionCaja.idSesionCaja;
+    if (!sesionCajaId) return;
+    this.resumenLoading = true;
+    this.resumenError = '';
+    this.cajaService.resumenSesion(sesionCajaId).subscribe({
+      next: (data) => (this.resumen = data),
+      error: (err) => {
+        this.resumen = null;
+        this.resumenError = err?.error?.message ?? 'No se pudo cargar el resumen.';
+      },
+      complete: () => (this.resumenLoading = false),
     });
   }
 
@@ -178,6 +227,7 @@ export class CajaPage implements OnInit {
         if (this.cajaActual?.sesionCaja.estado === 'ABIERTA') {
           this.cargarProductosSala();
           this.cargarVentasTurno();
+          this.cargarResumenActual();
         }
       },
       error: (err) => {
@@ -303,6 +353,32 @@ export class CajaPage implements OnInit {
         this.ventasError = err?.error?.message ?? 'No se pudieron cargar las ventas del turno.';
       },
       complete: () => (this.ventasLoading = false),
+    });
+  }
+
+  cerrarCaja() {
+    this.ventaError = '';
+    this.resumenError = '';
+    if (!this.cajaAbierta) {
+      this.ventaError = 'No hay caja abierta para cerrar.';
+      return;
+    }
+    if (this.ventasEnEdicion.length > 0) {
+      this.ventaError = 'No se puede cerrar caja con ventas en edición.';
+      return;
+    }
+
+    this.loading = true;
+    this.cajaService.cerrarCaja().subscribe({
+      next: (resumen) => {
+        this.resumen = resumen;
+        this.cargarCajaActual();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.ventaError = err?.error?.message ?? 'No se pudo cerrar la caja.';
+      },
+      complete: () => (this.loading = false),
     });
   }
   

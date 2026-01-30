@@ -1,9 +1,12 @@
 import { Controller, Post, Body, UseGuards, Req, Get } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.decorator';
 import { HistorialService } from './historial.service';
 import { CreateIncidenciaStockDto } from './dto/create-incidencia-stock.dto';
-import { Request } from 'express';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('VENDEDOR')
 @Controller('api/sesion-caja')
 export class SesionCajaController {
   constructor(private readonly historialService: HistorialService) {}

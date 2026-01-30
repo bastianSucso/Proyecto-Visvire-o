@@ -433,11 +433,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
 
     if (this.medioPago === 'EFECTIVO') {
       const recibido = this.montoRecibido;
-      if (!this.montoRecibidoStr.trim()) {
-        this.montoRecibidoError = 'Ingresa el monto recibido.';
-        return;
-      }
-      if (recibido < this.totalCLP) {
+      if (this.montoRecibidoStr.trim() && recibido < this.totalCLP) {
         this.montoRecibidoError = 'El monto recibido es menor que el total.';
         return;
       }

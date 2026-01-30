@@ -72,7 +72,8 @@ export class ProductosSalaPage implements OnInit {
     this.cajaService.cajaActual().subscribe({
       next: (res) => {
         this.cajaActual = res;
-        this.sesionCajaId = res?.sesionCaja?.idSesionCaja ?? null;
+        this.sesionCajaId =
+          res?.sesionCaja?.estado === 'ABIERTA' ? res?.sesionCaja?.idSesionCaja ?? null : null;
       },
       error: () => {
         // si falla, no bloqueamos la lista, pero no podrás registrar incidencia

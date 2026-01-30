@@ -42,6 +42,18 @@ export class SesionCajaEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2, name: 'monto_final', nullable: true })
   montoFinal!: string | null;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'total_ventas', default: 0 })
+  totalVentas!: string;
+
+  @Column({ type: 'int', name: 'cantidad_ventas', default: 0 })
+  cantidadVentas!: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'total_efectivo', default: 0 })
+  totalEfectivo!: string;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'total_tarjeta', default: 0 })
+  totalTarjeta!: string;
+
   @Column({
     type: 'enum',
     enum: SesionCajaEstado,

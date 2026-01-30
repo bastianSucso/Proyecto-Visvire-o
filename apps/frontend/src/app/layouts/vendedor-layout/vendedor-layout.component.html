@@ -45,6 +45,17 @@
         <span class="w-5 text-center">🍱</span>
         <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Caja</span>
       </a>
+
+      <a
+        routerLink="/pos/historial-caja"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">🧾</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">
+          Historial de sesiones
+        </span>
+      </a>
     </nav>
 
     <div class="mt-auto p-3 border-t border-slate-200">
@@ -93,6 +104,15 @@
         (click)="closeMobile()"
       >
         Caja
+      </a>
+
+      <a
+        routerLink="/pos/historial-caja"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Historial de sesiones
       </a>
     </nav>
   </aside>

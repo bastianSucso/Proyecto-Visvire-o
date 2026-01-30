@@ -41,6 +41,8 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard-vendedor' },
       { path: 'dashboard-vendedor', loadComponent: () => import('./features/vendedor/pages/dashboard/dashboard-vendedor').then(m => m.DashboarVendedordPage) },
       { path: 'caja', loadComponent: () => import('./features/vendedor/pages/caja/caja.page').then(m => m.CajaPage) },
+      { path: 'historial-caja', loadComponent: () => import('./features/vendedor/pages/historial-caja/historial-caja.page').then(m => m.HistorialCajaPage) },
+      { path: 'historial-caja/:id', loadComponent: () => import('./features/vendedor/pages/historial-caja-detalle/historial-caja-detalle.page').then(m => m.HistorialCajaDetallePage) },
       {path: 'productos-sala',loadComponent: () =>import('./features/vendedor/pages/productos-sala/productos-sala.page').then(m => m.ProductosSalaPage),},
       { path: 'incidencias', loadComponent: () => import('./features/vendedor/pages/incidencias/incidencias.page').then(m => m.IncidenciasPage) },
       {path: 'ventas/:id', loadComponent: () =>import('./features/vendedor/pages/venta-edit/venta-edit.page').then(m => m.VentaEditPage),},

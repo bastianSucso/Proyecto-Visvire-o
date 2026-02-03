@@ -1,0 +1,177 @@
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-6xl px-4 py-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Recetas y costos</h1>
+        <p class="mt-1 text-sm text-slate-500">Define insumos por plato y calcula costo.</p>
+      </div>
+    </div>
+
+    <div *ngIf="errorMsg" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ errorMsg }}
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="p-5 sm:p-6">
+        <div class="grid gap-4 lg:grid-cols-3">
+          <div class="lg:col-span-1">
+            <label class="mb-1 block text-sm font-medium text-slate-700">Seleccionar comida</label>
+            <select
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              [ngModel]="selectedComidaId"
+              (ngModelChange)="onSelectComida($event)"
+            >
+              <option value="">-- Selecciona un producto COMIDA --</option>
+              <option *ngFor="let c of comidas" [value]="c.id">
+                {{ c.name }} · {{ c.internalCode }}
+              </option>
+            </select>
+
+            <div *ngIf="selectedComida" class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs text-slate-500">Seleccionado</p>
+              <p class="text-sm font-semibold text-slate-900">{{ selectedComida.name }}</p>
+              <p class="text-xs text-slate-600">Unidad base: {{ selectedComida.unidadBase ?? '-' }}</p>
+            </div>
+
+            <form *ngIf="selectedComida" [formGroup]="rendimientoForm" (ngSubmit)="guardarRendimiento()" class="mt-4 grid gap-2">
+              <label class="text-sm font-medium text-slate-700">Porciones</label>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                formControlName="rendimiento"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                placeholder="Ej: 10"
+              />
+              <button
+                type="submit"
+                class="mt-2 rounded-xl bg-blue-700 px-3 py-2 text-sm font-semibold text-white"
+              >
+                Guardar porciones
+              </button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-2" *ngIf="selectedComida">
+            <div class="rounded-xl border border-slate-200 p-4">
+              <h2 class="text-sm font-semibold text-slate-900">Agregar insumo</h2>
+              <form [formGroup]="recetaForm" (ngSubmit)="agregarInsumo()" class="mt-3 grid gap-3 sm:grid-cols-3">
+                <div class="sm:col-span-2">
+                  <label class="mb-1 block text-xs font-medium text-slate-600">Insumo</label>
+                  <select
+                    formControlName="insumoId"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Selecciona insumo --</option>
+                    <option *ngFor="let i of insumos" [value]="i.id">
+                      {{ i.name }} · {{ i.internalCode }}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-slate-600">Cantidad (base)</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0.0001"
+                    formControlName="cantidadBase"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+                <div class="sm:col-span-3 flex justify-end">
+                  <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
+                    Agregar
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="mt-4 rounded-xl border border-slate-200 p-4">
+              <h2 class="text-sm font-semibold text-slate-900">Insumos en receta</h2>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left text-sm">
+                  <thead class="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th class="px-3 py-2">Insumo</th>
+                      <th class="px-3 py-2">Unidad</th>
+                      <th class="px-3 py-2 text-right">Cantidad</th>
+                      <th class="px-3 py-2 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of receta" class="border-t border-slate-100">
+                      <td class="px-3 py-2 font-medium text-slate-900">{{ r.insumo?.name ?? '-' }}</td>
+                      <td class="px-3 py-2 text-slate-600">{{ r.insumo?.unidadBase ?? '-' }}</td>
+                      <td class="px-3 py-2 text-right">
+                        <input
+                          type="number"
+                          step="0.001"
+                          min="0.0001"
+                          class="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900 text-right"
+                          [(ngModel)]="editCantidad[r.id]"
+                          (blur)="actualizarCantidad(r)"
+                        />
+                      </td>
+                      <td class="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          class="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-700"
+                          (click)="eliminar(r)"
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                    <tr *ngIf="!receta.length">
+                      <td class="px-3 py-4 text-slate-500" colspan="4">No hay insumos en la receta.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="mt-4 rounded-xl border border-slate-200 p-4">
+              <h2 class="text-sm font-semibold text-slate-900">Costo estimado</h2>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left text-sm">
+                  <thead class="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th class="px-3 py-2">Insumo</th>
+                      <th class="px-3 py-2 text-right">Cantidad</th>
+                      <th class="px-3 py-2 text-right">Costo unit.</th>
+                      <th class="px-3 py-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let c of (costos?.items ?? [])" class="border-t border-slate-100">
+                      <td class="px-3 py-2 font-medium text-slate-900">{{ c.insumo?.name ?? '-' }}</td>
+                      <td class="px-3 py-2 text-right">{{ c.cantidadBase }}</td>
+                      <td class="px-3 py-2 text-right">
+                        {{ +c.costoUnitario | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                      </td>
+                      <td class="px-3 py-2 text-right">
+                        {{ +c.subtotal | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                      </td>
+                    </tr>
+                    <tr *ngIf="!(costos?.items?.length)">
+                      <td class="px-3 py-4 text-slate-500" colspan="4">Sin costos disponibles.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-sm text-slate-600">
+                  Total costo: <span class="font-semibold text-slate-900">{{ +costos?.totalCosto! | currency:'CLP':'symbol-narrow':'1.0-0' }}</span>
+                </div>
+                <div class="text-sm text-slate-600" *ngIf="costos?.costoPorcion">
+                  Costo por porción: <span class="font-semibold text-slate-900">{{ +(costos?.costoPorcion ?? 0) | currency:'CLP':'symbol-narrow':'1.0-0' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

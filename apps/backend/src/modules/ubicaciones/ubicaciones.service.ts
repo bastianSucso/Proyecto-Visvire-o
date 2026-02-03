@@ -71,7 +71,7 @@ export class UbicacionesService implements OnModuleInit {
       this.stockRepo.create({
         producto: { id: p.id } as any,
         ubicacion: { id: ubicacion.id } as any,
-        cantidad: 0,
+        cantidad: '0.000',
       }),
     );
 

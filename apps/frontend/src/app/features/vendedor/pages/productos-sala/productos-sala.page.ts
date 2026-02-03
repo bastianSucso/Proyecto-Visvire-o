@@ -31,6 +31,7 @@ export class ProductosSalaPage implements OnInit {
   loading = false;
   errorMsg = '';
 
+
   filtro = '';
 
   // paginación
@@ -96,6 +97,10 @@ export class ProductosSalaPage implements OnInit {
       },
       complete: () => (this.loading = false),
     });
+  }
+
+  getPrecioParaProducto(producto: Producto) {
+    return producto.precioVenta ?? null;
   }
 
   // ====== filtrado + paginación ======

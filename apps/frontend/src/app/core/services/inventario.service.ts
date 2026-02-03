@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-export type AlteraTipo = 'INGRESO' | 'AJUSTE' | 'SALIDA' | 'TRASPASO';
+export type AlteraTipo = 'INGRESO' | 'AJUSTE' | 'SALIDA' | 'TRASPASO' | 'CONVERSION_PRODUCTO';
 
 export interface InventarioStockItem {
   id: string;
@@ -58,6 +58,14 @@ export interface InventarioMovimiento {
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;
   documentoRef: string | null;
+}
+
+export interface ConvertirProductoDto {
+  productoOrigenId: string;
+  productoDestinoId: string;
+  ubicacionId: string;
+  cantidadOrigen: number;
+  factor: number;
 }
 
 export interface CreateIngresoDto {
@@ -135,5 +143,9 @@ export class InventarioService {
 
   obtenerDocumento(documentoRef: string) {
     return this.http.get<InventarioDocumento>(`/api/inventario/documentos/${documentoRef}`);
+  }
+
+  convertirProducto(dto: ConvertirProductoDto) {
+    return this.http.post<{ ok: true }>(`/api/inventario/convertir-producto`, dto);
   }
 }

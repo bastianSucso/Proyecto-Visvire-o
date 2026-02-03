@@ -16,6 +16,7 @@ import { CreateAjusteDto } from './dto/create-ajuste.dto';
 import { CreateTraspasoDto } from './dto/create-traspaso.dto';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
+import { ConvertirProductoDto } from './dto/convertir-producto.dto';
 
 @Injectable()
 export class InventarioService {
@@ -45,10 +46,21 @@ export class InventarioService {
 
   private parseCantidad(raw: number) {
     const cantidad = Number(raw);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('cantidad debe ser un número > 0');
     }
     return cantidad;
+  }
+
+  private formatCantidad(value: number) {
+    return value.toFixed(3);
+  }
+
+  private getUnidadBaseMeta(producto: ProductoEntity) {
+    if (!producto.unidadBase) {
+      return { unidad: null, factorABase: null };
+    }
+    return { unidad: producto.unidadBase, factorABase: '1' };
   }
 
   private resolveDestinoFromMov(mov: AlteraEntity) {
@@ -78,7 +90,7 @@ export class InventarioService {
       fecha,
       items: items.map((it) => ({
         id: it.id,
-        cantidad: it.cantidad,
+        cantidad: Number(it.cantidad ?? 0),
         unidadBase: it.producto?.unidadBase ?? null,
         barcode: it.producto?.barcode ?? null,
         producto: it.producto
@@ -106,8 +118,8 @@ export class InventarioService {
       const alteraRepoTx = manager.getRepository(AlteraEntity);
 
       for (const it of dto.items) {
-        const cantidad = this.parseCantidad(it.cantidad);
         const producto = await this.getProductoOrThrow(it.productoId);
+        const cantidad = this.parseCantidad(it.cantidad);
 
         const stockRow = await stockRepoTx.findOne({
           where: {
@@ -117,22 +129,26 @@ export class InventarioService {
         });
 
         if (stockRow) {
-          stockRow.cantidad = (stockRow.cantidad ?? 0) + cantidad;
+          const actual = Number(stockRow.cantidad ?? 0);
+          stockRow.cantidad = this.formatCantidad(actual + cantidad);
           await stockRepoTx.save(stockRow);
         } else {
           await stockRepoTx.save(
             stockRepoTx.create({
               producto: { id: producto.id } as any,
               ubicacion: { id: destino.id } as any,
-              cantidad,
+              cantidad: this.formatCantidad(cantidad),
             }),
           );
         }
 
+        const unidadMeta = this.getUnidadBaseMeta(producto);
         await alteraRepoTx.save(
           alteraRepoTx.create({
             tipo: 'INGRESO',
-            cantidad,
+            cantidad: this.formatCantidad(cantidad),
+            unidad: unidadMeta.unidad,
+            factorABase: unidadMeta.factorABase,
             motivo: null,
             producto: { id: producto.id } as any,
             ubicacion: { id: destino.id } as any,
@@ -176,12 +192,12 @@ export class InventarioService {
           } as any,
         });
 
-        const origenActual = stockOrigen?.cantidad ?? 0;
+        const origenActual = Number(stockOrigen?.cantidad ?? 0);
         if (origenActual < cantidad) {
           throw new BadRequestException('Stock insuficiente en ubicación origen');
         }
 
-        stockOrigen!.cantidad = origenActual - cantidad;
+        stockOrigen!.cantidad = this.formatCantidad(origenActual - cantidad);
         await stockRepoTx.save(stockOrigen!);
 
         const stockDestino = await stockRepoTx.findOne({
@@ -192,22 +208,26 @@ export class InventarioService {
         });
 
         if (stockDestino) {
-          stockDestino.cantidad = (stockDestino.cantidad ?? 0) + cantidad;
+          const actual = Number(stockDestino.cantidad ?? 0);
+          stockDestino.cantidad = this.formatCantidad(actual + cantidad);
           await stockRepoTx.save(stockDestino);
         } else {
           await stockRepoTx.save(
             stockRepoTx.create({
               producto: { id: producto.id } as any,
               ubicacion: { id: destino.id } as any,
-              cantidad,
+              cantidad: this.formatCantidad(cantidad),
             }),
           );
         }
 
+        const unidadMeta = this.getUnidadBaseMeta(producto);
         await alteraRepoTx.save(
           alteraRepoTx.create({
             tipo: 'TRASPASO',
-            cantidad,
+            cantidad: this.formatCantidad(cantidad),
+            unidad: unidadMeta.unidad,
+            factorABase: unidadMeta.factorABase,
             motivo: null,
             producto: { id: producto.id } as any,
             ubicacion: null,
@@ -239,8 +259,8 @@ export class InventarioService {
 
   async registrarIngreso(dto: CreateIngresoDto, usuarioId: string) {
     const cantidad = Number(dto.cantidad);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('cantidad debe ser un número > 0');
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -258,25 +278,28 @@ export class InventarioService {
         relations: { producto: true, ubicacion: true },
       });
 
-      const cantidadActual = stockRow?.cantidad ?? 0;
+      const cantidadActual = Number(stockRow?.cantidad ?? 0);
       const nuevaCantidad = cantidadActual + cantidad;
 
       if (stockRow) {
-        stockRow.cantidad = nuevaCantidad;
+        stockRow.cantidad = this.formatCantidad(nuevaCantidad);
         await stockRepoTx.save(stockRow);
       } else {
         await stockRepoTx.save(
           stockRepoTx.create({
             producto,
             ubicacion,
-            cantidad: nuevaCantidad,
+            cantidad: this.formatCantidad(nuevaCantidad),
           }),
         );
       }
 
+      const unidadMeta = this.getUnidadBaseMeta(producto);
       const mov = alteraRepoTx.create({
         tipo: 'INGRESO',
-        cantidad,
+        cantidad: this.formatCantidad(cantidad),
+        unidad: unidadMeta.unidad,
+        factorABase: unidadMeta.factorABase,
         motivo: null,
         producto,
         ubicacion,
@@ -291,8 +314,8 @@ export class InventarioService {
 
   async registrarAjuste(dto: CreateAjusteDto, usuarioId: string) {
     const cantidad = Number(dto.cantidad);
-    if (!Number.isInteger(cantidad) || cantidad === 0) {
-      throw new BadRequestException('cantidad debe ser entero distinto de 0');
+    if (!Number.isFinite(cantidad) || cantidad === 0) {
+      throw new BadRequestException('cantidad debe ser un número distinto de 0');
     }
 
     const motivo = dto.motivo?.trim();
@@ -313,7 +336,7 @@ export class InventarioService {
         relations: { producto: true, ubicacion: true },
       });
 
-      const cantidadActual = stockRow?.cantidad ?? 0;
+      const cantidadActual = Number(stockRow?.cantidad ?? 0);
       const nuevaCantidad = cantidadActual + cantidad;
 
       if (nuevaCantidad < 0) {
@@ -321,21 +344,24 @@ export class InventarioService {
       }
 
       if (stockRow) {
-        stockRow.cantidad = nuevaCantidad;
+        stockRow.cantidad = this.formatCantidad(nuevaCantidad);
         await stockRepoTx.save(stockRow);
       } else {
         await stockRepoTx.save(
           stockRepoTx.create({
             producto,
             ubicacion,
-            cantidad: nuevaCantidad,
+            cantidad: this.formatCantidad(nuevaCantidad),
           }),
         );
       }
 
+      const unidadMeta = this.getUnidadBaseMeta(producto);
       const mov = alteraRepoTx.create({
         tipo: 'AJUSTE',
-        cantidad,
+        cantidad: this.formatCantidad(cantidad),
+        unidad: unidadMeta.unidad,
+        factorABase: unidadMeta.factorABase,
         motivo,
         producto,
         ubicacion,
@@ -350,8 +376,8 @@ export class InventarioService {
 
   async registrarTraspaso(dto: CreateTraspasoDto, usuarioId: string) {
     const cantidad = Number(dto.cantidad);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('cantidad debe ser un número > 0');
     }
 
     if (dto.origenId === dto.destinoId) {
@@ -374,7 +400,7 @@ export class InventarioService {
         relations: { producto: true, ubicacion: true },
       });
 
-      const origenActual = stockOrigen?.cantidad ?? 0;
+      const origenActual = Number(stockOrigen?.cantidad ?? 0);
       if (origenActual < cantidad) {
         throw new BadRequestException('Stock insuficiente en la ubicación origen');
       }
@@ -387,25 +413,29 @@ export class InventarioService {
         relations: { producto: true, ubicacion: true },
       });
 
-      stockOrigen!.cantidad = origenActual - cantidad;
+      stockOrigen!.cantidad = this.formatCantidad(origenActual - cantidad);
       await stockRepoTx.save(stockOrigen!);
 
       if (stockDestino) {
-        stockDestino.cantidad = (stockDestino.cantidad ?? 0) + cantidad;
+        const actual = Number(stockDestino.cantidad ?? 0);
+        stockDestino.cantidad = this.formatCantidad(actual + cantidad);
         await stockRepoTx.save(stockDestino);
       } else {
         await stockRepoTx.save(
           stockRepoTx.create({
             producto,
             ubicacion: destino,
-            cantidad,
+            cantidad: this.formatCantidad(cantidad),
           }),
         );
       }
 
+      const unidadMeta = this.getUnidadBaseMeta(producto);
       const mov = alteraRepoTx.create({
         tipo: 'TRASPASO',
-        cantidad,
+        cantidad: this.formatCantidad(cantidad),
+        unidad: unidadMeta.unidad,
+        factorABase: unidadMeta.factorABase,
         motivo: null,
         producto,
         ubicacion: null,
@@ -442,7 +472,7 @@ export class InventarioService {
           nombre: s.ubicacion.nombre,
           tipo: s.ubicacion.tipo,
         },
-        cantidad: s.cantidad ?? 0,
+        cantidad: Number(s.cantidad ?? 0),
       }));
 
       const cantidadTotal = stocks.reduce((sum, s) => sum + s.cantidad, 0);
@@ -457,6 +487,109 @@ export class InventarioService {
         stocks,
         cantidadTotal,
       };
+    });
+  }
+
+  async convertirProducto(dto: ConvertirProductoDto, usuarioId: string) {
+    if (dto.productoOrigenId === dto.productoDestinoId) {
+      throw new BadRequestException('productoOrigenId y productoDestinoId no pueden ser iguales');
+    }
+    const cantidadOrigen = this.parseCantidad(dto.cantidadOrigen);
+    const factor = Number(dto.factor);
+    if (!Number.isFinite(factor) || factor <= 0) {
+      throw new BadRequestException('factor debe ser un número > 0');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const productoOrigen = await manager.getRepository(ProductoEntity).findOne({
+        where: { id: dto.productoOrigenId },
+      });
+      if (!productoOrigen) throw new NotFoundException('Producto origen no encontrado');
+
+      const productoDestino = await manager.getRepository(ProductoEntity).findOne({
+        where: { id: dto.productoDestinoId },
+      });
+      if (!productoDestino) throw new NotFoundException('Producto destino no encontrado');
+
+      const ubicacion = await manager.getRepository(UbicacionEntity).findOne({
+        where: { id: dto.ubicacionId },
+      });
+      if (!ubicacion) throw new NotFoundException('Ubicación no encontrada');
+
+      const stockRepoTx = manager.getRepository(ProductoStockEntity);
+
+      const stockOrigen = await stockRepoTx.findOne({
+        where: { producto: { id: productoOrigen.id } as any, ubicacion: { id: ubicacion.id } as any },
+      });
+
+      if (!stockOrigen) {
+        throw new BadRequestException('Stock no inicializado en producto origen');
+      }
+
+      const disponible = Number(stockOrigen?.cantidad ?? 0);
+      if (disponible < cantidadOrigen) {
+        throw new BadRequestException('Stock insuficiente en producto origen');
+      }
+
+      stockOrigen!.cantidad = this.formatCantidad(disponible - cantidadOrigen);
+      await stockRepoTx.save(stockOrigen!);
+
+      const cantidadDestino = cantidadOrigen * factor;
+      const stockDestino = await stockRepoTx.findOne({
+        where: { producto: { id: productoDestino.id } as any, ubicacion: { id: ubicacion.id } as any },
+      });
+
+      if (stockDestino) {
+        const actual = Number(stockDestino.cantidad ?? 0);
+        stockDestino.cantidad = this.formatCantidad(actual + cantidadDestino);
+        await stockRepoTx.save(stockDestino);
+      } else {
+        await stockRepoTx.save(
+          stockRepoTx.create({
+            producto: { id: productoDestino.id } as any,
+            ubicacion: { id: ubicacion.id } as any,
+            cantidad: this.formatCantidad(cantidadDestino),
+          }),
+        );
+      }
+
+      const alteraRepoTx = manager.getRepository(AlteraEntity);
+      const unidadOrigen = this.getUnidadBaseMeta(productoOrigen);
+      const unidadDestino = this.getUnidadBaseMeta(productoDestino);
+
+      await alteraRepoTx.save(
+        alteraRepoTx.create({
+          tipo: 'CONVERSION_PRODUCTO',
+          cantidad: this.formatCantidad(cantidadOrigen),
+          unidad: unidadOrigen.unidad,
+          factorABase: unidadOrigen.factorABase,
+          motivo: `Conversión a ${productoDestino.name}`,
+          producto: { id: productoOrigen.id } as any,
+          ubicacion: { id: ubicacion.id } as any,
+          origen: null,
+          destino: null,
+          usuario: { idUsuario: usuarioId } as UserEntity,
+          documentoRef: null,
+        }),
+      );
+
+      await alteraRepoTx.save(
+        alteraRepoTx.create({
+          tipo: 'CONVERSION_PRODUCTO',
+          cantidad: this.formatCantidad(cantidadDestino),
+          unidad: unidadDestino.unidad,
+          factorABase: unidadDestino.factorABase,
+          motivo: `Conversión desde ${productoOrigen.name}`,
+          producto: { id: productoDestino.id } as any,
+          ubicacion: { id: ubicacion.id } as any,
+          origen: null,
+          destino: null,
+          usuario: { idUsuario: usuarioId } as UserEntity,
+          documentoRef: null,
+        }),
+      );
+
+      return { ok: true };
     });
   }
 
@@ -478,7 +611,7 @@ export class InventarioService {
     return items.map((m) => ({
       id: m.id,
       tipo: m.tipo,
-      cantidad: m.cantidad,
+      cantidad: Number(m.cantidad ?? 0),
       motivo: m.motivo,
       fecha: m.fecha,
       producto: {
@@ -539,7 +672,7 @@ export class InventarioService {
         if (!group || group.length === 0) return null;
         const first = group[0];
         const itemsCount = group.length;
-        const totalCantidad = group.reduce((sum, it) => sum + (it.cantidad ?? 0), 0);
+      const totalCantidad = group.reduce((sum, it) => sum + Number(it.cantidad ?? 0), 0);
         const fecha = group.reduce((max, it) => (it.fecha > max ? it.fecha : max), first.fecha);
         const origen = first.origen
           ? { id: first.origen.id, nombre: first.origen.nombre, tipo: first.origen.tipo }

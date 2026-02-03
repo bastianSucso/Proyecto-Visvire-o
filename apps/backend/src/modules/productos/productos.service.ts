@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -10,12 +11,15 @@ import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoStockEntity } from './entities/producto-stock.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
+import { ProductoTipoEntity } from './entities/producto-tipo.entity';
 
 @Injectable()
 export class ProductosService {
   constructor(
     @InjectRepository(ProductoEntity)
     private readonly repo: Repository<ProductoEntity>,
+    @InjectRepository(ProductoTipoEntity)
+    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(ProductoStockEntity)
     private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(UbicacionEntity)
@@ -27,8 +31,6 @@ export class ProductosService {
     p: ProductoEntity,
     extra?: { cantidadTotal?: number; stockSalaVenta?: number },
   ) {
-    const costo = Number(p.precioCosto);
-    const venta = Number(p.precioVenta);
     const cantidadTotal = extra?.cantidadTotal ?? 0;
     const stockSalaVenta = extra?.stockSalaVenta;
 
@@ -40,12 +42,13 @@ export class ProductosService {
       unidadBase: p.unidadBase,
       precioCosto: p.precioCosto,
       precioVenta: p.precioVenta,
+      rendimiento: p.rendimiento ?? null,
       isActive: p.isActive,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
+      tipos: (p.tipos ?? []).map((t) => t.tipo),
       ...(stockSalaVenta !== undefined ? { stockSalaVenta } : {}),
       cantidadTotal,
-      gananciaProducto: Number((venta - costo).toFixed(2)),
     };
   }
 
@@ -62,7 +65,7 @@ export class ProductosService {
     const stocks = await this.stockRepo.find({
       where: { producto: { id } } as any,
     });
-    return stocks.reduce((sum, s) => sum + (s.cantidad ?? 0), 0);
+    return stocks.reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
   }
 
   async findAll(includeInactive = false) {
@@ -70,11 +73,11 @@ export class ProductosService {
     const items = await this.repo.find({
       where,
       order: { createdAt: 'DESC' },
-      relations: { stocks: true },
+      relations: { stocks: true, tipos: true },
     });
 
     return items.map((p) => {
-      const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + (s.cantidad ?? 0), 0);
+      const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
       return this.toResponse(p, { cantidadTotal });
     });
   }
@@ -82,10 +85,24 @@ export class ProductosService {
   async findOne(id: string) {
     const p = await this.repo.findOne({
       where: { id },
-      relations: { stocks: true },
+      relations: { stocks: true, tipos: true },
     });
     if (!p) throw new NotFoundException('Producto no encontrado');
-    const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + (s.cantidad ?? 0), 0);
+    const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
+    return this.toResponse(p, { cantidadTotal });
+  }
+
+  async findByBarcode(barcode: string) {
+    const cleaned = barcode.trim();
+    if (!cleaned) throw new BadRequestException('barcode es requerido');
+
+    const p = await this.repo.findOne({
+      where: { barcode: cleaned },
+      relations: { stocks: true, tipos: true },
+    });
+    if (!p) throw new NotFoundException('Producto no encontrado por barcode');
+
+    const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
     return this.toResponse(p, { cantidadTotal });
   }
 
@@ -99,11 +116,11 @@ export class ProductosService {
       .where('p.isActive = :active', { active: true })
       .orderBy('p.name', 'ASC');
 
-    const { entities, raw } = await qb.getRawAndEntities();
+      const { entities, raw } = await qb.getRawAndEntities();
 
-    return entities.map((p, i) =>
-      this.toResponse(p, { stockSalaVenta: Number(raw[i]?.stockSalaVenta ?? 0) }),
-    );
+      return entities.map((p, i) =>
+        this.toResponse(p, { stockSalaVenta: Number(raw[i]?.stockSalaVenta ?? 0) }),
+      );
   }
 
   async create(dto: CreateProductoDto) {
@@ -129,10 +146,19 @@ export class ProductosService {
       unidadBase: dto.unidadBase?.trim() || null,
       precioCosto: dto.precioCosto.toFixed(2),
       precioVenta: dto.precioVenta.toFixed(2),
+      rendimiento: dto.rendimiento !== undefined ? dto.rendimiento.toFixed(3) : null,
       isActive: true,
     });
 
     const saved = await this.repo.save(entity);
+
+    if (dto.tipos && dto.tipos.length > 0) {
+      const tipos = Array.from(new Set(dto.tipos));
+      const rows = tipos.map((tipo) =>
+        this.tipoRepo.create({ producto: saved, tipo }),
+      );
+      await this.tipoRepo.save(rows);
+    }
 
     const ubicaciones = await this.ubicacionRepo.find({
       where: { activa: true } as any,
@@ -144,14 +170,18 @@ export class ProductosService {
         this.stockRepo.create({
           producto: saved,
           ubicacion: u,
-          cantidad: 0,
+          cantidad: '0.000',
         }),
       );
       await this.stockRepo.save(stocks);
     }
 
     const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
-    return this.toResponse(saved, { cantidadTotal });
+    const full = await this.repo.findOne({
+      where: { id: saved.id },
+      relations: { tipos: true },
+    });
+    return this.toResponse(full ?? saved, { cantidadTotal });
   }
 
   async update(id: string, dto: UpdateProductoDto) {
@@ -188,12 +218,27 @@ export class ProductosService {
 
     if (dto.precioCosto !== undefined) existing.precioCosto = dto.precioCosto.toFixed(2);
     if (dto.precioVenta !== undefined) existing.precioVenta = dto.precioVenta.toFixed(2);
-
+    if (dto.rendimiento !== undefined) {
+      existing.rendimiento = dto.rendimiento === null ? null : dto.rendimiento.toFixed(3);
+    }
+    if (dto.tipos !== undefined) {
+      await this.tipoRepo.delete({ producto: { id: existing.id } as any });
+      if (dto.tipos.length > 0) {
+        const tipos = Array.from(new Set(dto.tipos));
+        await this.tipoRepo.save(
+          tipos.map((tipo) => this.tipoRepo.create({ producto: existing, tipo })),
+        );
+      }
+    }
     if (dto.isActive !== undefined) existing.isActive = dto.isActive;
 
     const saved = await this.repo.save(existing);
     const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
-    return this.toResponse(saved, { cantidadTotal });
+    const full = await this.repo.findOne({
+      where: { id: saved.id },
+      relations: { tipos: true },
+    });
+    return this.toResponse(full ?? saved, { cantidadTotal });
   }
 
   async setActive(id: string, isActive: boolean) {
@@ -203,6 +248,12 @@ export class ProductosService {
     const saved = await this.repo.save(p);
     const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
     return this.toResponse(saved, { cantidadTotal });
+  }
+
+  private async getProductoOrThrow(id: string) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Producto no encontrado');
+    return p;
   }
 
   async remove(id: string) {

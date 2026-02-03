@@ -1,5 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  IsArray,
+  IsEnum,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -7,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { ProductoTipoEnum } from '../entities/producto-tipo.entity';
 
 export class CreateProductoDto {
   @IsString()
@@ -27,6 +32,7 @@ export class CreateProductoDto {
   @IsOptional()
   @IsString()
   @MaxLength(30)
+  @IsIn(['g', 'kg', 'ml', 'l', 'unidad'], { message: 'unidadBase inválida' })
   unidadBase?: string;
 
   @Type(() => Number)
@@ -38,5 +44,17 @@ export class CreateProductoDto {
   @IsNumber()
   @Min(0)
   precioVenta: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  rendimiento?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsEnum(ProductoTipoEnum, { each: true })
+  tipos?: ProductoTipoEnum[];
 
 }

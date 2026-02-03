@@ -1,4 +1,5 @@
-import { IsInt, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsUUID, Min } from 'class-validator';
 
 export class CreateTraspasoDto {
   @IsUUID()
@@ -10,7 +11,8 @@ export class CreateTraspasoDto {
   @IsUUID()
   destinoId!: string;
 
-  @IsInt()
-  @Min(1)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
   cantidad!: number;
 }

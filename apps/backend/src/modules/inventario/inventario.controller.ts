@@ -8,6 +8,7 @@ import { CreateAjusteDto } from './dto/create-ajuste.dto';
 import { CreateTraspasoDto } from './dto/create-traspaso.dto';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
+import { ConvertirProductoDto } from './dto/convertir-producto.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/inventario')
@@ -55,6 +56,12 @@ export class InventarioController {
   @Get('stock')
   consultarStock(@Query('search') search?: string) {
     return this.inventarioService.consultarStock(search);
+  }
+
+  @Roles('ADMIN')
+  @Post('convertir-producto')
+  convertirProducto(@Body() dto: ConvertirProductoDto, @Req() req: any) {
+    return this.inventarioService.convertirProducto(dto, req.user.idUsuario);
   }
 
   @Roles('ADMIN')

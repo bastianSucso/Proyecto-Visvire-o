@@ -53,7 +53,7 @@ export class HistorialService {
       ubicacion: sala,
       usuario: { idUsuario: usuarioId } as any,
       tipo: dto.tipo,
-      cantidad: dto.cantidad,
+      cantidad: Number(dto.cantidad).toFixed(3),
       observacion: dto.observacion ?? null,
     });
 

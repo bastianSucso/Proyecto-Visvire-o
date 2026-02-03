@@ -37,9 +37,9 @@ export class StockSesionCajaEntity {
   @JoinColumn({ name: 'id_ubicacion' })
   ubicacion!: UbicacionEntity;
 
-  @Column({ type: 'int', name: 'stock_inicial' })
-  stockInicial!: number;
+  @Column({ type: 'numeric', precision: 14, scale: 3, name: 'stock_inicial' })
+  stockInicial!: string;
 
-  @Column({ type: 'int', name: 'stock_final', nullable: true })
-  stockFinal!: number | null;
+  @Column({ type: 'numeric', precision: 14, scale: 3, name: 'stock_final', nullable: true })
+  stockFinal!: string | null;
 }

@@ -1,12 +1,15 @@
 import { Type } from 'class-transformer';
 import { IsNumber, IsUUID, Min } from 'class-validator';
 
-export class DocumentoItemDto {
+export class CreateRecetaDto {
   @IsUUID()
-  productoId!: string;
+  comidaId!: string;
+
+  @IsUUID()
+  insumoId!: string;
 
   @Type(() => Number)
   @IsNumber()
-  @Min(0.001)
-  cantidad!: number;
+  @Min(0.0001)
+  cantidadBase!: number;
 }

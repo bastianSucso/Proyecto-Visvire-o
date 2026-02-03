@@ -1,9 +1,9 @@
 import { Type } from 'class-transformer';
-import { IsInt, Min } from 'class-validator';
+import { IsNumber, Min } from 'class-validator';
 
 export class UpdateItemVentaDto {
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.001)
   cantidad!: number;
 }

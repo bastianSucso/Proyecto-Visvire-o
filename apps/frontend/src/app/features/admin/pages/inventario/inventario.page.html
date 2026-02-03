@@ -32,6 +32,14 @@
           Ajustar stock
         </button>
 
+        <button
+          type="button"
+          (click)="openConversionModal()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Convertir producto
+        </button>
+
         <a
           routerLink="/admin/inventario/traspasos"
           class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -190,6 +198,103 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="conversionModalOpen" class="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+  <div class="w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-xl">
+    <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Convertir producto</h2>
+        <p class="text-sm text-slate-500">Convierte stock entre productos relacionados (ej: caja a unidad).</p>
+      </div>
+      <button class="text-slate-500 hover:text-slate-700" (click)="closeConversionModal()">✕</button>
+    </div>
+
+    <div class="p-5">
+      <form class="grid gap-3" [formGroup]="conversionForm" (ngSubmit)="registrarConversion()">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Producto origen</label>
+          <select
+            formControlName="productoOrigenId"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            <option value="" disabled>Selecciona producto</option>
+            <option *ngFor="let p of productos" [value]="p.id">
+              {{ p.name }} · {{ p.internalCode }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Producto destino</label>
+          <select
+            formControlName="productoDestinoId"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            <option value="" disabled>Selecciona producto</option>
+            <option *ngFor="let p of productos" [value]="p.id">
+              {{ p.name }} · {{ p.internalCode }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Ubicación</label>
+          <select
+            formControlName="ubicacionId"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            <option value="" disabled>Selecciona ubicación</option>
+            <option *ngFor="let u of ubicaciones" [value]="u.id">
+              {{ u.nombre }} ({{ u.tipo }})
+            </option>
+          </select>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Cantidad origen</label>
+            <input
+              type="number"
+              min="0.001"
+              step="0.001"
+              formControlName="cantidadOrigen"
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Factor destino</label>
+            <input
+              type="number"
+              min="0.000001"
+              step="0.000001"
+              formControlName="factor"
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              placeholder="Ej: 20"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button
+            type="button"
+            class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+            (click)="closeConversionModal()"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="submit"
+            [disabled]="loadingForm"
+            class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+          >
+            {{ loadingForm ? 'Guardando...' : 'Convertir' }}
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

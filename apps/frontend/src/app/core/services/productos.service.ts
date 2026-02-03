@@ -13,10 +13,13 @@ export interface Producto {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  tipos?: ProductoTipo[];
+  rendimiento?: string | null;
 
   cantidadTotal?: number;
-  gananciaProducto: number;
 }
+
+export type ProductoTipo = 'REVENTA' | 'INSUMO' | 'COMIDA';
 
 export interface CreateProductoDto {
   name: string;
@@ -25,6 +28,8 @@ export interface CreateProductoDto {
   unidadBase?: string;
   precioCosto: number;
   precioVenta: number;
+  tipos?: ProductoTipo[];
+  rendimiento?: number;
 }
 
 export interface UpdateProductoDto {
@@ -34,6 +39,8 @@ export interface UpdateProductoDto {
   unidadBase?: string | null;
   precioCosto?: number;
   precioVenta?: number;
+  tipos?: ProductoTipo[];
+  rendimiento?: number | null;
   isActive?: boolean;
 }
 
@@ -66,12 +73,17 @@ export class ProductosService {
         return this.http.delete<{ ok: true }>(`/api/productos/${id}`);
     }
 
-    listSala() {
-        return this.http.get<Producto[]>('/api/productos/sala');
-    }
+  listSala() {
+    return this.http.get<Producto[]>('/api/productos/sala');
+  }
 
     suggestInternalCode() {
         return this.http.get<{ internalCode: string }>(`/api/productos/suggest-internal-code`);
     }
+
+  lookupByBarcode(barcode: string) {
+    const query = `?barcode=${encodeURIComponent(barcode)}`;
+    return this.http.get<Producto>(`/api/productos/lookup${query}`);
+  }
 
 }

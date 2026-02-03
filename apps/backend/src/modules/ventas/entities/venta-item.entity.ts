@@ -1,9 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { VentaEntity } from './venta.entity';
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 
 @Entity('venta_item')
-@Unique('UQ_venta_producto', ['venta', 'producto'])
 export class VentaItemEntity {
   @PrimaryGeneratedColumn('increment', { name: 'id_item' })
   idItem!: number;
@@ -16,8 +15,8 @@ export class VentaItemEntity {
   @JoinColumn({ name: 'id_producto' })
   producto!: ProductoEntity;
 
-  @Column({ type: 'int', name: 'cantidad' })
-  cantidad!: number;
+  @Column({ type: 'numeric', precision: 14, scale: 3, name: 'cantidad' })
+  cantidad!: string;
 
   // Snapshot de precio al momento de agregar (en edición)
   @Column({ type: 'numeric', precision: 12, scale: 2, name: 'precio_unitario' })

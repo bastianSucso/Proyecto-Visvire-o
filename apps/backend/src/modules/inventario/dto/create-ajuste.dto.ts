@@ -1,4 +1,5 @@
-import { IsInt, IsNotEmpty, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNotEmpty, IsNumber, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateAjusteDto {
   @IsUUID()
@@ -7,7 +8,8 @@ export class CreateAjusteDto {
   @IsUUID()
   ubicacionId!: string;
 
-  @IsInt()
+  @Type(() => Number)
+  @IsNumber()
   cantidad!: number;
 
   @IsString()

@@ -35,6 +35,7 @@ export class UbicacionEntity {
   @OneToMany(() => ProductoStockEntity, (ps) => ps.ubicacion)
   productoStocks: ProductoStockEntity[];
 
+
   @OneToMany(() => StockSesionCajaEntity, (ss) => ss.ubicacion)
   stockSesionesCaja: StockSesionCajaEntity[];
 

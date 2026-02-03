@@ -1,4 +1,5 @@
-import { IsInt, IsNotEmpty, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsUUID, Min } from 'class-validator';
 
 export class CreateIngresoDto {
   @IsUUID()
@@ -7,7 +8,8 @@ export class CreateIngresoDto {
   @IsUUID()
   ubicacionId!: string;
 
-  @IsInt()
-  @Min(1)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
   cantidad!: number;
 }

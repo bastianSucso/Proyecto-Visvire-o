@@ -1,4 +1,5 @@
-import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class CreateIncidenciaStockDto {
   @IsNotEmpty()
@@ -10,7 +11,8 @@ export class CreateIncidenciaStockDto {
   @IsIn(['FALTANTE', 'EXCEDENTE', 'DANIO', 'VENCIDO', 'OTRO'])
   tipo!: 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
 
-  @IsInt()
+  @Type(() => Number)
+  @IsNumber()
   @IsPositive()
   cantidad!: number;
 

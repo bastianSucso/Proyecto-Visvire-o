@@ -114,7 +114,12 @@
                 </td>
 
                 <td class="px-4 py-3">
-                  {{ +p.precioVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  <div class="text-sm text-slate-900">
+                    {{ +p.precioVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  </div>
+                  <div class="text-xs text-slate-500">
+                    {{ p.unidadBase ?? '-' }}
+                  </div>
                 </td>
 
                 <td class="px-4 py-3">

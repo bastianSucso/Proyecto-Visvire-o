@@ -292,14 +292,14 @@ export class CajaService {
         });
 
         const stockMap = new Map(
-          stocks.map((s) => [s.producto.id, Math.max(0, s.cantidad ?? 0)]),
+          stocks.map((s) => [s.producto.id, Math.max(0, Number(s.cantidad ?? 0))]),
         );
 
         const values = productos.map((p) => ({
           sesionCaja: { id: sesionGuardada.id } as any,
           producto: { id: p.id } as any,
           ubicacion: { id: sala.id } as any,
-          stockInicial: stockMap.get(p.id) ?? 0,
+          stockInicial: (stockMap.get(p.id) ?? 0).toFixed(3),
           stockFinal: null,
         }));
 

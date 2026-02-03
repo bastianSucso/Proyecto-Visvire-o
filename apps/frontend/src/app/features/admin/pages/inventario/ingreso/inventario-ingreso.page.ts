@@ -45,7 +45,7 @@ export class InventarioIngresoPage {
 
   cantidadRapida = 1;
   editCantidad: Record<string, number> = {};
-  savingItemId: number | null = null;
+
 
   ngOnInit() {
     this.cargarProductos();
@@ -156,8 +156,8 @@ export class InventarioIngresoPage {
     if (!raw) return;
 
     const cant = Number(this.cantidadRapida);
-    if (!Number.isInteger(cant) || cant < 1) {
-      this.scanError = 'Cantidad inválida (debe ser entero >= 1).';
+    if (!Number.isFinite(cant) || cant <= 0) {
+      this.scanError = 'Cantidad inválida (debe ser > 0).';
       return;
     }
 
@@ -169,6 +169,20 @@ export class InventarioIngresoPage {
       if (hit) {
         await this.addByProducto(hit, cant);
         return;
+      }
+
+      try {
+        const res = await new Promise<Producto | null>((resolve) => {
+          this.productosService.lookupByBarcode(raw).subscribe({
+            next: (data) => resolve(data),
+            error: () => resolve(null),
+          });
+        });
+        if (res) {
+          await this.addByProducto(res, cant);
+          return;
+        }
+      } catch {
       }
     }
 
@@ -182,8 +196,8 @@ export class InventarioIngresoPage {
 
   async seleccionarSug(p: Producto) {
     const cant = Number(this.cantidadRapida);
-    if (!Number.isInteger(cant) || cant < 1) {
-      this.scanError = 'Cantidad inválida (debe ser entero >= 1).';
+    if (!Number.isFinite(cant) || cant <= 0) {
+      this.scanError = 'Cantidad inválida (debe ser > 0).';
       return;
     }
 
@@ -191,8 +205,6 @@ export class InventarioIngresoPage {
   }
 
   private async addByProducto(producto: Producto, cantidad: number) {
-    if (this.savingItemId !== null) return;
-
     const existing = this.items.find((it) => it.id === producto.id);
     if (!existing) {
       this.items = [
@@ -219,8 +231,8 @@ export class InventarioIngresoPage {
 
   guardarCantidad(itemId: string) {
     const cantidad = Number(this.editCantidad[itemId]);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      this.scanError = 'La cantidad debe ser un entero mayor o igual a 1.';
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      this.scanError = 'La cantidad debe ser mayor a 0.';
       return;
     }
 
@@ -241,13 +253,17 @@ export class InventarioIngresoPage {
       this.errorMsg = 'Debes agregar al menos un producto.';
       return;
     }
+
     this.loading = true;
     this.errorMsg = '';
     this.successMsg = '';
 
     const payload = {
       destinoId: this.destinoId,
-      items: this.items.map((it) => ({ productoId: it.id, cantidad: it.cantidad })),
+      items: this.items.map((it) => ({
+        productoId: it.id,
+        cantidad: it.cantidad,
+      })),
     };
 
     this.inventarioService.crearDocumentoIngreso(payload).subscribe({

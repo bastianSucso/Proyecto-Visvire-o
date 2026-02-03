@@ -47,7 +47,10 @@ export class VentasService {
     return this.http.get<VentaResponse>(`/api/ventas/${idVenta}`);
   }
 
-  agregarItem(idVenta: number, payload: { productoId: string; cantidad: number }): Observable<VentaResponse> {
+  agregarItem(
+    idVenta: number,
+    payload: { productoId: string; cantidad: number },
+  ): Observable<VentaResponse> {
     return this.http.post<VentaResponse>(`/api/ventas/${idVenta}/items`, payload);
   }
 

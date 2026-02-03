@@ -38,6 +38,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
   productosLoading = false;
   productosError = '';
 
+
   // edición inline por item (cantidad)
   editCantidad: Record<number, number> = {};
   savingItemId: number | null = null;
@@ -210,6 +211,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
     });
   }
 
+
   // ---------- POS: sugerencias ----------
   onScanChange(value: string) {
     this.scan = value;
@@ -226,7 +228,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
       .filter((p) => {
         const name = this.norm(p.name);
         const code = this.norm(p.internalCode);
-        const barcode = this.norm(p.barcode || '');
+        const barcode = this.norm(p.barcode ?? '');
         return name.includes(q) || code.includes(q) || barcode.includes(q);
       })
       .slice(0, 8);
@@ -250,41 +252,48 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
     if (!raw) return;
 
     const cant = Number(this.cantidadRapida);
-    if (!Number.isInteger(cant) || cant < 1) {
-      this.scanError = 'Cantidad rápida inválida (debe ser entero >= 1).';
+    if (!Number.isFinite(cant) || cant <= 0) {
+      this.scanError = 'Cantidad rápida inválida (debe ser > 0).';
       return;
     }
 
     if (this.isBarcodeLike(raw)) {
-      const hit =
-        this.productos.find((p) => (p.barcode || '').trim() === raw) ||
-        this.productos.find((p) => (p.internalCode || '').trim() === raw);
-
-      if (hit) {
-        this.addByProducto(hit, cant);
-        return;
-      }
+      this.productosService.lookupByBarcode(raw).subscribe({
+        next: (res) => {
+          if (!res?.id) {
+            this.scanError = 'Barcode no asociado a un producto válido.';
+            return;
+          }
+          this.addByProducto(res, cant);
+        },
+        error: (err) => {
+          const msg = err?.error?.message;
+          this.scanError = Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'Barcode no encontrado.');
+        },
+      });
+      return;
     }
 
     if (this.sugerencias.length > 0) {
-      this.addByProducto(this.sugerencias[0], cant);
+      const sug = this.sugerencias[0];
+      this.addByProducto(sug, cant);
       return;
     }
 
     this.scanError = 'Sin coincidencias para agregar.';
   }
 
-  seleccionarSug(p: Producto) {
-    this.activeSugIndex = this.sugerencias.findIndex(x => x.id === p.id);
+  seleccionarSug(s: Producto) {
+    this.activeSugIndex = this.sugerencias.findIndex((x) => x.id === s.id);
     this.scanError = '';
 
     const cant = Number(this.cantidadRapida);
-    if (!Number.isInteger(cant) || cant < 1) {
-      this.scanError = 'Cantidad rápida inválida (debe ser entero >= 1).';
+    if (!Number.isFinite(cant) || cant <= 0) {
+      this.scanError = 'Cantidad rápida inválida (debe ser > 0).';
       return;
     }
 
-    this.addByProducto(p, cant);
+    this.addByProducto(s, cant);
   }
 
   private addByProducto(producto: Producto, cantidad: number) {
@@ -296,15 +305,24 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
       return;
     }
 
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      this.scanError = 'La cantidad debe ser un entero mayor o igual a 1.';
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      this.scanError = 'La cantidad debe ser mayor a 0.';
+      return;
+    }
+
+    const precio = Number(producto.precioVenta ?? 0);
+    if (!Number.isFinite(precio) || precio < 0) {
+      this.scanError = 'El producto no tiene un precio de venta válido.';
       return;
     }
 
     this.savingItemId = 0;
 
     this.ventasService
-      .agregarItem(this.idVenta, { productoId: String(producto.id), cantidad })
+      .agregarItem(this.idVenta, {
+        productoId: String(producto.id),
+        cantidad,
+      })
       .subscribe({
         next: (venta) => {
           this.venta = venta;
@@ -337,8 +355,8 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
 
     const cantidad = Number(this.editCantidad[item.idItem]);
 
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      this.itemError = 'La cantidad debe ser un entero mayor o igual a 1.';
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      this.itemError = 'La cantidad debe ser mayor a 0.';
       return;
     }
 
@@ -356,6 +374,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
       },
     });
   }
+
 
   eliminarItem(item: VentaItemResponse) {
     this.itemError = '';

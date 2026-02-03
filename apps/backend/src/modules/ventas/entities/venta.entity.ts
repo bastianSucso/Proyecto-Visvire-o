@@ -35,8 +35,8 @@ export class VentaEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0, name: 'total_venta' })
   totalVenta!: string;
 
-  @Column({ type: 'int', default: 0, name: 'cantidad_total' })
-  cantidadTotal!: number;
+  @Column({ type: 'numeric', precision: 14, scale: 3, default: 0, name: 'cantidad_total' })
+  cantidadTotal!: string;
 
   @Column({ type: 'timestamptz', name: 'fecha_confirmacion', nullable: true })
   fechaConfirmacion!: Date | null;

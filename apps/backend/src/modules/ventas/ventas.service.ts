@@ -6,10 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
+import { ProductoTipoEntity, ProductoTipoEnum } from '../productos/entities/producto-tipo.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { AlteraEntity } from '../inventario/entities/altera.entity';
@@ -28,6 +29,8 @@ export class VentasService {
     @InjectRepository(VentaItemEntity) private readonly itemRepo: Repository<VentaItemEntity>,
     @InjectRepository(SesionCajaEntity) private readonly sesionRepo: Repository<SesionCajaEntity>,
     @InjectRepository(ProductoEntity) private readonly productoRepo: Repository<ProductoEntity>,
+    @InjectRepository(ProductoTipoEntity)
+    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(UbicacionEntity) private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity) private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(AlteraEntity) private readonly alteraRepo: Repository<AlteraEntity>,
@@ -61,34 +64,59 @@ export class VentasService {
       fechaConfirmacion: v.fechaConfirmacion ?? null,
       sesionCajaId: (v.sesionCaja as any)?.id,
       totalVenta: v.totalVenta,
-      cantidadTotal: v.cantidadTotal,
+      cantidadTotal: Number(v.cantidadTotal ?? 0),
       medioPago: v.medioPago ?? null,
       items: (v.items ?? []).map((it) => ({
         idItem: it.idItem,
         productoId: (it.producto as any)?.id,
         nombreProducto: (it.producto as any)?.name,
         precioUnitario: it.precioUnitario,
-        cantidad: it.cantidad,
+        cantidad: Number(it.cantidad ?? 0),
         subtotal: it.subtotal,
       })),
     };
   }
 
+  private formatCantidad(value: number) {
+    return value.toFixed(3);
+  }
+
+  private getUnidadBaseMeta(producto: ProductoEntity) {
+    if (!producto?.unidadBase) {
+      return { unidad: null, factorABase: null };
+    }
+    return { unidad: producto.unidadBase, factorABase: '1' };
+  }
+
+  private async assertProductoVendible(manager: EntityManager, productoId: string) {
+    const tipoRepoTx = manager.getRepository(ProductoTipoEntity);
+    const match = await tipoRepoTx.findOne({
+      where: {
+        producto: { id: productoId } as any,
+        tipo: In([ProductoTipoEnum.REVENTA, ProductoTipoEnum.COMIDA]),
+      },
+    });
+
+    if (!match) {
+      throw new ConflictException('Producto no está habilitado para venta');
+    }
+  }
+
   private async recomputeAndPersistTotals(
     manager: EntityManager,
     idVenta: number,
-  ): Promise<{ totalVenta: string; cantidadTotal: number }> {
+  ): Promise<{ totalVenta: string; cantidadTotal: string }> {
     const itemRepoTx = manager.getRepository(VentaItemEntity);
     const ventaRepoTx = manager.getRepository(VentaEntity);
 
     const row = await itemRepoTx
       .createQueryBuilder('it')
-      .select('COALESCE(SUM(it.cantidad), 0)', 'cantidadTotal')
+      .select('COALESCE(SUM(it.cantidad::numeric), 0)', 'cantidadTotal')
       .addSelect('COALESCE(SUM(it.subtotal::numeric), 0)', 'totalVenta')
       .where('it.id_venta = :idVenta', { idVenta })
       .getRawOne<{ cantidadTotal: string; totalVenta: string }>();
 
-    const cantidadTotal = Number(row?.cantidadTotal ?? 0);
+    const cantidadTotal = this.formatCantidad(Number(row?.cantidadTotal ?? 0));
     const totalVenta = Number(row?.totalVenta ?? 0).toFixed(2);
 
     await ventaRepoTx.update({ idVenta }, { cantidadTotal, totalVenta });
@@ -130,7 +158,7 @@ export class VentasService {
       estado: VentaEstado.EN_EDICION,
       sesionCaja: { id: sesion.id } as any,
       totalVenta: '0.00',
-      cantidadTotal: 0,
+      cantidadTotal: '0.000',
       fechaConfirmacion: null,
     });
 
@@ -167,10 +195,9 @@ export class VentasService {
 
     await this.getSesionAbiertaOrFail(userId);
 
-    if (!Number.isInteger(dto.cantidad) || dto.cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
+    if (!Number.isFinite(dto.cantidad) || dto.cantidad <= 0) {
+      throw new BadRequestException('cantidad debe ser un número > 0');
     }
-
     return this.dataSource.transaction(async (manager) => {
       const itemRepoTx = manager.getRepository(VentaItemEntity);
       const productoRepoTx = manager.getRepository(ProductoEntity);
@@ -182,7 +209,9 @@ export class VentasService {
       if (!producto) throw new NotFoundException('Producto no encontrado');
       if (!producto.isActive) throw new ConflictException('Producto inactivo');
 
-      const precioUnit = Number(producto.precioVenta);
+      await this.assertProductoVendible(manager, producto.id);
+
+      const precioUnit = Number(producto.precioVenta ?? 0);
       if (!Number.isFinite(precioUnit) || precioUnit < 0) {
         throw new BadRequestException('Precio de venta inválido');
       }
@@ -198,16 +227,16 @@ export class VentasService {
         await itemRepoTx.insert({
           venta: { idVenta: venta.idVenta } as any,
           producto: { id: producto.id } as any,
-          cantidad: dto.cantidad,
+          cantidad: this.formatCantidad(Number(dto.cantidad)),
           precioUnitario: precioUnit.toFixed(2),
-          subtotal: (precioUnit * dto.cantidad).toFixed(2),
+          subtotal: (precioUnit * Number(dto.cantidad)).toFixed(2),
         });
       } else {
-        const nuevaCantidad = existing.cantidad + dto.cantidad;
+        const nuevaCantidad = Number(existing.cantidad ?? 0) + Number(dto.cantidad);
         await itemRepoTx.update(
           { idItem: existing.idItem },
           {
-            cantidad: nuevaCantidad,
+            cantidad: this.formatCantidad(nuevaCantidad),
             precioUnitario: precioUnit.toFixed(2),
             subtotal: (precioUnit * nuevaCantidad).toFixed(2),
           },
@@ -231,8 +260,8 @@ export class VentasService {
 
     await this.getSesionAbiertaOrFail(userId);
 
-    if (!Number.isInteger(dto.cantidad) || dto.cantidad < 1) {
-      throw new BadRequestException('cantidad debe ser entero >= 1');
+    if (!Number.isFinite(dto.cantidad) || dto.cantidad <= 0) {
+      throw new BadRequestException('cantidad debe ser un número > 0');
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -252,8 +281,8 @@ export class VentasService {
       await itemRepoTx.update(
         { idItem: item.idItem },
         {
-          cantidad: dto.cantidad,
-          subtotal: (precio * dto.cantidad).toFixed(2),
+          cantidad: this.formatCantidad(Number(dto.cantidad)),
+          subtotal: (precio * Number(dto.cantidad)).toFixed(2),
         },
       );
 
@@ -267,6 +296,7 @@ export class VentasService {
       return this.toVentaResponse(full!);
     });
   }
+
 
   async eliminarItem(userId: string, idVenta: number, idItem: number) {
     if (!Number.isFinite(idVenta) || idVenta <= 0) throw new BadRequestException('idVenta inválido');
@@ -362,8 +392,9 @@ export class VentasService {
           lock: { mode: 'pessimistic_write' },
         });
 
-        const disponible = stockRow?.cantidad ?? 0;
-        if (disponible < it.cantidad) {
+        const disponible = Number(stockRow?.cantidad ?? 0);
+        const cantidad = Number(it.cantidad ?? 0);
+        if (disponible < cantidad) {
           const nombre = (it.producto as any)?.name ?? 'Producto';
           throw new ConflictException(
             `Stock insuficiente para ${nombre}. Disponible: ${disponible}.`,
@@ -381,17 +412,22 @@ export class VentasService {
           lock: { mode: 'pessimistic_write' },
         });
 
-        const disponible = stockRow?.cantidad ?? 0;
+        const disponible = Number(stockRow?.cantidad ?? 0);
         if (!stockRow) {
           throw new ConflictException('Stock no inicializado para un producto.');
         }
 
-        stockRow.cantidad = disponible - it.cantidad;
+        const cantidad = Number(it.cantidad ?? 0);
+
+        stockRow.cantidad = this.formatCantidad(disponible - cantidad);
         await stockRepoTx.save(stockRow);
 
+        const unidadMeta = this.getUnidadBaseMeta(it.producto as ProductoEntity);
         const mov = alteraRepoTx.create({
           tipo: 'SALIDA',
-          cantidad: it.cantidad,
+          cantidad: this.formatCantidad(cantidad),
+          unidad: unidadMeta.unidad,
+          factorABase: unidadMeta.factorABase,
           motivo: `Salida por venta #${venta.idVenta}`,
           producto: { id: productoId } as ProductoEntity,
           ubicacion: sala,
@@ -449,7 +485,7 @@ export class VentasService {
       fechaCreacion: v.fechaCreacion,
       fechaConfirmacion: v.fechaConfirmacion ?? null,
       totalVenta: v.totalVenta,
-      cantidadTotal: v.cantidadTotal,
+      cantidadTotal: Number(v.cantidadTotal ?? 0),
       medioPago: v.medioPago,
     }));
   }

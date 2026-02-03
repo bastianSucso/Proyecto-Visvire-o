@@ -32,8 +32,8 @@ export class IncidenciaStockEntity {
   @Column({ type: 'varchar', length: 20 })
   tipo!: IncidenciaTipo;
 
-  @Column({ type: 'int' })
-  cantidad!: number; // positiva. La interpretación depende de tipo.
+  @Column({ type: 'numeric', precision: 14, scale: 3 })
+  cantidad!: string; // positiva. La interpretación depende de tipo.
 
   @Column({ type: 'varchar', length: 300, nullable: true })
   observacion!: string | null;

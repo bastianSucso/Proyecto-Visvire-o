@@ -29,6 +29,6 @@ export class ProductoStockEntity {
   @JoinColumn({ name: 'id_ubicacion' })
   ubicacion!: UbicacionEntity;
 
-  @Column({ type: 'int', default: 0 })
-  cantidad!: number;
+  @Column({ type: 'numeric', precision: 14, scale: 3, default: 0 })
+  cantidad!: string;
 }

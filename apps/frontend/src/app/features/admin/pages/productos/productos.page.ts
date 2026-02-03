@@ -1,12 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ProductosService, Producto } from '../../../../core/services/productos.service';
+import { ProductosService, Producto, ProductoTipo } from '../../../../core/services/productos.service';
 
 @Component({
   selector: 'app-productos-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
   templateUrl: 'productos.page.html',
 })
 export class ProductosPage {
@@ -26,6 +27,9 @@ export class ProductosPage {
   isModalOpen = false;
   editing: Producto | null = null;
 
+  readonly tiposOptions: ProductoTipo[] = ['REVENTA', 'INSUMO', 'COMIDA'];
+  readonly unidadBaseOptions = ['gramos', 'kg', 'ml', 'litros', 'unidad'];
+
   form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
     internalCode: ['', [Validators.required, Validators.maxLength(60)]],
@@ -33,6 +37,7 @@ export class ProductosPage {
     unidadBase: [''],
     precioCosto: [0, [Validators.required, Validators.min(0)]],
     precioVenta: [0, [Validators.required, Validators.min(0)]],
+    tipos: [[] as ProductoTipo[]],
   });
 
   ngOnInit() {
@@ -121,6 +126,7 @@ export class ProductosPage {
       unidadBase: '',
       precioCosto: 0,
       precioVenta: 0,
+      tipos: [],
     });
 
     this.form.enable();
@@ -146,6 +152,7 @@ export class ProductosPage {
       unidadBase: p.unidadBase ?? '',
       precioCosto: Number(p.precioCosto),
       precioVenta: Number(p.precioVenta),
+      tipos: (p.tipos ?? []) as ProductoTipo[],
     });
     this.form.enable();
   }
@@ -170,6 +177,7 @@ export class ProductosPage {
       unidadBase: (v.unidadBase ?? '').trim() || undefined,
       precioCosto: Number(v.precioCosto ?? 0),
       precioVenta: Number(v.precioVenta ?? 0),
+      tipos: (v.tipos ?? []) as ProductoTipo[],
     };
 
     this.loading = true;
@@ -208,6 +216,18 @@ export class ProductosPage {
 
   c(name: string) {
     return this.form.get(name);
+  }
+
+  isTipoSelected(tipo: ProductoTipo) {
+    const value = (this.form.get('tipos')?.value ?? []) as ProductoTipo[];
+    return value.includes(tipo);
+  }
+
+  toggleTipo(tipo: ProductoTipo, checked: boolean) {
+    const current = new Set((this.form.get('tipos')?.value ?? []) as ProductoTipo[]);
+    if (checked) current.add(tipo);
+    else current.delete(tipo);
+    this.form.get('tipos')?.setValue(Array.from(current));
   }
 
   private mapError(err: any): string {

@@ -35,6 +35,12 @@ export class ProductosController {
     return this.service.suggestInternalCode();
   }
 
+  @Get('lookup')
+  @Roles('ADMIN', 'VENDEDOR')
+  findByBarcode(@Query('barcode') barcode?: string) {
+    return this.service.findByBarcode(barcode ?? '');
+  }
+
   @Get()
   @Roles('ADMIN', 'VENDEDOR')
   findAll(@Query('includeInactive') includeInactive?: string) {
@@ -46,6 +52,7 @@ export class ProductosController {
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
   }
+
 
   @Post()
   @Roles('ADMIN')

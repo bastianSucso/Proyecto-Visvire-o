@@ -5,12 +5,12 @@ import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angu
 import { ProductosService, Producto, ProductoTipo } from '../../../../core/services/productos.service';
 
 @Component({
-  selector: 'app-productos-page',
+  selector: 'app-preparaciones-page',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
-  templateUrl: 'productos.page.html',
+  templateUrl: 'preparaciones.page.html',
 })
-export class ProductosPage {
+export class PreparacionesPage {
   private fb = inject(FormBuilder);
   private productosService = inject(ProductosService);
 
@@ -18,7 +18,6 @@ export class ProductosPage {
   loading = false;
   errorMsg = '';
 
-  // UX tabla (como POS)
   q = '';
   pageSize = 20;
   page = 1;
@@ -27,7 +26,6 @@ export class ProductosPage {
   isModalOpen = false;
   editing: Producto | null = null;
 
-  readonly tiposOptions: ProductoTipo[] = ['REVENTA', 'INSUMO'];
   readonly unidadBaseOptions = ['g', 'kg', 'ml', 'l', 'unidad', 'pack'];
 
   form = this.fb.group({
@@ -37,7 +35,6 @@ export class ProductosPage {
     unidadBase: [''],
     precioCosto: [0, [Validators.required, Validators.min(0)]],
     precioVenta: [0, [Validators.required, Validators.min(0)]],
-    tipos: [[] as ProductoTipo[]],
   });
 
   ngOnInit() {
@@ -50,15 +47,14 @@ export class ProductosPage {
     this.productosService.list(true).subscribe({
       next: (data) => {
         const all = data ?? [];
-        this.productos = all.filter((p) => !(p.tipos ?? []).includes('COMIDA'));
-        this.page = 1; // reset al refrescar
+        this.productos = all.filter((p) => (p.tipos ?? []).includes('COMIDA'));
+        this.page = 1;
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
       complete: () => (this.loading = false),
     });
   }
 
-  // ------- helpers tabla ----------
   onSearchChange() {
     this.page = 1;
   }
@@ -76,12 +72,9 @@ export class ProductosPage {
     if (!term) return this.productos;
 
     return this.productos.filter((p) => {
-      const hay = [
-        p.name,
-        p.internalCode,
-        p.barcode,
-        p.unidadBase,
-      ].map((x) => this.normalize(x)).join(' | ');
+      const hay = [p.name, p.internalCode, p.barcode, p.unidadBase]
+        .map((x) => this.normalize(x))
+        .join(' | ');
 
       return hay.includes(term);
     });
@@ -109,12 +102,22 @@ export class ProductosPage {
     return Math.min(this.page * this.pageSize, this.totalItems);
   }
 
-  first() { this.page = 1; }
-  prev() { this.page = Math.max(1, this.page - 1); }
-  next() { this.page = Math.min(this.totalPages, this.page + 1); }
-  last() { this.page = this.totalPages; }
+  first() {
+    this.page = 1;
+  }
 
-  // ------- modal ----------
+  prev() {
+    this.page = Math.max(1, this.page - 1);
+  }
+
+  next() {
+    this.page = Math.min(this.totalPages, this.page + 1);
+  }
+
+  last() {
+    this.page = this.totalPages;
+  }
+
   openCreate() {
     this.errorMsg = '';
     this.editing = null;
@@ -127,10 +130,10 @@ export class ProductosPage {
       unidadBase: '',
       precioCosto: 0,
       precioVenta: 0,
-      tipos: [],
     });
 
     this.form.enable();
+    this.form.get('precioCosto')?.disable();
 
     this.productosService.suggestInternalCode().subscribe({
       next: (res) => {
@@ -153,9 +156,9 @@ export class ProductosPage {
       unidadBase: p.unidadBase ?? '',
       precioCosto: Number(p.precioCosto),
       precioVenta: Number(p.precioVenta),
-      tipos: (p.tipos ?? []) as ProductoTipo[],
     });
     this.form.enable();
+    this.form.get('precioCosto')?.disable();
   }
 
   closeModal() {
@@ -176,9 +179,9 @@ export class ProductosPage {
       internalCode: (v.internalCode ?? '').trim(),
       barcode: (v.barcode ?? '').trim() || undefined,
       unidadBase: (v.unidadBase ?? '').trim() || undefined,
-      precioCosto: Number(v.precioCosto ?? 0),
+      precioCosto: 0,
       precioVenta: Number(v.precioVenta ?? 0),
-      tipos: (v.tipos ?? []) as ProductoTipo[],
+      tipos: ['COMIDA'] as ProductoTipo[],
     };
 
     this.loading = true;
@@ -206,7 +209,7 @@ export class ProductosPage {
   }
 
   remove(p: Producto) {
-    const ok = confirm(`¿Eliminar producto "${p.name}"? Esta acción es irreversible.`);
+    const ok = confirm(`¿Eliminar preparación "${p.name}"? Esta acción es irreversible.`);
     if (!ok) return;
 
     this.productosService.remove(p.id).subscribe({
@@ -217,18 +220,6 @@ export class ProductosPage {
 
   c(name: string) {
     return this.form.get(name);
-  }
-
-  isTipoSelected(tipo: ProductoTipo) {
-    const value = (this.form.get('tipos')?.value ?? []) as ProductoTipo[];
-    return value.includes(tipo);
-  }
-
-  toggleTipo(tipo: ProductoTipo, checked: boolean) {
-    const current = new Set((this.form.get('tipos')?.value ?? []) as ProductoTipo[]);
-    if (checked) current.add(tipo);
-    else current.delete(tipo);
-    this.form.get('tipos')?.setValue(Array.from(current));
   }
 
   private mapError(err: any): string {

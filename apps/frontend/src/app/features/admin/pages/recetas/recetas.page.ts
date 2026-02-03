@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { RecetasService, RecetaItem, RecetaCostoResponse } from '../../../../core/services/recetas.service';
+import { InsumoGruposService, InsumoGrupo } from '../../../../core/services/insumo-grupos.service';
 
 @Component({
   selector: 'app-recetas-page',
@@ -14,10 +15,11 @@ export class RecetasPage {
   private fb = inject(FormBuilder);
   private productosService = inject(ProductosService);
   private recetasService = inject(RecetasService);
+  private gruposService = inject(InsumoGruposService);
 
   productos: Producto[] = [];
   comidas: Producto[] = [];
-  insumos: Producto[] = [];
+  grupos: InsumoGrupo[] = [];
 
   selectedComidaId: string | null = null;
   selectedComida: Producto | null = null;
@@ -33,7 +35,7 @@ export class RecetasPage {
   });
 
   recetaForm = this.fb.group({
-    insumoId: ['', [Validators.required]],
+    grupoId: ['', [Validators.required]],
     cantidadBase: [0, [Validators.required, Validators.min(0.0001)]],
   });
 
@@ -49,10 +51,19 @@ export class RecetasPage {
       next: (data) => {
         this.productos = data ?? [];
         this.comidas = this.productos.filter((p) => (p.tipos ?? []).includes('COMIDA'));
-        this.insumos = this.productos.filter((p) => (p.tipos ?? []).includes('INSUMO'));
+        this.loadGrupos();
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
       complete: () => (this.loading = false),
+    });
+  }
+
+  loadGrupos() {
+    this.gruposService.list(true).subscribe({
+      next: (data) => {
+        this.grupos = data ?? [];
+      },
+      error: (err) => (this.errorMsg = this.mapError(err)),
     });
   }
 
@@ -117,17 +128,23 @@ export class RecetasPage {
     const v = this.recetaForm.value;
     const payload = {
       comidaId: this.selectedComidaId,
-      insumoId: String(v.insumoId),
+      grupoId: String(v.grupoId),
       cantidadBase: Number(v.cantidadBase ?? 0),
     };
 
     this.recetasService.create(payload).subscribe({
       next: () => {
-        this.recetaForm.reset({ insumoId: '', cantidadBase: 0 });
+        this.recetaForm.reset({ grupoId: '', cantidadBase: 0 });
         this.loadReceta();
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
     });
+  }
+
+  get selectedGrupoUnidad(): string {
+    const grupoId = this.recetaForm.value.grupoId;
+    if (!grupoId) return '-';
+    return this.grupos.find((g) => g.id === grupoId)?.unidadBase ?? '-';
   }
 
   actualizarCantidad(item: RecetaItem) {

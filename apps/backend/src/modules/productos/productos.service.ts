@@ -11,7 +11,7 @@ import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoStockEntity } from './entities/producto-stock.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
-import { ProductoTipoEntity } from './entities/producto-tipo.entity';
+import { ProductoTipoEntity, ProductoTipoEnum } from './entities/producto-tipo.entity';
 
 @Injectable()
 export class ProductosService {
@@ -25,6 +25,14 @@ export class ProductosService {
     @InjectRepository(UbicacionEntity)
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
   ) {}
+
+  private assertTiposValid(tipos: ProductoTipoEnum[]) {
+    const hasComida = tipos.includes(ProductoTipoEnum.COMIDA);
+    const hasInsumo = tipos.includes(ProductoTipoEnum.INSUMO);
+    if (hasComida && hasInsumo) {
+      throw new BadRequestException('Un producto no puede ser COMIDA e INSUMO a la vez');
+    }
+  }
 
   // Derivados según MER (no persistidos)
   private toResponse(
@@ -124,6 +132,9 @@ export class ProductosService {
   }
 
   async create(dto: CreateProductoDto) {
+    if (dto.tipos && dto.tipos.length > 0) {
+      this.assertTiposValid(dto.tipos);
+    }
     const internalCode = dto.internalCode.trim();
     const barcode = dto.barcode?.trim() || null;
 
@@ -222,6 +233,7 @@ export class ProductosService {
       existing.rendimiento = dto.rendimiento === null ? null : dto.rendimiento.toFixed(3);
     }
     if (dto.tipos !== undefined) {
+      this.assertTiposValid(dto.tipos);
       await this.tipoRepo.delete({ producto: { id: existing.id } as any });
       if (dto.tipos.length > 0) {
         const tipos = Array.from(new Set(dto.tipos));

@@ -6,7 +6,7 @@ export class CreateRecetaDto {
   comidaId!: string;
 
   @IsUUID()
-  insumoId!: string;
+  grupoId!: string;
 
   @Type(() => Number)
   @IsNumber()

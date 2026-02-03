@@ -65,8 +65,6 @@ export class ProductoEntity {
   @OneToMany(() => RecetaEntity, (r) => r.comida)
   recetasComoComida: RecetaEntity[];
 
-  @OneToMany(() => RecetaEntity, (r) => r.insumo)
-  recetasComoInsumo: RecetaEntity[];
 
   @OneToMany(() => StockSesionCajaEntity, (ss) => ss.producto)
   stockSesionesCaja: StockSesionCajaEntity[];

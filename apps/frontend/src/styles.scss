@@ -2,4 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+@import '@ng-select/ng-select/themes/default.theme.css';
+
+.ng-select-custom .ng-select-container {
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  min-height: 2.5rem;
+  font-size: 0.875rem;
+}
+
+.ng-select-custom {
+  width: 100%;
+}
+
+.ng-select-custom .ng-dropdown-panel .ng-option,
+.ng-select-custom .ng-dropdown-panel .ng-option.ng-option-selected {
+  font-size: 0.875rem;
+}
+
+.ng-select-custom.ng-select-opened .ng-select-container {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
     

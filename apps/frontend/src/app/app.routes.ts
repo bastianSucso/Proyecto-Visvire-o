@@ -20,6 +20,8 @@ export const routes: Routes = [
       {path: 'dashboard', loadComponent: () =>import('./features/admin/pages/dashboard/dashboard.page').then(m => m.DashboardPage),},
       {path: 'users', loadComponent: () => import('./features/admin/pages/users/users.page').then(m => m.UsersPage),},
       {path: 'productos', loadComponent: () => import('./features/admin/pages/productos/productos.page').then(m => m.ProductosPage),},
+      {path: 'preparaciones', loadComponent: () => import('./features/admin/pages/preparaciones/preparaciones.page').then(m => m.PreparacionesPage),},
+      {path: 'insumo-grupos', loadComponent: () => import('./features/admin/pages/insumo-grupos/insumo-grupos.page').then(m => m.InsumoGruposPage),},
       {path: 'recetas', loadComponent: () => import('./features/admin/pages/recetas/recetas.page').then(m => m.RecetasPage),},
       {path: 'bodegas', loadComponent: () => import('./features/admin/pages/bodegas/bodegas.page').then(m => m.BodegasPage),},
       {path: 'cajas', loadComponent: () => import('./features/admin/pages/cajas/cajas.page').then(m => m.CajasPage),},

@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { RecetaEntity } from './entities/receta.entity';
 import { ProductoEntity } from './entities/producto.entity';
 import { ProductoTipoEntity, ProductoTipoEnum } from './entities/producto-tipo.entity';
+import { InsumoGrupoEntity, InsumoGrupoStrategy } from './entities/insumo-grupo.entity';
 import { CreateRecetaDto } from './dto/create-receta.dto';
 import { UpdateRecetaDto } from './dto/update-receta.dto';
 
@@ -21,6 +22,8 @@ export class RecetasService {
     private readonly productoRepo: Repository<ProductoEntity>,
     @InjectRepository(ProductoTipoEntity)
     private readonly tipoRepo: Repository<ProductoTipoEntity>,
+    @InjectRepository(InsumoGrupoEntity)
+    private readonly grupoRepo: Repository<InsumoGrupoEntity>,
   ) {}
 
   private async assertTipo(productoId: string, tipo: ProductoTipoEnum) {
@@ -30,6 +33,33 @@ export class RecetasService {
     if (!exists) throw new ConflictException(`Producto no tiene tipo ${tipo}`);
   }
 
+  private resolveGrupoUnidadBase(grupo: InsumoGrupoEntity | null) {
+    const items = (grupo?.items ?? []).filter((it) => it.isActive && it.producto);
+    const first = items[0];
+    return first?.producto?.unidadBase ?? null;
+  }
+
+  private resolveGrupoProductoCosto(grupo: InsumoGrupoEntity | null) {
+    const items = (grupo?.items ?? []).filter((it) => it.isActive && it.producto);
+    if (items.length === 0) return null;
+
+    if (grupo?.consumoStrategy === InsumoGrupoStrategy.PRIORITY) {
+      const sorted = [...items].sort((a, b) => {
+        const pa = a.priority ?? Number.MAX_SAFE_INTEGER;
+        const pb = b.priority ?? Number.MAX_SAFE_INTEGER;
+        return pa - pb;
+      });
+      return sorted[0]?.producto ?? null;
+    }
+
+    const lowest = items.reduce((min, current) => {
+      const minCosto = Number(min.producto?.precioCosto ?? 0);
+      const curCosto = Number(current.producto?.precioCosto ?? 0);
+      return curCosto < minCosto ? current : min;
+    });
+    return lowest?.producto ?? null;
+  }
+
   async list(comidaId: string) {
     if (!comidaId) throw new BadRequestException('comidaId es requerido');
 
@@ -37,7 +67,7 @@ export class RecetasService {
 
     const rows = await this.recetaRepo.find({
       where: { comida: { id: comidaId } as any },
-      relations: { insumo: true, comida: true },
+      relations: { grupo: { items: { producto: true } }, comida: true },
       order: { id: 'ASC' },
     });
 
@@ -52,12 +82,12 @@ export class RecetasService {
             rendimiento: r.comida.rendimiento ?? null,
           }
         : null,
-      insumo: r.insumo
+      grupo: r.grupo
         ? {
-            id: r.insumo.id,
-            name: r.insumo.name,
-            unidadBase: r.insumo.unidadBase ?? null,
-            precioCosto: r.insumo.precioCosto,
+            id: r.grupo.id,
+            name: r.grupo.name,
+            consumoStrategy: r.grupo.consumoStrategy,
+            unidadBase: this.resolveGrupoUnidadBase(r.grupo),
           }
         : null,
     }));
@@ -65,22 +95,27 @@ export class RecetasService {
 
   async create(dto: CreateRecetaDto) {
     await this.assertTipo(dto.comidaId, ProductoTipoEnum.COMIDA);
-    await this.assertTipo(dto.insumoId, ProductoTipoEnum.INSUMO);
 
     const comida = await this.productoRepo.findOne({ where: { id: dto.comidaId } });
     if (!comida) throw new NotFoundException('Comida no encontrada');
 
-    const insumo = await this.productoRepo.findOne({ where: { id: dto.insumoId } });
-    if (!insumo) throw new NotFoundException('Insumo no encontrado');
+    const grupo = await this.grupoRepo.findOne({
+      where: { id: dto.grupoId },
+      relations: { items: { producto: true } },
+    });
+    if (!grupo) throw new NotFoundException('Grupo de insumo no encontrado');
+    if (!grupo.isActive) throw new BadRequestException('Grupo de insumo inactivo');
+    const hasItems = (grupo.items ?? []).some((it) => it.isActive && it.producto);
+    if (!hasItems) throw new BadRequestException('El grupo no tiene insumos activos');
 
     const dup = await this.recetaRepo.findOne({
-      where: { comida: { id: dto.comidaId } as any, insumo: { id: dto.insumoId } as any },
+      where: { comida: { id: dto.comidaId } as any, grupo: { id: dto.grupoId } as any },
     });
-    if (dup) throw new ConflictException('El insumo ya está en la receta');
+    if (dup) throw new ConflictException('El grupo de insumos ya está en la receta');
 
     const entity = this.recetaRepo.create({
       comida,
-      insumo,
+      grupo,
       cantidadBase: dto.cantidadBase.toFixed(3),
     });
 
@@ -114,23 +149,32 @@ export class RecetasService {
 
     const rows = await this.recetaRepo.find({
       where: { comida: { id: comidaId } as any },
-      relations: { insumo: true },
+      relations: { grupo: { items: { producto: true } } },
       order: { id: 'ASC' },
     });
 
     const items = rows.map((r) => {
-      const costoUnitario = Number(r.insumo?.precioCosto ?? 0);
+      const insumo = this.resolveGrupoProductoCosto(r.grupo ?? null);
+      const costoUnitario = Number(insumo?.precioCosto ?? 0);
       const cantidad = Number(r.cantidadBase ?? 0);
       const subtotal = costoUnitario * cantidad;
 
       return {
         id: r.id,
-        insumo: r.insumo
+        grupo: r.grupo
           ? {
-              id: r.insumo.id,
-              name: r.insumo.name,
-              unidadBase: r.insumo.unidadBase ?? null,
-              precioCosto: r.insumo.precioCosto,
+              id: r.grupo.id,
+              name: r.grupo.name,
+              consumoStrategy: r.grupo.consumoStrategy,
+              unidadBase: this.resolveGrupoUnidadBase(r.grupo),
+            }
+          : null,
+        insumo: insumo
+          ? {
+              id: insumo.id,
+              name: insumo.name,
+              unidadBase: insumo.unidadBase ?? null,
+              precioCosto: insumo.precioCosto,
             }
           : null,
         cantidadBase: r.cantidadBase,

@@ -32,7 +32,7 @@ export class CreateProductoDto {
   @IsOptional()
   @IsString()
   @MaxLength(30)
-  @IsIn(['g', 'kg', 'ml', 'l', 'unidad'], { message: 'unidadBase inválida' })
+  @IsIn(['g', 'kg', 'ml', 'l', 'unidad', 'pack'], { message: 'unidadBase inválida' })
   unidadBase?: string;
 
   @Type(() => Number)

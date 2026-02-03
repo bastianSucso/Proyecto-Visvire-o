@@ -104,3 +104,8 @@ CREAR ADMIN POR DEFECTO:
 
 4.- COMANDO PARA CREAR ADMIN POR DEFECTO.
         npm run seed:admin 
+
+----------------------------------------
+SEARCHABLE
+
+@ng-select/ng-select@20.7.0

@@ -5,12 +5,17 @@ export interface RecetaItem {
   id: number;
   cantidadBase: string;
   comida: { id: string; name: string; unidadBase: string | null; rendimiento: string | null } | null;
-  insumo: { id: string; name: string; unidadBase: string | null; precioCosto: string } | null;
+  grupo: {
+    id: string;
+    name: string;
+    consumoStrategy: 'PRIORITY' | 'LOWEST_COST';
+    unidadBase: string | null;
+  } | null;
 }
 
 export interface CreateRecetaDto {
   comidaId: string;
-  insumoId: string;
+  grupoId: string;
   cantidadBase: number;
 }
 
@@ -20,6 +25,12 @@ export interface UpdateRecetaDto {
 
 export interface RecetaCostoItem {
   id: number;
+  grupo: {
+    id: string;
+    name: string;
+    consumoStrategy: 'PRIORITY' | 'LOWEST_COST';
+    unidadBase: string | null;
+  } | null;
   insumo: { id: string; name: string; unidadBase: string | null; precioCosto: string } | null;
   cantidadBase: string;
   costoUnitario: string;

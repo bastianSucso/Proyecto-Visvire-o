@@ -22,6 +22,11 @@ export class RecetasController {
     return this.service.costos(comidaId ?? '');
   }
 
+  @Post('recalcular-costos')
+  recalculateAll() {
+    return this.service.recalculateCostosAllComidas();
+  }
+
   @Post()
   create(@Body() dto: CreateRecetaDto) {
     return this.service.create(dto);

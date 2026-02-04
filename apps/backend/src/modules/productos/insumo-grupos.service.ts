@@ -14,6 +14,7 @@ import { CreateInsumoGrupoDto } from './dto/create-insumo-grupo.dto';
 import { UpdateInsumoGrupoDto } from './dto/update-insumo-grupo.dto';
 import { CreateInsumoGrupoItemDto } from './dto/create-insumo-grupo-item.dto';
 import { UpdateInsumoGrupoItemDto } from './dto/update-insumo-grupo-item.dto';
+import { RecetasService } from './recetas.service';
 
 @Injectable()
 export class InsumoGruposService {
@@ -26,6 +27,7 @@ export class InsumoGruposService {
     private readonly productoRepo: Repository<ProductoEntity>,
     @InjectRepository(ProductoTipoEntity)
     private readonly tipoRepo: Repository<ProductoTipoEntity>,
+    private readonly recetasService: RecetasService,
   ) {}
 
   private async getGrupoOrThrow(id: string) {
@@ -111,7 +113,9 @@ export class InsumoGruposService {
     if (dto.consumoStrategy !== undefined) grupo.consumoStrategy = dto.consumoStrategy;
     if (dto.isActive !== undefined) grupo.isActive = dto.isActive;
 
-    return this.grupoRepo.save(grupo);
+    const saved = await this.grupoRepo.save(grupo);
+    await this.recetasService.recalculateCostosByGrupo(id);
+    return saved;
   }
 
   async addItem(grupoId: string, dto: CreateInsumoGrupoItemDto) {
@@ -148,7 +152,9 @@ export class InsumoGruposService {
       isActive: true,
     });
 
-    return this.itemRepo.save(entity);
+    const saved = await this.itemRepo.save(entity);
+    await this.recetasService.recalculateCostosByGrupo(grupoId);
+    return saved;
   }
 
   async updateItem(itemId: string, dto: UpdateInsumoGrupoItemDto) {
@@ -169,13 +175,23 @@ export class InsumoGruposService {
       }
     }
 
-    return this.itemRepo.save(item);
+    const saved = await this.itemRepo.save(item);
+    if (item.grupo?.id) {
+      await this.recetasService.recalculateCostosByGrupo(item.grupo.id);
+    }
+    return saved;
   }
 
   async removeItem(itemId: string) {
-    const item = await this.itemRepo.findOne({ where: { id: itemId } });
+    const item = await this.itemRepo.findOne({
+      where: { id: itemId },
+      relations: { grupo: true },
+    });
     if (!item) throw new NotFoundException('Item no encontrado');
     await this.itemRepo.remove(item);
+    if (item.grupo?.id) {
+      await this.recetasService.recalculateCostosByGrupo(item.grupo.id);
+    }
     return { ok: true };
   }
 }

@@ -34,6 +34,13 @@
       {{ errorMsg }}
     </div>
 
+    <div
+      *ngIf="successMsg"
+      class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+    >
+      {{ successMsg }}
+    </div>
+
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="p-5 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -90,6 +97,7 @@
                 <th class="px-4 py-3 text-center">Ganancia</th>
                 <th class="px-4 py-3">Stock</th>
                 <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3 text-right">Receta</th>
                 <th class="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
@@ -102,7 +110,10 @@
                 <td class="px-4 py-3 text-slate-600">{{ p.unidadBase ?? '-' }}</td>
 
                 <td class="px-4 py-3">
-                  {{ +p.precioCosto | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  <ng-container *ngIf="p.precioCosto !== null; else sinCosto">
+                    {{ p.precioCosto  | currency:'CLP':'symbol-narrow':'1.0-0' }}
+                  </ng-container>
+                  <ng-template #sinCosto>-</ng-template>
                 </td>
 
                 <td class="px-4 py-3">
@@ -115,7 +126,7 @@
                       class="inline-flex min-w-[92px] justify-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
                       [ngClass]="{
                         'bg-emerald-50 text-emerald-700 ring-emerald-200': (+p.precioVenta - +p.precioCosto) > 0,
-                        'bg-rose-50 text-rose-700 ring-rose-200': (+p.precioVenta - +p.precioCosto) < 0,
+                        'bg-rose-50 text-rose-700 ring-rose-200': (+p.precioVenta - +p.precioCosto ) < 0,
                         'bg-slate-100 text-slate-700 ring-slate-200': (+p.precioVenta - +p.precioCosto) === 0
                       }"
                     >
@@ -148,6 +159,16 @@
                   </span>
                 </td>
 
+                <td class="px-4 py-3 text-right">
+                  <a
+                    [routerLink]="['/admin/recetas']"
+                    [queryParams]="{ comidaId: p.id }"
+                    class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                  >
+                    Ver receta
+                  </a>
+                </td>
+
                 <td class="px-4 py-3">
                   <div class="flex justify-end gap-2">
                     <button
@@ -178,7 +199,7 @@
               </tr>
 
               <tr *ngIf="!loading && pageItems.length === 0">
-                <td class="px-4 py-6 text-slate-500" colspan="10">
+                <td class="px-4 py-6 text-slate-500" colspan="11">
                   No hay resultados para la búsqueda.
                 </td>
               </tr>

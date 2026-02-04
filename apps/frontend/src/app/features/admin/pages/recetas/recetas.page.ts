@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { RecetasService, RecetaItem, RecetaCostoResponse } from '../../../../core/services/recetas.service';
 import { InsumoGruposService, InsumoGrupo } from '../../../../core/services/insumo-grupos.service';
@@ -16,6 +17,7 @@ export class RecetasPage {
   private productosService = inject(ProductosService);
   private recetasService = inject(RecetasService);
   private gruposService = inject(InsumoGruposService);
+  private route = inject(ActivatedRoute);
 
   productos: Producto[] = [];
   comidas: Producto[] = [];
@@ -26,6 +28,8 @@ export class RecetasPage {
 
   receta: RecetaItem[] = [];
   costos: RecetaCostoResponse | null = null;
+
+  pendingComidaId: string | null = null;
 
   loading = false;
   errorMsg = '';
@@ -42,6 +46,13 @@ export class RecetasPage {
   editCantidad: Record<number, number> = {};
 
   ngOnInit() {
+    this.route.queryParamMap.subscribe((params) => {
+      const comidaId = params.get('comidaId');
+      this.pendingComidaId = comidaId;
+      if (comidaId && this.comidas.length > 0) {
+        this.onSelectComida(comidaId);
+      }
+    });
     this.loadProductos();
   }
 
@@ -52,6 +63,10 @@ export class RecetasPage {
         this.productos = data ?? [];
         this.comidas = this.productos.filter((p) => (p.tipos ?? []).includes('COMIDA'));
         this.loadGrupos();
+        if (this.pendingComidaId) {
+          const exists = this.comidas.find((c) => c.id === this.pendingComidaId);
+          if (exists) this.onSelectComida(this.pendingComidaId);
+        }
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
       complete: () => (this.loading = false),

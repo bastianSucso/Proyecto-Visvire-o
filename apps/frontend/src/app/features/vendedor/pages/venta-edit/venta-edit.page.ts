@@ -141,6 +141,11 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
     return this.venta?.estado === 'EN_EDICION';
   }
 
+  private isVendible(p: Producto): boolean {
+    const tipos = p.tipos ?? [];
+    return tipos.includes('REVENTA') || tipos.includes('COMIDA');
+  }
+
   get totalNumero(): number {
     return Number(this.venta?.totalVenta ?? 0);
   }
@@ -226,6 +231,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
 
     const matches = this.productos
       .filter((p) => {
+        if (!this.isVendible(p)) return false;
         const name = this.norm(p.name);
         const code = this.norm(p.internalCode);
         const barcode = this.norm(p.barcode ?? '');
@@ -262,6 +268,10 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
         next: (res) => {
           if (!res?.id) {
             this.scanError = 'Barcode no asociado a un producto válido.';
+            return;
+          }
+          if (!this.isVendible(res)) {
+            this.scanError = 'Producto no está habilitado para venta.';
             return;
           }
           this.addByProducto(res, cant);
@@ -307,6 +317,11 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
 
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
       this.scanError = 'La cantidad debe ser mayor a 0.';
+      return;
+    }
+
+    if (!this.isVendible(producto)) {
+      this.scanError = 'Producto no está habilitado para venta.';
       return;
     }
 

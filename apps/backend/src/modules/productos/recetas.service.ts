@@ -60,6 +60,115 @@ export class RecetasService {
     return lowest?.producto ?? null;
   }
 
+  private async computeCostoComida(comidaId: string) {
+    const comida = await this.productoRepo.findOne({ where: { id: comidaId } });
+    if (!comida) throw new NotFoundException('Comida no encontrada');
+
+    const rows = await this.recetaRepo.find({
+      where: { comida: { id: comidaId } as any },
+      relations: { grupo: { items: { producto: true } } },
+      order: { id: 'ASC' },
+    });
+
+    const items = rows.map((r) => {
+      const insumo = this.resolveGrupoProductoCosto(r.grupo ?? null);
+      const costoUnitario = Number(insumo?.precioCosto ?? 0);
+      const cantidad = Number(r.cantidadBase ?? 0);
+      const subtotal = costoUnitario * cantidad;
+
+      return {
+        id: r.id,
+        grupo: r.grupo
+          ? {
+              id: r.grupo.id,
+              name: r.grupo.name,
+              consumoStrategy: r.grupo.consumoStrategy,
+              unidadBase: this.resolveGrupoUnidadBase(r.grupo),
+            }
+          : null,
+        insumo: insumo
+          ? {
+              id: insumo.id,
+              name: insumo.name,
+              unidadBase: insumo.unidadBase ?? null,
+              precioCosto: insumo.precioCosto,
+            }
+          : null,
+        cantidadBase: r.cantidadBase,
+        costoUnitario: costoUnitario.toFixed(2),
+        subtotal: subtotal.toFixed(2),
+      };
+    });
+
+    const total = items.reduce((sum, it) => sum + Number(it.subtotal ?? 0), 0);
+
+    return { comida, items, total };
+  }
+
+  async recalculateCostoComida(comidaId: string) {
+    if (!comidaId) throw new BadRequestException('comidaId es requerido');
+    await this.assertTipo(comidaId, ProductoTipoEnum.COMIDA);
+
+    const { total } = await this.computeCostoComida(comidaId);
+    const comida = await this.productoRepo.findOne({ where: { id: comidaId } });
+    if (!comida) throw new NotFoundException('Comida no encontrada');
+    comida.precioCosto = total > 0 ? total.toFixed(2) : '0.00';
+    await this.productoRepo.save(comida);
+
+    return { comidaId, totalCosto: total.toFixed(2) };
+  }
+
+  async recalculateCostosByGrupo(grupoId: string) {
+    if (!grupoId) throw new BadRequestException('grupoId es requerido');
+
+    const rows = await this.recetaRepo
+      .createQueryBuilder('r')
+      .innerJoin('r.grupo', 'g')
+      .innerJoin('r.comida', 'comida')
+      .where('g.id = :grupoId', { grupoId })
+      .select('comida.id', 'comidaId')
+      .distinct(true)
+      .getRawMany<{ comidaId: string }>();
+
+    const ids = rows.map((r) => r.comidaId).filter(Boolean);
+    await Promise.all(ids.map((id) => this.recalculateCostoComida(id)));
+
+    return { updated: ids.length };
+  }
+
+  async recalculateCostosByInsumo(productoId: string) {
+    if (!productoId) throw new BadRequestException('productoId es requerido');
+
+    const rows = await this.recetaRepo
+      .createQueryBuilder('r')
+      .innerJoin('r.grupo', 'g')
+      .innerJoin('g.items', 'gi')
+      .innerJoin('gi.producto', 'p')
+      .innerJoin('r.comida', 'comida')
+      .where('p.id = :productoId', { productoId })
+      .select('comida.id', 'comidaId')
+      .distinct(true)
+      .getRawMany<{ comidaId: string }>();
+
+    const ids = rows.map((r) => r.comidaId).filter(Boolean);
+    await Promise.all(ids.map((id) => this.recalculateCostoComida(id)));
+
+    return { updated: ids.length };
+  }
+
+  async recalculateCostosAllComidas() {
+    const rows = await this.productoRepo
+      .createQueryBuilder('p')
+      .innerJoin('p.tipos', 'pt', 'pt.tipo = :tipo', { tipo: ProductoTipoEnum.COMIDA })
+      .select('p.id', 'id')
+      .getRawMany<{ id: string }>();
+
+    const ids = rows.map((r) => r.id).filter(Boolean);
+    await Promise.all(ids.map((id) => this.recalculateCostoComida(id)));
+
+    return { updated: ids.length };
+  }
+
   async list(comidaId: string) {
     if (!comidaId) throw new BadRequestException('comidaId es requerido');
 
@@ -119,24 +228,39 @@ export class RecetasService {
       cantidadBase: dto.cantidadBase.toFixed(3),
     });
 
-    return this.recetaRepo.save(entity);
+    const saved = await this.recetaRepo.save(entity);
+    await this.recalculateCostoComida(dto.comidaId);
+    return saved;
   }
 
   async update(id: number, dto: UpdateRecetaDto) {
-    const receta = await this.recetaRepo.findOne({ where: { id } });
+    const receta = await this.recetaRepo.findOne({
+      where: { id },
+      relations: { comida: true },
+    });
     if (!receta) throw new NotFoundException('Receta no encontrada');
 
     if (dto.cantidadBase !== undefined) {
       receta.cantidadBase = dto.cantidadBase.toFixed(3);
     }
 
-    return this.recetaRepo.save(receta);
+    const saved = await this.recetaRepo.save(receta);
+    if (receta.comida?.id) {
+      await this.recalculateCostoComida(receta.comida.id);
+    }
+    return saved;
   }
 
   async remove(id: number) {
-    const receta = await this.recetaRepo.findOne({ where: { id } });
+    const receta = await this.recetaRepo.findOne({
+      where: { id },
+      relations: { comida: true },
+    });
     if (!receta) throw new NotFoundException('Receta no encontrada');
     await this.recetaRepo.remove(receta);
+    if (receta.comida?.id) {
+      await this.recalculateCostoComida(receta.comida.id);
+    }
     return { ok: true };
   }
 
@@ -144,46 +268,7 @@ export class RecetasService {
     if (!comidaId) throw new BadRequestException('comidaId es requerido');
     await this.assertTipo(comidaId, ProductoTipoEnum.COMIDA);
 
-    const comida = await this.productoRepo.findOne({ where: { id: comidaId } });
-    if (!comida) throw new NotFoundException('Comida no encontrada');
-
-    const rows = await this.recetaRepo.find({
-      where: { comida: { id: comidaId } as any },
-      relations: { grupo: { items: { producto: true } } },
-      order: { id: 'ASC' },
-    });
-
-    const items = rows.map((r) => {
-      const insumo = this.resolveGrupoProductoCosto(r.grupo ?? null);
-      const costoUnitario = Number(insumo?.precioCosto ?? 0);
-      const cantidad = Number(r.cantidadBase ?? 0);
-      const subtotal = costoUnitario * cantidad;
-
-      return {
-        id: r.id,
-        grupo: r.grupo
-          ? {
-              id: r.grupo.id,
-              name: r.grupo.name,
-              consumoStrategy: r.grupo.consumoStrategy,
-              unidadBase: this.resolveGrupoUnidadBase(r.grupo),
-            }
-          : null,
-        insumo: insumo
-          ? {
-              id: insumo.id,
-              name: insumo.name,
-              unidadBase: insumo.unidadBase ?? null,
-              precioCosto: insumo.precioCosto,
-            }
-          : null,
-        cantidadBase: r.cantidadBase,
-        costoUnitario: costoUnitario.toFixed(2),
-        subtotal: subtotal.toFixed(2),
-      };
-    });
-
-    const total = items.reduce((sum, it) => sum + Number(it.subtotal ?? 0), 0);
+    const { comida, items, total } = await this.computeCostoComida(comidaId);
     const rendimiento = Number(comida.rendimiento ?? 0);
     const costoPorcion = rendimiento > 0 ? total / rendimiento : null;
 

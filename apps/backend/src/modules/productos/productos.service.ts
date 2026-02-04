@@ -12,6 +12,7 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoStockEntity } from './entities/producto-stock.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoTipoEntity, ProductoTipoEnum } from './entities/producto-tipo.entity';
+import { RecetasService } from './recetas.service';
 
 @Injectable()
 export class ProductosService {
@@ -24,13 +25,15 @@ export class ProductosService {
     private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(UbicacionEntity)
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
+    private readonly recetasService: RecetasService,
   ) {}
 
   private assertTiposValid(tipos: ProductoTipoEnum[]) {
-    const hasComida = tipos.includes(ProductoTipoEnum.COMIDA);
-    const hasInsumo = tipos.includes(ProductoTipoEnum.INSUMO);
-    if (hasComida && hasInsumo) {
-      throw new BadRequestException('Un producto no puede ser COMIDA e INSUMO a la vez');
+    if (!tipos || tipos.length === 0) {
+      throw new BadRequestException('Debe seleccionar un tipo de producto');
+    }
+    if (tipos.length !== 1) {
+      throw new BadRequestException('Solo se permite un tipo de producto');
     }
   }
 
@@ -74,6 +77,13 @@ export class ProductosService {
       where: { producto: { id } } as any,
     });
     return stocks.reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
+  }
+
+  private async hasTipo(productoId: string, tipo: ProductoTipoEnum) {
+    const row = await this.tipoRepo.findOne({
+      where: { producto: { id: productoId } as any, tipo } as any,
+    });
+    return Boolean(row);
   }
 
   async findAll(includeInactive = false) {
@@ -132,9 +142,7 @@ export class ProductosService {
   }
 
   async create(dto: CreateProductoDto) {
-    if (dto.tipos && dto.tipos.length > 0) {
-      this.assertTiposValid(dto.tipos);
-    }
+    this.assertTiposValid(dto.tipos ?? []);
     const internalCode = dto.internalCode.trim();
     const barcode = dto.barcode?.trim() || null;
 
@@ -150,13 +158,15 @@ export class ProductosService {
       }
     }
 
+    const isComida = (dto.tipos ?? []).includes(ProductoTipoEnum.COMIDA);
+    const isInsumo = (dto.tipos ?? []).includes(ProductoTipoEnum.INSUMO);
     const entity = this.repo.create({
       name: dto.name.trim(),
       internalCode,
       barcode,
       unidadBase: dto.unidadBase?.trim() || null,
-      precioCosto: dto.precioCosto.toFixed(2),
-      precioVenta: dto.precioVenta.toFixed(2),
+      precioCosto: isComida ? '0.00' : dto.precioCosto.toFixed(2),
+      precioVenta: isInsumo ? '0.00' : dto.precioVenta.toFixed(2),
       rendimiento: dto.rendimiento !== undefined ? dto.rendimiento.toFixed(3) : null,
       isActive: true,
     });
@@ -199,6 +209,10 @@ export class ProductosService {
     const existing = await this.repo.findOne({ where: { id } });
     if (!existing) throw new NotFoundException('Producto no encontrado');
 
+    const prevPrecioCosto = Number(existing.precioCosto ?? 0);
+    const isComida = await this.hasTipo(existing.id, ProductoTipoEnum.COMIDA);
+    const isInsumo = await this.hasTipo(existing.id, ProductoTipoEnum.INSUMO);
+
     // internalCode (unique)
     if (dto.internalCode !== undefined) {
       const newInternal = dto.internalCode.trim();
@@ -227,8 +241,13 @@ export class ProductosService {
     if (dto.name !== undefined) existing.name = dto.name.trim();
     if (dto.unidadBase !== undefined) existing.unidadBase = dto.unidadBase?.trim() || null;
 
-    if (dto.precioCosto !== undefined) existing.precioCosto = dto.precioCosto.toFixed(2);
-    if (dto.precioVenta !== undefined) existing.precioVenta = dto.precioVenta.toFixed(2);
+    if (!isComida && dto.precioCosto !== undefined) {
+      existing.precioCosto = dto.precioCosto.toFixed(2);
+    }
+    if (!isInsumo && dto.precioVenta !== undefined) {
+      existing.precioVenta = dto.precioVenta.toFixed(2);
+    }
+    if (isInsumo) existing.precioVenta = '0.00';
     if (dto.rendimiento !== undefined) {
       existing.rendimiento = dto.rendimiento === null ? null : dto.rendimiento.toFixed(3);
     }
@@ -245,6 +264,14 @@ export class ProductosService {
     if (dto.isActive !== undefined) existing.isActive = dto.isActive;
 
     const saved = await this.repo.save(existing);
+    const precioCostoChanged =
+      !isComida && dto.precioCosto !== undefined && Number(dto.precioCosto ?? 0) !== prevPrecioCosto;
+    if (precioCostoChanged) {
+      const isInsumo = await this.hasTipo(saved.id, ProductoTipoEnum.INSUMO);
+      if (isInsumo) {
+        await this.recetasService.recalculateCostosByInsumo(saved.id);
+      }
+    }
     const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
     const full = await this.repo.findOne({
       where: { id: saved.id },

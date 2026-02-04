@@ -325,6 +325,9 @@
                 <p class="text-xs text-slate-500 truncate">
                   {{ p.internalCode }}
                   <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                  <span *ngIf="(p.tipos?.[0] ?? '')" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                    {{ p.tipos?.[0] }}
+                  </span>
                 </p>
               </div>
 

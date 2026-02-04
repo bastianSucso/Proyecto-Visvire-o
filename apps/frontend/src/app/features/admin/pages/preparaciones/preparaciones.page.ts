@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProductosService, Producto, ProductoTipo } from '../../../../core/services/productos.service';
+import { RecetasService } from '../../../../core/services/recetas.service';
+import { catchError, forkJoin, of } from 'rxjs';
 
 @Component({
   selector: 'app-preparaciones-page',
@@ -13,10 +15,12 @@ import { ProductosService, Producto, ProductoTipo } from '../../../../core/servi
 export class PreparacionesPage {
   private fb = inject(FormBuilder);
   private productosService = inject(ProductosService);
+  private recetasService = inject(RecetasService);
 
   productos: Producto[] = [];
   loading = false;
   errorMsg = '';
+  successMsg = '';
 
   q = '';
   pageSize = 20;
@@ -120,6 +124,7 @@ export class PreparacionesPage {
 
   openCreate() {
     this.errorMsg = '';
+    this.successMsg = '';
     this.editing = null;
     this.isModalOpen = true;
 
@@ -147,6 +152,7 @@ export class PreparacionesPage {
 
   openEdit(p: Producto) {
     this.errorMsg = '';
+    this.successMsg = '';
     this.editing = p;
     this.isModalOpen = true;
     this.form.reset({
@@ -179,7 +185,6 @@ export class PreparacionesPage {
       internalCode: (v.internalCode ?? '').trim(),
       barcode: (v.barcode ?? '').trim() || undefined,
       unidadBase: (v.unidadBase ?? '').trim() || undefined,
-      precioCosto: 0,
       precioVenta: Number(v.precioVenta ?? 0),
       tipos: ['COMIDA'] as ProductoTipo[],
     };
@@ -189,10 +194,11 @@ export class PreparacionesPage {
 
     const req$ = this.editing
       ? this.productosService.update(this.editing.id, payload)
-      : this.productosService.create(payload);
+      : this.productosService.create({ ...payload, precioCosto: 0 });
 
     req$.subscribe({
       next: () => {
+        this.successMsg = this.editing ? 'Preparación actualizada correctamente.' : 'Preparación creada correctamente.';
         this.closeModal();
         this.load();
       },
@@ -213,7 +219,10 @@ export class PreparacionesPage {
     if (!ok) return;
 
     this.productosService.remove(p.id).subscribe({
-      next: () => this.load(),
+      next: () => {
+        this.successMsg = 'Preparación eliminada correctamente.';
+        this.load();
+      },
       error: (err) => (this.errorMsg = this.mapError(err)),
     });
   }

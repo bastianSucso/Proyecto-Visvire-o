@@ -23,6 +23,7 @@ export class ProductosPage {
   pageSize = 20;
   page = 1;
   readonly pageSizes = [10, 20, 50, 100];
+  tipoFilter: 'ALL' | 'INSUMO' | 'REVENTA' = 'ALL';
 
   isModalOpen = false;
   editing: Producto | null = null;
@@ -67,15 +68,25 @@ export class ProductosPage {
     this.page = 1;
   }
 
+  onTipoFilterChange() {
+    this.page = 1;
+  }
+
   private normalize(s: any) {
     return String(s ?? '').toLowerCase().trim();
   }
 
   get filtered(): Producto[] {
     const term = this.normalize(this.q);
-    if (!term) return this.productos;
+    let items = this.productos;
 
-    return this.productos.filter((p) => {
+    if (this.tipoFilter !== 'ALL') {
+      items = items.filter((p) => (p.tipos ?? [])[0].includes(this.tipoFilter));
+    }
+
+    if (!term) return items;
+
+    return items.filter((p) => {
       const hay = [
         p.name,
         p.internalCode,
@@ -131,6 +142,7 @@ export class ProductosPage {
     });
 
     this.form.enable();
+    this.applyTipoRules();
 
     this.productosService.suggestInternalCode().subscribe({
       next: (res) => {
@@ -156,6 +168,7 @@ export class ProductosPage {
       tipos: (p.tipos ?? []) as ProductoTipo[],
     });
     this.form.enable();
+    this.applyTipoRules();
   }
 
   closeModal() {
@@ -170,6 +183,12 @@ export class ProductosPage {
     }
 
     const v = this.form.value;
+    const tipos = (v.tipos ?? []) as ProductoTipo[];
+    if (tipos.length !== 1) {
+      this.errorMsg = 'Debe seleccionar un tipo de producto.';
+      this.form.get('tipos')?.setErrors({ required: true });
+      return;
+    }
 
     const payload = {
       name: (v.name ?? '').trim(),
@@ -177,8 +196,8 @@ export class ProductosPage {
       barcode: (v.barcode ?? '').trim() || undefined,
       unidadBase: (v.unidadBase ?? '').trim() || undefined,
       precioCosto: Number(v.precioCosto ?? 0),
-      precioVenta: Number(v.precioVenta ?? 0),
-      tipos: (v.tipos ?? []) as ProductoTipo[],
+      precioVenta: tipos.includes('INSUMO') ? 0 : Number(v.precioVenta ?? 0),
+      tipos,
     };
 
     this.loading = true;
@@ -225,10 +244,32 @@ export class ProductosPage {
   }
 
   toggleTipo(tipo: ProductoTipo, checked: boolean) {
-    const current = new Set((this.form.get('tipos')?.value ?? []) as ProductoTipo[]);
-    if (checked) current.add(tipo);
-    else current.delete(tipo);
-    this.form.get('tipos')?.setValue(Array.from(current));
+    if (checked) {
+      this.form.get('tipos')?.setValue([tipo]);
+      this.form.get('tipos')?.setErrors(null);
+    } else {
+      this.form.get('tipos')?.setValue([]);
+    }
+    this.form.get('tipos')?.updateValueAndValidity();
+    this.applyTipoRules();
+  }
+
+  private applyTipoRules() {
+    const tipo = this.getSelectedTipo();
+    const precioVentaCtrl = this.form.get('precioVenta');
+    if (!precioVentaCtrl) return;
+
+    if (tipo === 'INSUMO') {
+      precioVentaCtrl.setValue(0, { emitEvent: false });
+      precioVentaCtrl.disable({ emitEvent: false });
+    } else {
+      precioVentaCtrl.enable({ emitEvent: false });
+    }
+  }
+
+  private getSelectedTipo(): ProductoTipo | null {
+    const value = (this.form.get('tipos')?.value ?? []) as ProductoTipo[];
+    return value.length ? value[0] : null;
   }
 
   private mapError(err: any): string {

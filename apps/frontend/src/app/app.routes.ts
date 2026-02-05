@@ -31,6 +31,7 @@ export const routes: Routes = [
       {path: 'inventario/traspasos', loadComponent: () => import('./features/admin/pages/inventario/traspaso/inventario-traspaso.page').then(m => m.InventarioTraspasoPage),},
       {path: 'inventario/documentos/:documentoRef', loadComponent: () => import('./features/admin/pages/inventario/documento/inventario-documento.page').then(m => m.InventarioDocumentoPage),},
       {path: 'inventario/documentos', loadComponent: () => import('./features/admin/pages/inventario/documentos/inventario-documentos.page').then(m => m.InventarioDocumentosPage),},
+      {path: 'inventario/movimientos/detalle/:tipo/:ref', loadComponent: () => import('./features/admin/pages/inventario/movimientos/detalle/inventario-movimiento-detalle.page').then(m => m.InventarioMovimientoDetallePage),},
       {path: 'inventario/movimientos', loadComponent: () => import('./features/admin/pages/inventario/movimientos/inventario-movimientos.page').then(m => m.InventarioMovimientosPage),},
     ],
   },

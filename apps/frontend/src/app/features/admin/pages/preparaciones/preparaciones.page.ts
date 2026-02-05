@@ -55,7 +55,7 @@ export class PreparacionesPage {
     }).subscribe({
       next: ({ productos, posibles }) => {
         const all = productos ?? [];
-        this.productos = all.filter((p) => (p.tipos ?? []).includes('COMIDA'));
+        this.productos = all.filter((p) => p.tipo === 'COMIDA');
         this.posiblesMap = (posibles ?? []).reduce((acc, item) => {
           acc[item.comidaId] = item.posibles;
           return acc;
@@ -194,7 +194,7 @@ export class PreparacionesPage {
       barcode: (v.barcode ?? '').trim() || undefined,
       unidadBase: (v.unidadBase ?? '').trim() || undefined,
       precioVenta: Number(v.precioVenta ?? 0),
-      tipos: ['COMIDA'] as ProductoTipo[],
+      tipo: 'COMIDA' as ProductoTipo,
     };
 
     this.loading = true;

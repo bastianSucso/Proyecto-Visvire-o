@@ -99,7 +99,7 @@ export class InventarioConversionPage {
   }
 
   private isComida(producto: Producto) {
-    return (producto.tipos ?? []).includes('COMIDA');
+    return producto.tipo === 'COMIDA';
   }
 
   private getSelectableProductos() {
@@ -285,11 +285,11 @@ export class InventarioConversionPage {
 
   private getTipoLabel(producto: Producto | null) {
     if (!producto) return null;
-    return (producto.tipos?.[0] ?? 'SIN TIPO').toUpperCase();
+    return (producto.tipo ?? 'SIN TIPO').toUpperCase();
   }
 
   getTipoBadgeClass(producto: Producto | null) {
-    const tipo = producto?.tipos?.[0] ?? '';
+    const tipo = producto?.tipo ?? '';
     if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
     if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
     return 'bg-slate-100 text-slate-700 ring-slate-200';

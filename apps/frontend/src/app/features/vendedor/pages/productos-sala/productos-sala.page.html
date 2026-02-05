@@ -120,12 +120,12 @@
                     class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
                     [ngClass]="getTipoBadgeClass(p)"
                   >
-                    {{ p.tipos?.[0] ?? 'SIN TIPO' }}
+                    {{ p.tipo }}
                   </span>
                 </td>
 
                 <td class="px-4 py-3">
-                  <ng-container *ngIf="!(p.tipos ?? []).includes('COMIDA'); else sinStock">
+                  <ng-container *ngIf="p.tipo !== 'COMIDA'; else sinStock">
                     <span
                       class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
                       [ngClass]="{
@@ -141,7 +141,7 @@
 
                 <td class="px-4 py-3">
                   <span
-                    *ngIf="(p.tipos ?? []).includes('COMIDA'); else sinPreparaciones"
+                    *ngIf="p.tipo === 'COMIDA'; else sinPreparaciones"
                     class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
                     [ngClass]="{
                       'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': (posiblesMap[p.id] || 0) > 0,

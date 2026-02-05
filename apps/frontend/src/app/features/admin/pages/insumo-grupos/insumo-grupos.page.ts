@@ -54,7 +54,7 @@ export class InsumoGruposPage {
     this.productosService.list(true).subscribe({
       next: (data) => {
         const all = data ?? [];
-        this.productos = all.filter((p) => (p.tipos ?? []).includes('INSUMO'));
+        this.productos = all.filter((p) => p.tipo === 'INSUMO');
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
     });

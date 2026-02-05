@@ -57,11 +57,11 @@ export class InventarioIngresoPage {
   }
 
   private isComida(producto: Producto) {
-    return (producto.tipos ?? []).includes('COMIDA');
+    return producto.tipo === 'COMIDA';
   }
 
   getTipoBadgeClass(producto: Producto) {
-    const tipo = producto.tipos?.[0] ?? '';
+    const tipo = producto.tipo ?? '';
     if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
     if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
     if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';

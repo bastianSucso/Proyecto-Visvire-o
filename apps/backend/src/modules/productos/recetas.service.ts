@@ -7,8 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RecetaEntity } from './entities/receta.entity';
-import { ProductoEntity } from './entities/producto.entity';
-import { ProductoTipoEntity, ProductoTipoEnum } from './entities/producto-tipo.entity';
+import { ProductoEntity, ProductoTipoEnum } from './entities/producto.entity';
 import { InsumoGrupoEntity, InsumoGrupoStrategy } from './entities/insumo-grupo.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from './entities/producto-stock.entity';
@@ -22,8 +21,6 @@ export class RecetasService {
     private readonly recetaRepo: Repository<RecetaEntity>,
     @InjectRepository(ProductoEntity)
     private readonly productoRepo: Repository<ProductoEntity>,
-    @InjectRepository(ProductoTipoEntity)
-    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(InsumoGrupoEntity)
     private readonly grupoRepo: Repository<InsumoGrupoEntity>,
     @InjectRepository(UbicacionEntity)
@@ -33,10 +30,10 @@ export class RecetasService {
   ) {}
 
   private async assertTipo(productoId: string, tipo: ProductoTipoEnum) {
-    const exists = await this.tipoRepo.findOne({
-      where: { producto: { id: productoId } as any, tipo } as any,
-    });
-    if (!exists) throw new ConflictException(`Producto no tiene tipo ${tipo}`);
+    const producto = await this.productoRepo.findOne({ where: { id: productoId } });
+    if (!producto || producto.tipo !== tipo) {
+      throw new ConflictException(`Producto no tiene tipo ${tipo}`);
+    }
   }
 
   private resolveGrupoUnidadBase(grupo: InsumoGrupoEntity | null) {
@@ -165,8 +162,8 @@ export class RecetasService {
   async recalculateCostosAllComidas() {
     const rows = await this.productoRepo
       .createQueryBuilder('p')
-      .innerJoin('p.tipos', 'pt', 'pt.tipo = :tipo', { tipo: ProductoTipoEnum.COMIDA })
       .select('p.id', 'id')
+      .where('p.tipo = :tipo', { tipo: ProductoTipoEnum.COMIDA })
       .getRawMany<{ id: string }>();
 
     const ids = rows.map((r) => r.id).filter(Boolean);
@@ -301,8 +298,8 @@ export class RecetasService {
 
     const comidas = await this.productoRepo
       .createQueryBuilder('p')
-      .innerJoin('p.tipos', 'pt', 'pt.tipo = :tipo', { tipo: ProductoTipoEnum.COMIDA })
       .select(['p.id as id', 'p.name as name', 'p.unidadBase as unidadBase'])
+      .where('p.tipo = :tipo', { tipo: ProductoTipoEnum.COMIDA })
       .orderBy('p.createdAt', 'DESC')
       .getRawMany<{ id: string; name: string; unidadBase: string | null }>();
 

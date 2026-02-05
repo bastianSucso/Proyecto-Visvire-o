@@ -123,12 +123,12 @@
                   <span
                     class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
                     [ngClass]="{
-                      'bg-blue-50 text-blue-700 ring-blue-200': (p.tipos?.[0] ?? '') === 'INSUMO',
-                      'bg-emerald-50 text-emerald-700 ring-emerald-200': (p.tipos?.[0] ?? '') === 'REVENTA',
-                      'bg-slate-100 text-slate-700 ring-slate-200': !(p.tipos?.[0])
+                      'bg-blue-50 text-blue-700 ring-blue-200': p.tipo === 'INSUMO',
+                      'bg-emerald-50 text-emerald-700 ring-emerald-200': p.tipo === 'REVENTA',
+                      'bg-slate-100 text-slate-700 ring-slate-200': !(p.tipo)
                     }"
                   >
-                    {{ p.tipos?.[0] ?? 'SIN TIPO' }}
+                    {{ p.tipo }}
                   </span>
                 </td>
 
@@ -142,7 +142,7 @@
 
                 <td class="px-4 py-3">
                   <div class="flex justify-center">
-                    <ng-container *ngIf="(p.tipos?.[0] ?? '') !== 'INSUMO'; else sinGanancia">
+                    <ng-container *ngIf="p.tipo !== 'INSUMO'; else sinGanancia">
                       <span
                         class="inline-flex min-w-[92px] justify-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
                         [ngClass]="{
@@ -354,19 +354,19 @@
             </div>
 
             <div>
-              <label class="mb-2 block text-sm font-medium text-slate-700">Tipos</label>
+              <label class="mb-2 block text-sm font-medium text-slate-700">Tipo</label>
               <div class="flex flex-wrap gap-3">
                 <label *ngFor="let t of tiposOptions" class="inline-flex items-center gap-2 text-sm text-slate-700">
                   <input
-                    type="checkbox"
-                    class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-200"
-                    [checked]="isTipoSelected(t)"
-                    (change)="toggleTipo(t, $any($event.target).checked)"
+                    type="radio"
+                    class="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-200"
+                    formControlName="tipo"
+                    [value]="t"
                   />
                   <span>{{ t }}</span>
                 </label>
               </div>
-              <p *ngIf="c('tipos')?.touched && c('tipos')?.hasError('required')" class="mt-1 text-xs text-red-600">
+              <p *ngIf="c('tipo')?.touched && c('tipo')?.hasError('required')" class="mt-1 text-xs text-red-600">
                 Debes seleccionar un tipo.
               </p>
             </div>

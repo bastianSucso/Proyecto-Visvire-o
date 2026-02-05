@@ -7,8 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, ILike, In, Repository } from 'typeorm';
 import { AlteraEntity } from './entities/altera.entity';
-import { ProductoEntity } from '../productos/entities/producto.entity';
-import { ProductoTipoEntity, ProductoTipoEnum } from '../productos/entities/producto-tipo.entity';
+import { ProductoEntity, ProductoTipoEnum } from '../productos/entities/producto.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { UserEntity } from '../users/entities/user.entity';
@@ -29,8 +28,6 @@ export class InventarioService {
     private readonly alteraRepo: Repository<AlteraEntity>,
     @InjectRepository(ProductoEntity)
     private readonly productoRepo: Repository<ProductoEntity>,
-    @InjectRepository(ProductoTipoEntity)
-    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(UbicacionEntity)
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity)
@@ -46,10 +43,9 @@ export class InventarioService {
   }
 
   private async assertProductoNoComida(productoId: string) {
-    const match = await this.tipoRepo.findOne({
-      where: { producto: { id: productoId } as any, tipo: ProductoTipoEnum.COMIDA } as any,
-    });
-    if (match) {
+    const producto = await this.productoRepo.findOne({ where: { id: productoId } });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    if (producto.tipo === ProductoTipoEnum.COMIDA) {
       throw new BadRequestException('No se permite ingresar o traspasar productos COMIDA');
     }
   }
@@ -115,6 +111,7 @@ export class InventarioService {
               name: it.producto.name,
               internalCode: it.producto.internalCode,
               barcode: it.producto.barcode ?? null,
+              tipo: it.producto.tipo,
             }
           : null,
       })),
@@ -482,13 +479,11 @@ export class InventarioService {
 
     const productos = await this.productoRepo.find({
       where: where as any,
-      relations: { stocks: { ubicacion: true }, tipos: true },
+      relations: { stocks: { ubicacion: true } },
       order: { createdAt: 'DESC' },
     });
 
-    const filtrados = productos.filter(
-      (p) => !(p.tipos ?? []).some((tipo) => tipo.tipo === 'COMIDA'),
-    );
+    const filtrados = productos.filter((p) => p.tipo !== ProductoTipoEnum.COMIDA);
 
     return filtrados.map((p) => {
       const stocks = (p.stocks ?? []).map((s) => ({
@@ -508,8 +503,8 @@ export class InventarioService {
         internalCode: p.internalCode,
         barcode: p.barcode,
         unidadBase: p.unidadBase,
+        tipo: p.tipo,
         isActive: p.isActive,
-        tipos: (p.tipos ?? []).map((t) => t.tipo),
         stocks,
         cantidadTotal,
       };
@@ -582,6 +577,7 @@ export class InventarioService {
       const alteraRepoTx = manager.getRepository(AlteraEntity);
       const unidadOrigen = this.getUnidadBaseMeta(productoOrigen);
       const unidadDestino = this.getUnidadBaseMeta(productoDestino);
+      const documentoRef = randomUUID();
 
       await alteraRepoTx.save(
         alteraRepoTx.create({
@@ -595,7 +591,7 @@ export class InventarioService {
           origen: null,
           destino: null,
           usuario: { idUsuario: usuarioId } as UserEntity,
-          documentoRef: null,
+          documentoRef,
         }),
       );
 
@@ -611,12 +607,110 @@ export class InventarioService {
           origen: null,
           destino: null,
           usuario: { idUsuario: usuarioId } as UserEntity,
-          documentoRef: null,
+          documentoRef,
         }),
       );
 
       return { ok: true };
     });
+  }
+
+  async obtenerMovimientoDetalle(tipo: 'SALIDA' | 'CONVERSION_PRODUCTO', ref: string) {
+    if (tipo !== 'SALIDA' && tipo !== 'CONVERSION_PRODUCTO') {
+      throw new BadRequestException('tipo inválido');
+    }
+    if (!ref) throw new BadRequestException('ref es requerido');
+
+    if (tipo === 'SALIDA') {
+      const ventaId = Number(ref);
+      if (!Number.isFinite(ventaId) || ventaId <= 0) {
+        throw new BadRequestException('ref inválido');
+      }
+
+      const items = await this.alteraRepo.find({
+        where: { tipo: 'SALIDA', venta: { idVenta: ventaId } as any } as any,
+        relations: { producto: true, ubicacion: true, usuario: true, venta: true },
+        order: { fecha: 'ASC' },
+      });
+
+      if (!items || items.length === 0) {
+        throw new NotFoundException('Movimiento no encontrado');
+      }
+
+      const first = items[0];
+
+      return {
+        tipo,
+        ref: String(ventaId),
+        fecha: first.fecha,
+        usuario: first.usuario ? { id: first.usuario.idUsuario, email: first.usuario.email } : null,
+        ubicacion: first.ubicacion
+          ? { id: first.ubicacion.id, nombre: first.ubicacion.nombre, tipo: first.ubicacion.tipo }
+          : null,
+        items: items.map((it) => ({
+          id: it.id,
+          cantidad: Number(it.cantidad ?? 0),
+          unidad: it.unidad ?? it.producto?.unidadBase ?? null,
+          producto: it.producto
+            ? {
+                id: it.producto.id,
+                name: it.producto.name,
+                internalCode: it.producto.internalCode,
+                barcode: it.producto.barcode ?? null,
+                tipo: it.producto.tipo,
+              }
+            : null,
+        })),
+      };
+    }
+
+    const items = await this.alteraRepo.find({
+      where: { tipo: 'CONVERSION_PRODUCTO', documentoRef: ref } as any,
+      relations: { producto: true, ubicacion: true, usuario: true },
+      order: { fecha: 'ASC' },
+    });
+
+    if (!items || items.length === 0) {
+      throw new NotFoundException('Movimiento no encontrado');
+    }
+
+    const first = items[0];
+    const origen = items.find((it) => (it.motivo ?? '').startsWith('Conversión a '));
+    const destino = items.find((it) => (it.motivo ?? '').startsWith('Conversión desde '));
+
+    const cantidadOrigen = Number(origen?.cantidad ?? 0);
+    const cantidadDestino = Number(destino?.cantidad ?? 0);
+    const factor =
+      cantidadOrigen > 0 ? Number((cantidadDestino / cantidadOrigen).toFixed(6)) : null;
+
+    return {
+      tipo,
+      ref,
+      fecha: first.fecha,
+      usuario: first.usuario ? { id: first.usuario.idUsuario, email: first.usuario.email } : null,
+      ubicacion: first.ubicacion
+        ? { id: first.ubicacion.id, nombre: first.ubicacion.nombre, tipo: first.ubicacion.tipo }
+        : null,
+      resumen: {
+        factor,
+        cantidadOrigen,
+        cantidadDestino,
+      },
+      items: items.map((it) => ({
+        id: it.id,
+        cantidad: Number(it.cantidad ?? 0),
+        unidad: it.unidad ?? it.producto?.unidadBase ?? null,
+        producto: it.producto
+          ? {
+              id: it.producto.id,
+              name: it.producto.name,
+              internalCode: it.producto.internalCode,
+              barcode: it.producto.barcode ?? null,
+              tipo: it.producto.tipo,
+            }
+          : null,
+      })),
+    };
   }
 
   async obtenerConversion(origenId?: string, destinoId?: string) {
@@ -711,6 +805,7 @@ export class InventarioService {
         origen: true,
         destino: true,
         usuario: true,
+        venta: true,
       },
       order: { fecha: 'DESC' },
       take,
@@ -720,6 +815,7 @@ export class InventarioService {
       id: m.id,
       tipo: m.tipo,
       cantidad: Number(m.cantidad ?? 0),
+      unidad: m.unidad ?? null,
       motivo: m.motivo,
       fecha: m.fecha,
       producto: {
@@ -740,6 +836,7 @@ export class InventarioService {
       usuario: m.usuario
         ? { id: m.usuario.idUsuario, email: m.usuario.email }
         : null,
+      ventaId: m.venta?.idVenta ?? null,
       documentoRef: m.documentoRef ?? null,
     }));
   }
@@ -752,6 +849,7 @@ export class InventarioService {
       .select('a.documentoRef', 'documentoRef')
       .addSelect('MAX(a.fecha)', 'fecha')
       .where('a.documentoRef IS NOT NULL')
+      .andWhere('a.tipo IN (:...tipos)', { tipos: ['INGRESO', 'TRASPASO'] })
       .groupBy('a.documentoRef')
       .orderBy('MAX(a.fecha)', 'DESC')
       .limit(take)
@@ -761,7 +859,7 @@ export class InventarioService {
     if (refs.length === 0) return [];
 
     const items = await this.alteraRepo.find({
-      where: { documentoRef: In(refs) } as any,
+      where: { documentoRef: In(refs), tipo: In(['INGRESO', 'TRASPASO']) } as any,
       relations: { producto: true, ubicacion: true, origen: true, destino: true, usuario: true },
       order: { fecha: 'DESC' },
     });

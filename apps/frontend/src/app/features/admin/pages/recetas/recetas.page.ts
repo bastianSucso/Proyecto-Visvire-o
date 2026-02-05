@@ -61,7 +61,7 @@ export class RecetasPage {
     this.productosService.list(true).subscribe({
       next: (data) => {
         this.productos = data ?? [];
-        this.comidas = this.productos.filter((p) => (p.tipos ?? []).includes('COMIDA'));
+        this.comidas = this.productos.filter((p) => p.tipo === 'COMIDA');
         this.loadGrupos();
         if (this.pendingComidaId) {
           const exists = this.comidas.find((c) => c.id === this.pendingComidaId);

@@ -120,7 +120,7 @@ export class ProductosSalaPage implements OnInit {
     const q = (this.filtro || '').trim().toLowerCase();
     const base = this.filtroTipo === 'TODOS'
       ? this.productos
-      : this.productos.filter((p) => (p.tipos ?? []).includes(this.filtroTipo as any));
+      : this.productos.filter((p) => p.tipo === (this.filtroTipo as any));
 
     if (!q) return base;
 
@@ -133,7 +133,7 @@ export class ProductosSalaPage implements OnInit {
   }
 
   getTipoBadgeClass(producto: Producto) {
-    const tipo = producto.tipos?.[0] ?? '';
+    const tipo = producto.tipo ?? '';
     if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
     if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
     if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';

@@ -136,12 +136,12 @@
                   <span
                     class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
                     [ngClass]="{
-                      'bg-blue-50 text-blue-700 ring-blue-200': (p.tipos?.[0] ?? '') === 'INSUMO',
-                      'bg-emerald-50 text-emerald-700 ring-emerald-200': (p.tipos?.[0] ?? '') === 'REVENTA',
-                      'bg-slate-100 text-slate-700 ring-slate-200': !(p.tipos?.[0])
+                      'bg-blue-50 text-blue-700 ring-blue-200': p.tipo === 'INSUMO',
+                      'bg-emerald-50 text-emerald-700 ring-emerald-200': p.tipo === 'REVENTA',
+                      'bg-slate-100 text-slate-700 ring-slate-200': !(p.tipo)
                     }"
                   >
-                    {{ p.tipos?.[0] ?? 'SIN TIPO' }}
+                    {{ p.tipo }}
                   </span>
                 </td>
                 <td class="px-4 py-3 text-center">
@@ -269,13 +269,13 @@
                     <span *ngIf="p.unidadBase" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
                       {{ p.unidadBase }}
                     </span>
-                    <span
-                      *ngIf="(p.tipos?.[0] ?? '')"
-                      class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
-                      [ngClass]="getTipoBadgeClass(p)"
-                    >
-                      {{ p.tipos?.[0] }}
-                    </span>
+                      <span
+                        *ngIf="p.tipo"
+                        class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
+                        [ngClass]="getTipoBadgeClass(p)"
+                      >
+                        {{ p.tipo }}
+                      </span>
                   </p>
                 </div>
               </button>
@@ -289,7 +289,7 @@
               class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
               [ngClass]="getTipoBadgeClass(selectedAjusteProducto)"
             >
-              {{ selectedAjusteProducto.tipos?.[0] ?? 'SIN TIPO' }}
+              {{ selectedAjusteProducto.tipo }}
             </span>
             · Unidad: {{ selectedAjusteProducto.unidadBase ?? '-' }}
           </div>

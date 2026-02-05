@@ -1,7 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayNotEmpty,
-  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -11,7 +9,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ProductoTipoEnum } from '../entities/producto-tipo.entity';
+import { ProductoTipoEnum } from '../entities/producto.entity';
 
 export class UpdateProductoDto {
   @IsOptional()
@@ -54,10 +52,8 @@ export class UpdateProductoDto {
   rendimiento?: number;
 
   @IsOptional()
-  @IsArray()
-  @ArrayNotEmpty()
-  @IsEnum(ProductoTipoEnum, { each: true })
-  tipos?: ProductoTipoEnum[];
+  @IsEnum(ProductoTipoEnum)
+  tipo?: ProductoTipoEnum;
 
   @IsOptional()
   @IsBoolean()

@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
-import { ProductoEntity } from './entities/producto.entity';
-import { ProductoTipoEntity, ProductoTipoEnum } from './entities/producto-tipo.entity';
+import { ProductoEntity, ProductoTipoEnum } from './entities/producto.entity';
 import { InsumoGrupoEntity } from './entities/insumo-grupo.entity';
 import { InsumoGrupoItemEntity } from './entities/insumo-grupo-item.entity';
 import { CreateInsumoGrupoDto } from './dto/create-insumo-grupo.dto';
@@ -25,8 +24,6 @@ export class InsumoGruposService {
     private readonly itemRepo: Repository<InsumoGrupoItemEntity>,
     @InjectRepository(ProductoEntity)
     private readonly productoRepo: Repository<ProductoEntity>,
-    @InjectRepository(ProductoTipoEntity)
-    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     private readonly recetasService: RecetasService,
   ) {}
 
@@ -45,10 +42,8 @@ export class InsumoGruposService {
   }
 
   private async assertProductoInsumo(productoId: string) {
-    const exists = await this.tipoRepo.findOne({
-      where: { producto: { id: productoId } as any, tipo: ProductoTipoEnum.INSUMO } as any,
-    });
-    if (!exists) {
+    const producto = await this.productoRepo.findOne({ where: { id: productoId } });
+    if (!producto || producto.tipo !== ProductoTipoEnum.INSUMO) {
       throw new ConflictException('Producto debe tener tipo INSUMO');
     }
   }

@@ -84,6 +84,12 @@ export class InventarioController {
   }
 
   @Roles('ADMIN')
+  @Get('movimientos/detalle/:tipo/:ref')
+  obtenerMovimientoDetalle(@Param('tipo') tipo: string, @Param('ref') ref: string) {
+    return this.inventarioService.obtenerMovimientoDetalle(tipo as any, ref);
+  }
+
+  @Roles('ADMIN')
   @Get('documentos')
   listarDocumentos(@Query('limit') limit?: string) {
     return this.inventarioService.listarDocumentos(limit ? Number(limit) : 200);

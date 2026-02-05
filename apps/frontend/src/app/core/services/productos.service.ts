@@ -13,7 +13,7 @@ export interface Producto {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  tipos?: ProductoTipo[];
+  tipo: ProductoTipo;
   rendimiento?: string | null;
 
   cantidadTotal?: number;
@@ -28,7 +28,7 @@ export interface CreateProductoDto {
   unidadBase?: string;
   precioCosto: number;
   precioVenta: number;
-  tipos?: ProductoTipo[];
+  tipo: ProductoTipo;
   rendimiento?: number;
 }
 
@@ -39,7 +39,7 @@ export interface UpdateProductoDto {
   unidadBase?: string | null;
   precioCosto?: number;
   precioVenta?: number;
-  tipos?: ProductoTipo[];
+  tipo?: ProductoTipo;
   rendimiento?: number | null;
   isActive?: boolean;
 }

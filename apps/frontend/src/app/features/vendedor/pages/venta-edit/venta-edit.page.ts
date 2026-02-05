@@ -142,8 +142,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
   }
 
   private isVendible(p: Producto): boolean {
-    const tipos = p.tipos ?? [];
-    return tipos.includes('REVENTA') || tipos.includes('COMIDA');
+    return p.tipo === 'REVENTA' || p.tipo === 'COMIDA';
   }
 
   get totalNumero(): number {

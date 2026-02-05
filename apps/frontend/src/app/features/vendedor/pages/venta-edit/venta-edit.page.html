@@ -329,17 +329,17 @@
                       {{ p.unidadBase }}
                     </span>
                     <span
-                      *ngIf="(p.tipos?.[0] ?? '')"
+                      *ngIf="p.tipo"
                       class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
                       [ngClass]="
-                        (p.tipos?.[0] ?? '') === 'REVENTA'
+                        p.tipo === 'REVENTA'
                           ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                          : (p.tipos?.[0] ?? '') === 'COMIDA'
+                          : p.tipo === 'COMIDA'
                             ? 'bg-amber-50 text-amber-700 ring-amber-200'
                             : 'bg-slate-100 text-slate-700 ring-slate-200'
                       "
                     >
-                      {{ p.tipos?.[0] }}
+                      {{ p.tipo }}
                     </span>
                 </p>
               </div>

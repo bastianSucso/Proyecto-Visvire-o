@@ -38,11 +38,12 @@ export class ProductosPage {
     unidadBase: [''],
     precioCosto: [0, [Validators.required, Validators.min(0)]],
     precioVenta: [0, [Validators.required, Validators.min(0)]],
-    tipos: [[] as ProductoTipo[]],
+    tipo: ['', [Validators.required]],
   });
 
   ngOnInit() {
     this.load();
+    this.form.get('tipo')?.valueChanges.subscribe(() => this.applyTipoRules());
   }
 
   load() {
@@ -51,7 +52,7 @@ export class ProductosPage {
     this.productosService.list(true).subscribe({
       next: (data) => {
         const all = data ?? [];
-        this.productos = all.filter((p) => !(p.tipos ?? []).includes('COMIDA'));
+        this.productos = all.filter((p) => p.tipo !== 'COMIDA');
         this.page = 1; // reset al refrescar
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
@@ -81,7 +82,7 @@ export class ProductosPage {
     let items = this.productos;
 
     if (this.tipoFilter !== 'ALL') {
-      items = items.filter((p) => (p.tipos ?? [])[0].includes(this.tipoFilter));
+      items = items.filter((p) => p.tipo === this.tipoFilter);
     }
 
     if (!term) return items;
@@ -138,7 +139,7 @@ export class ProductosPage {
       unidadBase: '',
       precioCosto: 0,
       precioVenta: 0,
-      tipos: [],
+      tipo: '',
     });
 
     this.form.enable();
@@ -165,7 +166,7 @@ export class ProductosPage {
       unidadBase: p.unidadBase ?? '',
       precioCosto: Number(p.precioCosto),
       precioVenta: Number(p.precioVenta),
-      tipos: (p.tipos ?? []) as ProductoTipo[],
+      tipo: p.tipo,
     });
     this.form.enable();
     this.applyTipoRules();
@@ -183,10 +184,10 @@ export class ProductosPage {
     }
 
     const v = this.form.value;
-    const tipos = (v.tipos ?? []) as ProductoTipo[];
-    if (tipos.length !== 1) {
+    const tipo = (v.tipo ?? '') as ProductoTipo;
+    if (!tipo) {
       this.errorMsg = 'Debe seleccionar un tipo de producto.';
-      this.form.get('tipos')?.setErrors({ required: true });
+      this.form.get('tipo')?.setErrors({ required: true });
       return;
     }
 
@@ -196,8 +197,8 @@ export class ProductosPage {
       barcode: (v.barcode ?? '').trim() || undefined,
       unidadBase: (v.unidadBase ?? '').trim() || undefined,
       precioCosto: Number(v.precioCosto ?? 0),
-      precioVenta: tipos.includes('INSUMO') ? 0 : Number(v.precioVenta ?? 0),
-      tipos,
+      precioVenta: tipo === 'INSUMO' ? 0 : Number(v.precioVenta ?? 0),
+      tipo,
     };
 
     this.loading = true;
@@ -238,22 +239,6 @@ export class ProductosPage {
     return this.form.get(name);
   }
 
-  isTipoSelected(tipo: ProductoTipo) {
-    const value = (this.form.get('tipos')?.value ?? []) as ProductoTipo[];
-    return value.includes(tipo);
-  }
-
-  toggleTipo(tipo: ProductoTipo, checked: boolean) {
-    if (checked) {
-      this.form.get('tipos')?.setValue([tipo]);
-      this.form.get('tipos')?.setErrors(null);
-    } else {
-      this.form.get('tipos')?.setValue([]);
-    }
-    this.form.get('tipos')?.updateValueAndValidity();
-    this.applyTipoRules();
-  }
-
   private applyTipoRules() {
     const tipo = this.getSelectedTipo();
     const precioVentaCtrl = this.form.get('precioVenta');
@@ -268,8 +253,8 @@ export class ProductosPage {
   }
 
   private getSelectedTipo(): ProductoTipo | null {
-    const value = (this.form.get('tipos')?.value ?? []) as ProductoTipo[];
-    return value.length ? value[0] : null;
+    const value = (this.form.get('tipo')?.value ?? null) as ProductoTipo | null;
+    return value || null;
   }
 
   private mapError(err: any): string {

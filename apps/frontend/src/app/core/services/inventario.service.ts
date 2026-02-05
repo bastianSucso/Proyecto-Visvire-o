@@ -10,7 +10,7 @@ export interface InventarioStockItem {
   internalCode: string;
   barcode: string | null;
   unidadBase: string | null;
-  tipos?: ProductoTipo[];
+  tipo: ProductoTipo;
   isActive: boolean;
   cantidadTotal: number;
   stocks: {
@@ -24,7 +24,13 @@ export interface InventarioDocumentoItem {
   cantidad: number;
   unidadBase: string | null;
   barcode: string | null;
-  producto: { id: string; name: string; internalCode: string; barcode: string | null } | null;
+  producto: {
+    id: string;
+    name: string;
+    internalCode: string;
+    barcode: string | null;
+    tipo: ProductoTipo;
+  } | null;
 }
 
 export interface InventarioDocumento {
@@ -52,6 +58,7 @@ export interface InventarioMovimiento {
   id: number;
   tipo: AlteraTipo;
   cantidad: number;
+  unidad?: string | null;
   motivo: string | null;
   fecha: string;
   producto: { id: string; name: string; internalCode: string; barcode: string | null } | null;
@@ -59,7 +66,37 @@ export interface InventarioMovimiento {
   origen: { id: string; nombre: string; tipo: string } | null;
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;
+  ventaId?: number | null;
   documentoRef: string | null;
+}
+
+export interface MovimientoDetalleItem {
+  id: number;
+  cantidad: number;
+  unidad: string | null;
+  producto: {
+    id: string;
+    name: string;
+    internalCode: string;
+    barcode: string | null;
+    tipo: ProductoTipo;
+  } | null;
+}
+
+export interface MovimientoDetalleResumen {
+  factor: number | null;
+  cantidadOrigen: number;
+  cantidadDestino: number;
+}
+
+export interface MovimientoDetalleResponse {
+  tipo: 'SALIDA' | 'CONVERSION_PRODUCTO';
+  ref: string;
+  fecha: string;
+  usuario: { id: string; email: string } | null;
+  ubicacion: { id: string; nombre: string; tipo: string } | null;
+  resumen?: MovimientoDetalleResumen;
+  items: MovimientoDetalleItem[];
 }
 
 export interface ConvertirProductoDto {
@@ -128,6 +165,12 @@ export class InventarioService {
 
   listarMovimientos(limit = 200) {
     return this.http.get<InventarioMovimiento[]>(`/api/inventario/movimientos?limit=${limit}`);
+  }
+
+  obtenerMovimientoDetalle(tipo: 'SALIDA' | 'CONVERSION_PRODUCTO', ref: string) {
+    return this.http.get<MovimientoDetalleResponse>(
+      `/api/inventario/movimientos/detalle/${tipo}/${encodeURIComponent(ref)}`,
+    );
   }
 
   listarDocumentos(limit = 200) {

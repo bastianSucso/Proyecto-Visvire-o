@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductoEntity } from './entities/producto.entity';
 import { ProductoStockEntity } from './entities/producto-stock.entity';
-import { ProductoTipoEntity } from './entities/producto-tipo.entity';
 import { RecetaEntity } from './entities/receta.entity';
 import { InsumoGrupoEntity } from './entities/insumo-grupo.entity';
 import { InsumoGrupoItemEntity } from './entities/insumo-grupo-item.entity';
@@ -19,7 +18,6 @@ import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
     TypeOrmModule.forFeature([
       ProductoEntity,
       ProductoStockEntity,
-      ProductoTipoEntity,
       RecetaEntity,
       InsumoGrupoEntity,
       InsumoGrupoItemEntity,

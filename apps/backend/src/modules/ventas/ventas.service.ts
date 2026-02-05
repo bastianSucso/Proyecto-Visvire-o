@@ -6,11 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 
 import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
-import { ProductoEntity } from '../productos/entities/producto.entity';
-import { ProductoTipoEntity, ProductoTipoEnum } from '../productos/entities/producto-tipo.entity';
+import { ProductoEntity, ProductoTipoEnum } from '../productos/entities/producto.entity';
 import { RecetaEntity } from '../productos/entities/receta.entity';
 import { InsumoGrupoEntity, InsumoGrupoStrategy } from '../productos/entities/insumo-grupo.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
@@ -31,8 +30,6 @@ export class VentasService {
     @InjectRepository(VentaItemEntity) private readonly itemRepo: Repository<VentaItemEntity>,
     @InjectRepository(SesionCajaEntity) private readonly sesionRepo: Repository<SesionCajaEntity>,
     @InjectRepository(ProductoEntity) private readonly productoRepo: Repository<ProductoEntity>,
-    @InjectRepository(ProductoTipoEntity)
-    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(UbicacionEntity) private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity) private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(AlteraEntity) private readonly alteraRepo: Repository<AlteraEntity>,
@@ -91,15 +88,11 @@ export class VentasService {
   }
 
   private async assertProductoVendible(manager: EntityManager, productoId: string) {
-    const tipoRepoTx = manager.getRepository(ProductoTipoEntity);
-    const match = await tipoRepoTx.findOne({
-      where: {
-        producto: { id: productoId } as any,
-        tipo: In([ProductoTipoEnum.REVENTA, ProductoTipoEnum.COMIDA]),
-      },
+    const producto = await manager.getRepository(ProductoEntity).findOne({
+      where: { id: productoId },
     });
 
-    if (!match) {
+    if (!producto || ![ProductoTipoEnum.REVENTA, ProductoTipoEnum.COMIDA].includes(producto.tipo)) {
       throw new ConflictException('Producto no está habilitado para venta');
     }
   }
@@ -363,7 +356,6 @@ export class VentasService {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const ubicacionRepoTx = manager.getRepository(UbicacionEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
-      const tipoRepoTx = manager.getRepository(ProductoTipoEntity);
       const recetaRepoTx = manager.getRepository(RecetaEntity);
 
       const ventaLocked = await ventaRepoTx.findOne({
@@ -406,14 +398,12 @@ export class VentasService {
         throw new ConflictException('No se puede confirmar una venta sin productos.');
       }
 
-      const productoIds = items
-        .map((it) => (it.producto as any)?.id)
-        .filter((id) => !!id) as string[];
-      const comidaRows = await tipoRepoTx.find({
-        where: { producto: { id: In(productoIds) } as any, tipo: ProductoTipoEnum.COMIDA } as any,
-        relations: { producto: true },
-      });
-      const comidasSet = new Set(comidaRows.map((r) => r.producto?.id).filter(Boolean) as string[]);
+      const comidasSet = new Set(
+        items
+          .map((it) => it.producto as ProductoEntity | undefined)
+          .filter((p) => p && p.tipo === ProductoTipoEnum.COMIDA)
+          .map((p) => p!.id),
+      );
 
       const insumoRequired = new Map<string, { producto: ProductoEntity; cantidad: number }>();
 

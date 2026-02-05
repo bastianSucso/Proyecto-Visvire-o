@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { InventarioService } from './inventario.service';
 import { InventarioController } from './inventario.controller';
 import { AlteraEntity } from './entities/altera.entity';
+import { ProductoConversionEntity } from './entities/producto-conversion.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
@@ -11,6 +12,7 @@ import { ProductoStockEntity } from '../productos/entities/producto-stock.entity
   imports: [
     TypeOrmModule.forFeature([
       AlteraEntity,
+      ProductoConversionEntity,
       ProductoEntity,
       UbicacionEntity,
       ProductoStockEntity,

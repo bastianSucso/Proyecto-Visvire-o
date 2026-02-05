@@ -9,6 +9,7 @@ import { CreateTraspasoDto } from './dto/create-traspaso.dto';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
 import { ConvertirProductoDto } from './dto/convertir-producto.dto';
+import { CreateConversionFactorDto } from './dto/create-conversion-factor.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/inventario')
@@ -62,6 +63,18 @@ export class InventarioController {
   @Post('convertir-producto')
   convertirProducto(@Body() dto: ConvertirProductoDto, @Req() req: any) {
     return this.inventarioService.convertirProducto(dto, req.user.idUsuario);
+  }
+
+  @Roles('ADMIN')
+  @Get('conversiones')
+  obtenerConversion(@Query('origenId') origenId?: string, @Query('destinoId') destinoId?: string) {
+    return this.inventarioService.obtenerConversion(origenId, destinoId);
+  }
+
+  @Roles('ADMIN')
+  @Post('conversiones')
+  guardarConversion(@Body() dto: CreateConversionFactorDto) {
+    return this.inventarioService.guardarConversion(dto);
   }
 
   @Roles('ADMIN')

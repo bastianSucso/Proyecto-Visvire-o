@@ -26,6 +26,7 @@ export const routes: Routes = [
       {path: 'bodegas', loadComponent: () => import('./features/admin/pages/bodegas/bodegas.page').then(m => m.BodegasPage),},
       {path: 'cajas', loadComponent: () => import('./features/admin/pages/cajas/cajas.page').then(m => m.CajasPage),},
       {path: 'inventario', loadComponent: () => import('./features/admin/pages/inventario/inventario.page').then(m => m.InventarioPage),},
+      {path: 'inventario/conversion', loadComponent: () => import('./features/admin/pages/inventario/conversion/inventario-conversion.page').then(m => m.InventarioConversionPage),},
       {path: 'inventario/ingresos', loadComponent: () => import('./features/admin/pages/inventario/ingreso/inventario-ingreso.page').then(m => m.InventarioIngresoPage),},
       {path: 'inventario/traspasos', loadComponent: () => import('./features/admin/pages/inventario/traspaso/inventario-traspaso.page').then(m => m.InventarioTraspasoPage),},
       {path: 'inventario/documentos/:documentoRef', loadComponent: () => import('./features/admin/pages/inventario/documento/inventario-documento.page').then(m => m.InventarioDocumentoPage),},

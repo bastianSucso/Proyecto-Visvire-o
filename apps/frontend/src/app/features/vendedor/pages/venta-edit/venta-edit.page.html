@@ -325,9 +325,22 @@
                 <p class="text-xs text-slate-500 truncate">
                   {{ p.internalCode }}
                   <span *ngIf="p.barcode">• {{ p.barcode }}</span>
-                  <span *ngIf="(p.tipos?.[0] ?? '')" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                    {{ p.tipos?.[0] }}
-                  </span>
+                    <span *ngIf="p.unidadBase" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                      {{ p.unidadBase }}
+                    </span>
+                    <span
+                      *ngIf="(p.tipos?.[0] ?? '')"
+                      class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
+                      [ngClass]="
+                        (p.tipos?.[0] ?? '') === 'REVENTA'
+                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                          : (p.tipos?.[0] ?? '') === 'COMIDA'
+                            ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                            : 'bg-slate-100 text-slate-700 ring-slate-200'
+                      "
+                    >
+                      {{ p.tipos?.[0] }}
+                    </span>
                 </p>
               </div>
 

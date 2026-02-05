@@ -1,0 +1,273 @@
+<div class="min-h-[calc(100vh-64px)] bg-slate-50">
+  <div class="mx-auto max-w-6xl px-4 py-5">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Conversión de productos</h1>
+        <div class="mt-1 text-sm text-slate-500">
+          Convierte stock entre productos relacionados en la misma ubicación.
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          (click)="volver()"
+        >
+          Volver
+        </button>
+
+        <button
+          type="button"
+          class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+          (click)="confirmarConversion()"
+          [disabled]="loading"
+        >
+          {{ loading ? 'Guardando...' : 'Confirmar conversión' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mx-auto max-w-6xl px-4 pb-20">
+    <div *ngIf="errorMsg" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ errorMsg }}
+    </div>
+    <div *ngIf="successMsg" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+      {{ successMsg }}
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-4 py-3">
+          <h2 class="text-sm font-semibold text-slate-900">Datos de conversión</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Selecciona ubicación, origen y destino.</p>
+        </div>
+
+        <div class="px-4 py-4 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
+            <select
+              [(ngModel)]="ubicacionId"
+              (ngModelChange)="onUbicacionChange()"
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Selecciona ubicación</option>
+              <option *ngFor="let u of ubicaciones" [ngValue]="u.id">
+                {{ u.nombre }} ({{ u.tipo }})
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Producto origen</label>
+            <div class="relative">
+              <input
+                #origenInput
+                type="text"
+                [ngModel]="origenSearch"
+                (ngModelChange)="onOrigenSearchChange($event)"
+                (keydown)="onOrigenKeydown($event)"
+                placeholder="Nombre / código / barcode"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                autocomplete="off"
+              />
+
+              <div
+                *ngIf="origenShowSug"
+                class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
+                      overflow-hidden max-h-60 overflow-auto"
+              >
+                <button
+                  type="button"
+                  *ngFor="let p of origenSugerencias; let i = index"
+                  (mousedown)="$event.preventDefault()"
+                  (mouseenter)="origenActiveIndex = i"
+                  (click)="selectOrigen(p)"
+                  class="w-full px-3 py-2 text-left flex items-center justify-between transition focus:outline-none"
+                  [ngClass]="
+                    i === origenActiveIndex
+                      ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                      : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+                  "
+                >
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900 truncate">
+                      {{ p.name }}
+                    </p>
+                    <p class="text-xs text-slate-500 truncate">
+                      {{ p.internalCode }}
+                      <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                      <span *ngIf="p.unidadBase" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {{ p.unidadBase }}
+                      </span>
+                      <span
+                        *ngIf="(p.tipos?.[0] ?? '')"
+                        class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
+                        [ngClass]="getTipoBadgeClass(p)"
+                      >
+                        {{ p.tipos?.[0] }}
+                      </span>
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="origenSelected" class="mt-2 text-xs text-slate-500">
+              Origen: <span class="font-medium text-slate-700">{{ origenSelected.name }}</span>
+              · Unidad: {{ origenSelected.unidadBase ?? '-' }}
+              ·
+              <span
+                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
+                [ngClass]="getTipoBadgeClass(origenSelected)"
+              >
+                {{ origenSelected.tipos?.[0] ?? 'SIN TIPO' }}
+              </span>
+              · Stock ubicación: {{ getStockFor(origenSelected.id) ?? 0 }}
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Producto destino</label>
+            <div class="relative">
+              <input
+                type="text"
+                [ngModel]="destinoSearch"
+                (ngModelChange)="onDestinoSearchChange($event)"
+                (keydown)="onDestinoKeydown($event)"
+                placeholder="Nombre / código / barcode "
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                autocomplete="off"
+              />
+
+              <div
+                *ngIf="destinoShowSug"
+                class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
+                      overflow-hidden max-h-60 overflow-auto"
+              >
+                <button
+                  type="button"
+                  *ngFor="let p of destinoSugerencias; let i = index"
+                  (mousedown)="$event.preventDefault()"
+                  (mouseenter)="destinoActiveIndex = i"
+                  (click)="selectDestino(p)"
+                  class="w-full px-3 py-2 text-left flex items-center justify-between transition focus:outline-none"
+                  [ngClass]="
+                    i === destinoActiveIndex
+                      ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                      : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+                  "
+                >
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900 truncate">
+                      {{ p.name }}
+                    </p>
+                    <p class="text-xs text-slate-500 truncate">
+                      {{ p.internalCode }}
+                      <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                      <span *ngIf="p.unidadBase" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {{ p.unidadBase }}
+                      </span>
+                      <span
+                        *ngIf="(p.tipos?.[0] ?? '')"
+                        class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
+                        [ngClass]="getTipoBadgeClass(p)"
+                      >
+                        {{ p.tipos?.[0] }}
+                      </span>
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="destinoSelected" class="mt-2 text-xs text-slate-500">
+              Destino: <span class="font-medium text-slate-700">{{ destinoSelected.name }}</span>
+              · Unidad: {{ destinoSelected.unidadBase ?? '-' }}
+              ·
+              <span
+                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
+                [ngClass]="getTipoBadgeClass(destinoSelected)"
+              >
+                {{ destinoSelected.tipos?.[0] ?? 'SIN TIPO' }}
+              </span>
+              · Stock ubicación: {{ getStockFor(destinoSelected.id) ?? 0 }}
+            </div>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">Cantidad origen</label>
+              <input
+                type="number"
+                min="0.001"
+                step="0.001"
+                [(ngModel)]="cantidadOrigen"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">Factor</label>
+              <input
+                type="number"
+                min="0.000001"
+                step="0.000001"
+                [(ngModel)]="factor"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                placeholder="Ej: 25"
+              />
+              <p class="mt-1 text-xs text-slate-500">
+                <span *ngIf="loadingFactor">Cargando factor sugerido...</span>
+                <span *ngIf="!loadingFactor && factorSource === 'direct'">Factor guardado para este par.</span>
+                <span *ngIf="!loadingFactor && factorSource === 'inverse'">Factor sugerido desde conversión inversa.</span>
+                <span *ngIf="!loadingFactor && factorSource === 'none'">Sin factor guardado para este par.</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-4 py-3">
+          <h2 class="text-sm font-semibold text-slate-900">Resumen</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Detalle previo a confirmar.</p>
+        </div>
+
+        <div class="px-4 py-4 space-y-4">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs text-slate-500">Tipo de conversión</p>
+            <p class="text-sm font-semibold text-slate-900 mt-1">{{ conversionTipo }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-xs text-slate-500">Origen</p>
+            <p class="text-sm font-semibold text-slate-900 mt-1">
+              {{ origenSelected?.name ?? '---' }}
+            </p>
+            <p class="text-xs text-slate-500 mt-1">
+              Se descuenta: {{ cantidadOrigen || 0 }} {{ origenSelected?.unidadBase ?? '-' }}
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-xs text-slate-500">Destino</p>
+            <p class="text-sm font-semibold text-slate-900 mt-1">
+              {{ destinoSelected?.name ?? '---' }}
+            </p>
+            <p class="text-xs text-slate-500 mt-1">
+              Se suma: {{ cantidadDestino }} {{ destinoSelected?.unidadBase ?? '-' }}
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-xs text-slate-500">Ubicación</p>
+            <p class="text-sm font-semibold text-slate-900 mt-1">
+              {{ ubicacionNombre }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -17,6 +17,8 @@ import { CreateTraspasoDto } from './dto/create-traspaso.dto';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
 import { ConvertirProductoDto } from './dto/convertir-producto.dto';
+import { CreateConversionFactorDto } from './dto/create-conversion-factor.dto';
+import { ProductoConversionEntity } from './entities/producto-conversion.entity';
 
 @Injectable()
 export class InventarioService {
@@ -30,6 +32,8 @@ export class InventarioService {
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity)
     private readonly stockRepo: Repository<ProductoStockEntity>,
+    @InjectRepository(ProductoConversionEntity)
+    private readonly conversionRepo: Repository<ProductoConversionEntity>,
   ) {}
 
   private async getProductoOrThrow(productoId: string) {
@@ -461,11 +465,15 @@ export class InventarioService {
 
     const productos = await this.productoRepo.find({
       where: where as any,
-      relations: { stocks: { ubicacion: true } },
+      relations: { stocks: { ubicacion: true }, tipos: true },
       order: { createdAt: 'DESC' },
     });
 
-    return productos.map((p) => {
+    const filtrados = productos.filter(
+      (p) => !(p.tipos ?? []).some((tipo) => tipo.tipo === 'COMIDA'),
+    );
+
+    return filtrados.map((p) => {
       const stocks = (p.stocks ?? []).map((s) => ({
         ubicacion: {
           id: s.ubicacion.id,
@@ -484,6 +492,7 @@ export class InventarioService {
         barcode: p.barcode,
         unidadBase: p.unidadBase,
         isActive: p.isActive,
+        tipos: (p.tipos ?? []).map((t) => t.tipo),
         stocks,
         cantidadTotal,
       };
@@ -591,6 +600,88 @@ export class InventarioService {
 
       return { ok: true };
     });
+  }
+
+  async obtenerConversion(origenId?: string, destinoId?: string) {
+    if (!origenId || !destinoId) {
+      throw new BadRequestException('origenId y destinoId son requeridos');
+    }
+
+    const direct = await this.conversionRepo.findOne({
+      where: {
+        productoOrigen: { id: origenId },
+        productoDestino: { id: destinoId },
+        isActive: true,
+      } as any,
+      relations: { productoOrigen: true, productoDestino: true },
+    });
+
+    if (direct) {
+      return {
+        factor: Number(direct.factor ?? 0),
+        source: 'direct',
+      };
+    }
+
+    const inverse = await this.conversionRepo.findOne({
+      where: {
+        productoOrigen: { id: destinoId },
+        productoDestino: { id: origenId },
+        isActive: true,
+      } as any,
+      relations: { productoOrigen: true, productoDestino: true },
+    });
+
+    if (inverse) {
+      const value = Number(inverse.factor ?? 0);
+      if (!Number.isFinite(value) || value === 0) {
+        return { factor: null, source: 'none' };
+      }
+      return {
+        factor: Number((1 / value).toFixed(6)),
+        source: 'inverse',
+      };
+    }
+
+    return { factor: null, source: 'none' };
+  }
+
+  async guardarConversion(dto: CreateConversionFactorDto) {
+    if (dto.productoOrigenId === dto.productoDestinoId) {
+      throw new BadRequestException('productoOrigenId y productoDestinoId no pueden ser iguales');
+    }
+
+    const factor = Number(dto.factor);
+    if (!Number.isFinite(factor) || factor <= 0) {
+      throw new BadRequestException('factor debe ser un número > 0');
+    }
+
+    const origen = await this.getProductoOrThrow(dto.productoOrigenId);
+    const destino = await this.getProductoOrThrow(dto.productoDestinoId);
+
+    const existing = await this.conversionRepo.findOne({
+      where: {
+        productoOrigen: { id: origen.id },
+        productoDestino: { id: destino.id },
+      } as any,
+    });
+
+    if (existing) {
+      existing.factor = factor.toFixed(6);
+      existing.isActive = true;
+      await this.conversionRepo.save(existing);
+    } else {
+      await this.conversionRepo.save(
+        this.conversionRepo.create({
+          productoOrigen: { id: origen.id } as any,
+          productoDestino: { id: destino.id } as any,
+          factor: factor.toFixed(6),
+          isActive: true,
+        }),
+      );
+    }
+
+    return { ok: true };
   }
 
   async listarMovimientos(limit = 200) {

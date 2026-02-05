@@ -529,4 +529,5 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
       return;
     }
   }
+
 }

@@ -36,7 +36,6 @@ export class InventarioPage {
   qStock = '';
 
   ajusteModalOpen = false;
-  conversionModalOpen = false;
   ajusteSearch = '';
   ajusteSugerencias: Producto[] = [];
   ajusteShowSug = false;
@@ -49,13 +48,6 @@ export class InventarioPage {
     motivo: ['', [Validators.required, Validators.maxLength(300)]],
   });
 
-  conversionForm = this.fb.group({
-    productoOrigenId: ['', [Validators.required]],
-    productoDestinoId: ['', [Validators.required]],
-    ubicacionId: ['', [Validators.required]],
-    cantidadOrigen: [0, [Validators.required, Validators.min(0.001)]],
-    factor: [1, [Validators.required, Validators.min(0.000001)]],
-  });
 
   ngOnInit() {
     this.loadCatalogs();
@@ -151,21 +143,6 @@ export class InventarioPage {
     this.ajusteModalOpen = false;
   }
 
-  openConversionModal() {
-    this.conversionModalOpen = true;
-    this.errorMsg = '';
-    this.conversionForm.reset({
-      productoOrigenId: '',
-      productoDestinoId: '',
-      ubicacionId: '',
-      cantidadOrigen: 0,
-      factor: 1,
-    });
-  }
-
-  closeConversionModal() {
-    this.conversionModalOpen = false;
-  }
 
   onAjusteSearchChange(value: string) {
     this.ajusteSearch = value;
@@ -286,43 +263,6 @@ export class InventarioPage {
     });
   }
 
-  registrarConversion() {
-    this.stockMsg = '';
-    this.errorMsg = '';
-
-    if (this.conversionForm.invalid) {
-      this.conversionForm.markAllAsTouched();
-      return;
-    }
-
-    const v = this.conversionForm.value;
-    if (v.productoOrigenId === v.productoDestinoId) {
-      this.errorMsg = 'El producto origen y destino no pueden ser iguales.';
-      return;
-    }
-
-    const payload = {
-      productoOrigenId: String(v.productoOrigenId),
-      productoDestinoId: String(v.productoDestinoId),
-      ubicacionId: String(v.ubicacionId),
-      cantidadOrigen: Number(v.cantidadOrigen ?? 0),
-      factor: Number(v.factor ?? 0),
-    };
-
-    this.loadingForm = true;
-
-    this.inventarioService.convertirProducto(payload).subscribe({
-      next: () => {
-        this.stockMsg = 'Conversión registrada correctamente.';
-        this.closeConversionModal();
-        this.loadStock();
-      },
-      error: (err) => {
-        this.errorMsg = this.mapError(err);
-      },
-      complete: () => (this.loadingForm = false),
-    });
-  }
 
   getStockFor(producto: InventarioStockItem, ubicacionId: string) {
     const row = producto.stocks.find((s) => s.ubicacion.id === ubicacionId);

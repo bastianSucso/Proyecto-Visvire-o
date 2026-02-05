@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { ProductoTipo } from './productos.service';
 
 export type AlteraTipo = 'INGRESO' | 'AJUSTE' | 'SALIDA' | 'TRASPASO' | 'CONVERSION_PRODUCTO';
 
@@ -9,6 +10,7 @@ export interface InventarioStockItem {
   internalCode: string;
   barcode: string | null;
   unidadBase: string | null;
+  tipos?: ProductoTipo[];
   isActive: boolean;
   cantidadTotal: number;
   stocks: {
@@ -65,6 +67,17 @@ export interface ConvertirProductoDto {
   productoDestinoId: string;
   ubicacionId: string;
   cantidadOrigen: number;
+  factor: number;
+}
+
+export interface ConversionFactorResponse {
+  factor: number | null;
+  source: 'direct' | 'inverse' | 'none';
+}
+
+export interface CreateConversionFactorDto {
+  productoOrigenId: string;
+  productoDestinoId: string;
   factor: number;
 }
 
@@ -147,5 +160,14 @@ export class InventarioService {
 
   convertirProducto(dto: ConvertirProductoDto) {
     return this.http.post<{ ok: true }>(`/api/inventario/convertir-producto`, dto);
+  }
+
+  obtenerConversion(origenId: string, destinoId: string) {
+    const query = `?origenId=${encodeURIComponent(origenId)}&destinoId=${encodeURIComponent(destinoId)}`;
+    return this.http.get<ConversionFactorResponse>(`/api/inventario/conversiones${query}`);
+  }
+
+  guardarConversion(dto: CreateConversionFactorDto) {
+    return this.http.post<{ ok: true }>(`/api/inventario/conversiones`, dto);
   }
 }

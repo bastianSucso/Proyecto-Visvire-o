@@ -22,6 +22,12 @@ export class RecetasController {
     return this.service.costos(comidaId ?? '');
   }
 
+  @Roles('ADMIN', 'VENDEDOR')
+  @Get('posibles')
+  posibles() {
+    return this.service.posiblesMasivo();
+  }
+
   @Post('recalcular-costos')
   recalculateAll() {
     return this.service.recalculateCostosAllComidas();

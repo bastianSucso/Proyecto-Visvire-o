@@ -129,6 +129,7 @@ export class ProductosService {
 
     const qb = this.repo
       .createQueryBuilder('p')
+      .leftJoinAndSelect('p.tipos', 'pt')
       .leftJoin('p.stocks', 'ps', 'ps.id_ubicacion = :idUb', { idUb: sala.id })
       .addSelect('COALESCE(ps.cantidad, 0)', 'stockSalaVenta')
       .where('p.isActive = :active', { active: true })

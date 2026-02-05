@@ -61,6 +61,18 @@ export class InventarioTraspasoPage {
     return (s || '').trim().toLowerCase();
   }
 
+  private isComida(producto: Producto) {
+    return (producto.tipos ?? []).includes('COMIDA');
+  }
+
+  getTipoBadgeClass(producto: Producto) {
+    const tipo = producto.tipos?.[0] ?? '';
+    if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
+    if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+    if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';
+    return 'bg-slate-100 text-slate-700 ring-slate-200';
+  }
+
   private isBarcodeLike(s: string) {
     const t = (s || '').trim();
     return /^[0-9]{8,14}$/.test(t);
@@ -141,6 +153,7 @@ export class InventarioTraspasoPage {
 
     const matches = this.productos
       .filter((p) => {
+        if (this.isComida(p)) return false;
         const name = this.norm(p.name);
         const code = this.norm(p.internalCode);
         const barcode = this.norm(p.barcode || '');
@@ -203,6 +216,10 @@ export class InventarioTraspasoPage {
         this.productos.find((p) => (p.internalCode || '').trim() === raw);
 
       if (hit) {
+        if (this.isComida(hit)) {
+          this.scanError = 'No se permite traspasar productos COMIDA.';
+          return;
+        }
         await this.addByProducto(hit, cant);
         return;
       }
@@ -217,6 +234,10 @@ export class InventarioTraspasoPage {
   }
 
   async seleccionarSug(p: Producto) {
+    if (this.isComida(p)) {
+      this.scanError = 'No se permite traspasar productos COMIDA.';
+      return;
+    }
     const cant = Number(this.cantidadRapida);
     if (!Number.isInteger(cant) || cant < 1) {
       this.scanError = 'Cantidad inválida (debe ser entero >= 1).';
@@ -228,6 +249,10 @@ export class InventarioTraspasoPage {
 
   private async addByProducto(producto: Producto, cantidad: number) {
     if (this.savingItemId !== null) return;
+    if (this.isComida(producto)) {
+      this.scanError = 'No se permite traspasar productos COMIDA.';
+      return;
+    }
 
     const existing = this.items.find((it) => it.id === producto.id);
     if (!existing) {

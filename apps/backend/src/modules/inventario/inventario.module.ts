@@ -7,6 +7,7 @@ import { ProductoConversionEntity } from './entities/producto-conversion.entity'
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
+import { ProductoTipoEntity } from '../productos/entities/producto-tipo.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ProductoStockEntity } from '../productos/entities/producto-stock.entity
       ProductoEntity,
       UbicacionEntity,
       ProductoStockEntity,
+      ProductoTipoEntity
     ]),
   ],
   controllers: [InventarioController],

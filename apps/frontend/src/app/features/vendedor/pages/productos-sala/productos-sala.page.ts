@@ -4,8 +4,10 @@ import { FormsModule, FormBuilder, ReactiveFormsModule, Validators } from '@angu
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
+import { RecetasService } from '../../../../core/services/recetas.service';
 import { CajaService, CajaActualResponse } from '../../../../core/services/caja.service';
 import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
+import { catchError, forkJoin, of } from 'rxjs';
 
 @Component({
   selector: 'app-productos-sala-page',
@@ -19,6 +21,7 @@ export class ProductosSalaPage implements OnInit {
   private fb = inject(FormBuilder);
 
   private productosService = inject(ProductosService);
+  private recetasService = inject(RecetasService);
   private cajaService = inject(CajaService);
   private incidenciaService = inject(IncidenciasService);
 
@@ -28,11 +31,13 @@ export class ProductosSalaPage implements OnInit {
 
   // lista productos
   productos: Producto[] = [];
+  posiblesMap: Record<string, number> = {};
   loading = false;
   errorMsg = '';
 
 
   filtro = '';
+  filtroTipo: 'TODOS' | 'REVENTA' | 'INSUMO' | 'COMIDA' = 'TODOS';
 
   // paginación
   page = 1;
@@ -86,9 +91,16 @@ export class ProductosSalaPage implements OnInit {
     this.loading = true;
     this.errorMsg = '';
 
-    this.productosService.listSala().subscribe({
-      next: (data) => {
-        this.productos = data ?? [];
+    forkJoin({
+      productos: this.productosService.listSala(),
+      posibles: this.recetasService.posibles().pipe(catchError(() => of([]))),
+    }).subscribe({
+      next: ({ productos, posibles }) => {
+        this.productos = productos ?? [];
+        this.posiblesMap = (posibles ?? []).reduce((acc, item) => {
+          acc[item.comidaId] = item.posibles;
+          return acc;
+        }, {} as Record<string, number>);
         this.page = 1;
       },
       error: (err) => {
@@ -106,14 +118,26 @@ export class ProductosSalaPage implements OnInit {
   // ====== filtrado + paginación ======
   get productosFiltrados(): Producto[] {
     const q = (this.filtro || '').trim().toLowerCase();
-    if (!q) return this.productos;
+    const base = this.filtroTipo === 'TODOS'
+      ? this.productos
+      : this.productos.filter((p) => (p.tipos ?? []).includes(this.filtroTipo as any));
 
-    return this.productos.filter((p) => {
+    if (!q) return base;
+
+    return base.filter((p) => {
       const name = (p.name || '').toLowerCase();
       const code = (p.internalCode || '').toLowerCase();
       const barcode = (p.barcode || '').toLowerCase();
       return name.includes(q) || code.includes(q) || barcode.includes(q);
     });
+  }
+
+  getTipoBadgeClass(producto: Producto) {
+    const tipo = producto.tipos?.[0] ?? '';
+    if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
+    if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+    if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';
+    return 'bg-slate-100 text-slate-700 ring-slate-200';
   }
 
   get totalPages(): number {

@@ -95,6 +95,7 @@
                 <th class="px-4 py-3">Costo</th>
                 <th class="px-4 py-3">Venta</th>
                 <th class="px-4 py-3 text-center">Ganancia</th>
+                <th class="px-4 py-3">Disponibles</th>
                 <th class="px-4 py-3">Stock</th>
                 <th class="px-4 py-3">Estado</th>
                 <th class="px-4 py-3 text-right">Receta</th>
@@ -133,6 +134,18 @@
                       {{ (+p.precioVenta - +p.precioCosto) | currency:'CLP':'symbol-narrow':'1.0-0' }}
                     </span>
                   </div>
+                </td>
+
+                <td class="px-4 py-3">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                    [ngClass]="{
+                      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': (posiblesMap[p.id] || 0) > 0,
+                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200': (posiblesMap[p.id] || 0) === 0
+                    }"
+                  >
+                    {{ posiblesMap[p.id] || 0 }} porciones
+                  </span>
                 </td>
 
                 <td class="px-4 py-3">
@@ -199,7 +212,7 @@
               </tr>
 
               <tr *ngIf="!loading && pageItems.length === 0">
-                <td class="px-4 py-6 text-slate-500" colspan="11">
+                <td class="px-4 py-6 text-slate-500" colspan="12">
                   No hay resultados para la búsqueda.
                 </td>
               </tr>

@@ -81,6 +81,7 @@
               <th class="py-2 pr-3">Medio de pago</th>
               <th class="py-2 pr-3 text-center">Items</th>
               <th class="py-2 pr-3 text-right">Total</th>
+              <th class="py-2 pr-3 text-right">Detalle</th>
             </tr>
           </thead>
           <tbody class="text-sm">
@@ -96,9 +97,17 @@
               <td class="py-3 pr-3 text-right">
                 {{ v.totalVenta | currency:'CLP':'symbol-narrow':'1.0-0' }}
               </td>
+              <td class="py-3 pr-3 text-right">
+                <a
+                  [routerLink]="['/pos/ventas', v.idVenta]"
+                  class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Ver detalle
+                </a>
+              </td>
             </tr>
             <tr *ngIf="ventas.length === 0">
-              <td class="py-6 text-slate-500" colspan="5">Sin ventas confirmadas.</td>
+              <td class="py-6 text-slate-500" colspan="6">Sin ventas confirmadas.</td>
             </tr>
           </tbody>
         </table>

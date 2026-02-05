@@ -18,6 +18,7 @@ export class PreparacionesPage {
   private recetasService = inject(RecetasService);
 
   productos: Producto[] = [];
+  posiblesMap: Record<string, number> = {};
   loading = false;
   errorMsg = '';
   successMsg = '';
@@ -48,10 +49,17 @@ export class PreparacionesPage {
   load() {
     this.loading = true;
     this.errorMsg = '';
-    this.productosService.list(true).subscribe({
-      next: (data) => {
-        const all = data ?? [];
+    forkJoin({
+      productos: this.productosService.list(true),
+      posibles: this.recetasService.posibles().pipe(catchError(() => of([]))),
+    }).subscribe({
+      next: ({ productos, posibles }) => {
+        const all = productos ?? [];
         this.productos = all.filter((p) => (p.tipos ?? []).includes('COMIDA'));
+        this.posiblesMap = (posibles ?? []).reduce((acc, item) => {
+          acc[item.comidaId] = item.posibles;
+          return acc;
+        }, {} as Record<string, number>);
         this.page = 1;
       },
       error: (err) => (this.errorMsg = this.mapError(err)),

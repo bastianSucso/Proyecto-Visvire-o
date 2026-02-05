@@ -125,6 +125,18 @@ export class InventarioPage {
     return String(s ?? '').toLowerCase().trim();
   }
 
+  private isComida(producto: Producto) {
+    return (producto.tipos ?? []).includes('COMIDA');
+  }
+
+  getTipoBadgeClass(producto: Producto) {
+    const tipo = producto.tipos?.[0] ?? '';
+    if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
+    if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+    if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';
+    return 'bg-slate-100 text-slate-700 ring-slate-200';
+  }
+
   openAjusteModal() {
     this.ajusteModalOpen = true;
     this.ajusteSearch = '';
@@ -156,6 +168,7 @@ export class InventarioPage {
 
     const matches = this.productos
       .filter((p) => {
+        if (this.isComida(p)) return false;
         const name = this.normalize(p.name);
         const code = this.normalize(p.internalCode);
         const barcode = this.normalize(p.barcode || '');
@@ -206,6 +219,10 @@ export class InventarioPage {
   }
 
   seleccionarAjuste(p: Producto) {
+    if (this.isComida(p)) {
+      this.errorMsg = 'No se permite ajustar productos COMIDA.';
+      return;
+    }
     this.ajusteForm.patchValue({ productoId: p.id });
     this.ajusteSearch = `${p.name} · ${p.internalCode}${p.barcode ? ' · ' + p.barcode : ''}`;
     this.ajusteSugerencias = [];
@@ -234,6 +251,11 @@ export class InventarioPage {
     }
 
     const v = this.ajusteForm.value;
+    const selected = this.selectedAjusteProducto;
+    if (selected && this.isComida(selected)) {
+      this.errorMsg = 'No se permite ajustar productos COMIDA.';
+      return;
+    }
     const cantidad = Number(v.cantidad);
 
     if (!Number.isInteger(cantidad) || cantidad === 0) {

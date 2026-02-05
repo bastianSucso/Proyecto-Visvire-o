@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { DataSource, ILike, In, Repository } from 'typeorm';
 import { AlteraEntity } from './entities/altera.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
+import { ProductoTipoEntity, ProductoTipoEnum } from '../productos/entities/producto-tipo.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { UserEntity } from '../users/entities/user.entity';
@@ -28,6 +29,8 @@ export class InventarioService {
     private readonly alteraRepo: Repository<AlteraEntity>,
     @InjectRepository(ProductoEntity)
     private readonly productoRepo: Repository<ProductoEntity>,
+    @InjectRepository(ProductoTipoEntity)
+    private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(UbicacionEntity)
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity)
@@ -40,6 +43,15 @@ export class InventarioService {
     const producto = await this.productoRepo.findOne({ where: { id: productoId } });
     if (!producto) throw new NotFoundException('Producto no encontrado');
     return producto;
+  }
+
+  private async assertProductoNoComida(productoId: string) {
+    const match = await this.tipoRepo.findOne({
+      where: { producto: { id: productoId } as any, tipo: ProductoTipoEnum.COMIDA } as any,
+    });
+    if (match) {
+      throw new BadRequestException('No se permite ingresar o traspasar productos COMIDA');
+    }
   }
 
   private async getUbicacionOrThrow(ubicacionId: string) {
@@ -122,6 +134,7 @@ export class InventarioService {
       const alteraRepoTx = manager.getRepository(AlteraEntity);
 
       for (const it of dto.items) {
+        await this.assertProductoNoComida(it.productoId);
         const producto = await this.getProductoOrThrow(it.productoId);
         const cantidad = this.parseCantidad(it.cantidad);
 
@@ -187,6 +200,7 @@ export class InventarioService {
 
       for (const it of dto.items) {
         const cantidad = this.parseCantidad(it.cantidad);
+        await this.assertProductoNoComida(it.productoId);
         const producto = await this.getProductoOrThrow(it.productoId);
 
         const stockOrigen = await stockRepoTx.findOne({
@@ -271,6 +285,7 @@ export class InventarioService {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
 
+      await this.assertProductoNoComida(dto.productoId);
       const producto = await this.getProductoOrThrow(dto.productoId);
       const ubicacion = await this.getUbicacionOrThrow(dto.ubicacionId);
 
@@ -392,6 +407,8 @@ export class InventarioService {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
 
+      await this.assertProductoNoComida(dto.productoId);
+      await this.assertProductoNoComida(dto.productoId);
       const producto = await this.getProductoOrThrow(dto.productoId);
       const origen = await this.getUbicacionOrThrow(dto.origenId);
       const destino = await this.getUbicacionOrThrow(dto.destinoId);

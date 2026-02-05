@@ -45,6 +45,13 @@ export interface RecetaCostoResponse {
   items: RecetaCostoItem[];
 }
 
+export interface RecetaPosiblesItem {
+  comidaId: string;
+  nombre: string;
+  unidadBase: string | null;
+  posibles: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecetasService {
   private http = inject(HttpClient);
@@ -55,6 +62,10 @@ export class RecetasService {
 
   costos(comidaId: string) {
     return this.http.get<RecetaCostoResponse>(`/api/recetas/costos?comidaId=${comidaId}`);
+  }
+
+  posibles() {
+    return this.http.get<RecetaPosiblesItem[]>('/api/recetas/posibles');
   }
 
   create(dto: CreateRecetaDto) {

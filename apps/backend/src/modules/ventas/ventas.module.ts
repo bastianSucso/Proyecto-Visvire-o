@@ -10,6 +10,7 @@ import { ProductoTipoEntity } from '../productos/entities/producto-tipo.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { AlteraEntity } from '../inventario/entities/altera.entity';
+import { RecetaEntity } from '../productos/entities/receta.entity';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AlteraEntity } from '../inventario/entities/altera.entity';
       UbicacionEntity,
       ProductoStockEntity,
       AlteraEntity,
+      RecetaEntity,
     ]),
   ],
   controllers: [VentasController],

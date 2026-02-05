@@ -11,6 +11,8 @@ import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import { ProductoTipoEntity, ProductoTipoEnum } from '../productos/entities/producto-tipo.entity';
+import { RecetaEntity } from '../productos/entities/receta.entity';
+import { InsumoGrupoEntity, InsumoGrupoStrategy } from '../productos/entities/insumo-grupo.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { AlteraEntity } from '../inventario/entities/altera.entity';
@@ -100,6 +102,28 @@ export class VentasService {
     if (!match) {
       throw new ConflictException('Producto no está habilitado para venta');
     }
+  }
+
+  private resolveInsumoFromGrupo(grupo: InsumoGrupoEntity | null) {
+    if (!grupo?.isActive) return null;
+    const items = (grupo?.items ?? []).filter((it) => it.isActive && it.producto);
+    if (items.length === 0) return null;
+
+    if (grupo?.consumoStrategy === InsumoGrupoStrategy.PRIORITY) {
+      const sorted = [...items].sort((a, b) => {
+        const pa = a.priority ?? Number.MAX_SAFE_INTEGER;
+        const pb = b.priority ?? Number.MAX_SAFE_INTEGER;
+        return pa - pb;
+      });
+      return sorted[0]?.producto ?? null;
+    }
+
+    const lowest = items.reduce((min, current) => {
+      const minCosto = Number(min.producto?.precioCosto ?? 0);
+      const curCosto = Number(current.producto?.precioCosto ?? 0);
+      return curCosto < minCosto ? current : min;
+    });
+    return lowest?.producto ?? null;
   }
 
   private async recomputeAndPersistTotals(
@@ -339,6 +363,8 @@ export class VentasService {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const ubicacionRepoTx = manager.getRepository(UbicacionEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
+      const tipoRepoTx = manager.getRepository(ProductoTipoEntity);
+      const recetaRepoTx = manager.getRepository(RecetaEntity);
 
       const ventaLocked = await ventaRepoTx.findOne({
         where: { idVenta },
@@ -380,9 +406,86 @@ export class VentasService {
         throw new ConflictException('No se puede confirmar una venta sin productos.');
       }
 
+      const productoIds = items
+        .map((it) => (it.producto as any)?.id)
+        .filter((id) => !!id) as string[];
+      const comidaRows = await tipoRepoTx.find({
+        where: { producto: { id: In(productoIds) } as any, tipo: ProductoTipoEnum.COMIDA } as any,
+        relations: { producto: true },
+      });
+      const comidasSet = new Set(comidaRows.map((r) => r.producto?.id).filter(Boolean) as string[]);
+
+      const insumoRequired = new Map<string, { producto: ProductoEntity; cantidad: number }>();
+
+      for (const it of items) {
+        const productoId = (it.producto as any)?.id as string | undefined;
+        if (!productoId || !comidasSet.has(productoId)) continue;
+
+        const recetas = await recetaRepoTx.find({
+          where: { comida: { id: productoId } as any },
+          relations: { grupo: { items: { producto: true } } },
+          order: { id: 'ASC' },
+        });
+
+        if (!recetas || recetas.length === 0) {
+          const nombre = (it.producto as any)?.name ?? 'Preparación';
+          throw new ConflictException(`La preparación ${nombre} no tiene receta definida.`);
+        }
+
+        const cantidadVenta = Number(it.cantidad ?? 0);
+        if (!Number.isFinite(cantidadVenta) || cantidadVenta <= 0) {
+          throw new BadRequestException('Cantidad inválida en la venta.');
+        }
+
+        for (const r of recetas) {
+          const insumo = this.resolveInsumoFromGrupo(r.grupo ?? null);
+          if (!insumo) {
+            const grupoName = r.grupo?.name ?? 'Grupo';
+            throw new ConflictException(`El grupo ${grupoName} no tiene insumos activos.`);
+          }
+
+          const cantidadBase = Number(r.cantidadBase ?? 0);
+          if (!Number.isFinite(cantidadBase) || cantidadBase <= 0) {
+            throw new BadRequestException('Cantidad de receta inválida.');
+          }
+
+          const cantidadConsumo = cantidadBase * cantidadVenta;
+          const prev = insumoRequired.get(insumo.id);
+          if (prev) {
+            prev.cantidad += cantidadConsumo;
+          } else {
+            insumoRequired.set(insumo.id, { producto: insumo, cantidad: cantidadConsumo });
+          }
+        }
+      }
+
+      const insumoStockRows = new Map<string, ProductoStockEntity>();
+      for (const [insumoId, data] of insumoRequired) {
+        const stockRow = await stockRepoTx.findOne({
+          where: { producto: { id: insumoId } as any, ubicacion: { id: sala.id } as any },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!stockRow) {
+          throw new ConflictException(`Stock no inicializado para insumo ${data.producto.name}.`);
+        }
+
+        const disponible = Number(stockRow.cantidad ?? 0);
+        if (disponible < data.cantidad) {
+          throw new ConflictException(
+            `Stock insuficiente de insumo ${data.producto.name}. Disponible: ${disponible}.`,
+          );
+        }
+
+        insumoStockRows.set(insumoId, stockRow);
+      }
+
       for (const it of items) {
         const productoId = (it.producto as any)?.id;
         if (!productoId) throw new BadRequestException('Producto inválido en la venta.');
+        if (comidasSet.has(productoId)) {
+          continue;
+        }
 
         const stockRow = await stockRepoTx.findOne({
           where: {
@@ -404,6 +507,9 @@ export class VentasService {
 
       for (const it of items) {
         const productoId = (it.producto as any)?.id;
+        if (comidasSet.has(productoId)) {
+          continue;
+        }
         const stockRow = await stockRepoTx.findOne({
           where: {
             producto: { id: productoId } as any,
@@ -430,6 +536,34 @@ export class VentasService {
           factorABase: unidadMeta.factorABase,
           motivo: `Salida por venta #${venta.idVenta}`,
           producto: { id: productoId } as ProductoEntity,
+          ubicacion: sala,
+          origen: null,
+          destino: null,
+          usuario: { idUsuario: userId } as any,
+          venta: { idVenta: venta.idVenta } as any,
+        });
+
+        await alteraRepoTx.save(mov);
+      }
+
+      for (const [insumoId, data] of insumoRequired) {
+        const stockRow = insumoStockRows.get(insumoId);
+        if (!stockRow) {
+          throw new ConflictException('Stock no inicializado para un insumo.');
+        }
+
+        const disponible = Number(stockRow.cantidad ?? 0);
+        stockRow.cantidad = this.formatCantidad(disponible - data.cantidad);
+        await stockRepoTx.save(stockRow);
+
+        const unidadMeta = this.getUnidadBaseMeta(data.producto);
+        const mov = alteraRepoTx.create({
+          tipo: 'SALIDA',
+          cantidad: this.formatCantidad(data.cantidad),
+          unidad: unidadMeta.unidad,
+          factorABase: unidadMeta.factorABase,
+          motivo: `Consumo receta venta #${venta.idVenta}`,
+          producto: { id: insumoId } as ProductoEntity,
           ubicacion: sala,
           origen: null,
           destino: null,

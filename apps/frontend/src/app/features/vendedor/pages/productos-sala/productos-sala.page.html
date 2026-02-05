@@ -47,7 +47,7 @@
     <!-- Card -->
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="p-5 sm:p-6">
-        <!-- Buscador + page size -->
+        <!-- Buscador + filtros -->
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <input
             [(ngModel)]="filtro"
@@ -57,6 +57,18 @@
           />
 
           <div class="flex items-center gap-2">
+            <label class="text-sm text-slate-500">Tipo:</label>
+            <select
+              [(ngModel)]="filtroTipo"
+              (ngModelChange)="page=1"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              <option value="TODOS">Todos</option>
+              <option value="REVENTA">Reventa</option>
+              <option value="INSUMO">Insumo</option>
+              <option value="COMIDA">Comida</option>
+            </select>
+
             <span class="text-sm text-slate-500">Filas:</span>
             <select
               [(ngModel)]="pageSize"
@@ -90,7 +102,9 @@
               <tr>
                 <th class="px-4 py-3">Producto</th>
                 <th class="px-4 py-3">Código</th>
+                <th class="px-4 py-3">Tipo</th>
                 <th class="px-4 py-3">Stock sala</th>
+                <th class="px-4 py-3">Disponibles</th>
                 <th class="px-4 py-3">Precio</th>
                 <th class="px-4 py-3 w-48">Acción</th>
               </tr>
@@ -103,14 +117,40 @@
 
                 <td class="px-4 py-3">
                   <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
+                    [ngClass]="getTipoBadgeClass(p)"
+                  >
+                    {{ p.tipos?.[0] ?? 'SIN TIPO' }}
+                  </span>
+                </td>
+
+                <td class="px-4 py-3">
+                  <ng-container *ngIf="!(p.tipos ?? []).includes('COMIDA'); else sinStock">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                      [ngClass]="{
+                        'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': (p.stockSalaVenta ?? 0) > 0,
+                        'bg-amber-50 text-amber-700 ring-1 ring-amber-200': p.stockSalaVenta === 0
+                      }"
+                    >
+                      {{ p.stockSalaVenta }}
+                    </span>
+                  </ng-container>
+                  <ng-template #sinStock>-</ng-template>
+                </td>
+
+                <td class="px-4 py-3">
+                  <span
+                    *ngIf="(p.tipos ?? []).includes('COMIDA'); else sinPreparaciones"
                     class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
                     [ngClass]="{
-                      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': (p.stockSalaVenta ?? 0) > 0,
-                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200': p.stockSalaVenta === 0
+                      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200': (posiblesMap[p.id] || 0) > 0,
+                      'bg-amber-50 text-amber-700 ring-1 ring-amber-200': (posiblesMap[p.id] || 0) === 0
                     }"
                   >
-                    {{ p.stockSalaVenta }}
+                    {{ posiblesMap[p.id] || 0 }} porciones
                   </span>
+                  <ng-template #sinPreparaciones>-</ng-template>
                 </td>
 
                 <td class="px-4 py-3">
@@ -139,7 +179,7 @@
               </tr>
 
               <tr *ngIf="!loading && pageItems.length === 0">
-                <td class="px-4 py-6 text-slate-500" colspan="5">
+                <td class="px-4 py-6 text-slate-500" colspan="7">
                   No hay productos para mostrar (o el filtro no encontró resultados).
                 </td>
               </tr>

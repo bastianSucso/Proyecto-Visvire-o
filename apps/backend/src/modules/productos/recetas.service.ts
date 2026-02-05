@@ -10,6 +10,8 @@ import { RecetaEntity } from './entities/receta.entity';
 import { ProductoEntity } from './entities/producto.entity';
 import { ProductoTipoEntity, ProductoTipoEnum } from './entities/producto-tipo.entity';
 import { InsumoGrupoEntity, InsumoGrupoStrategy } from './entities/insumo-grupo.entity';
+import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
+import { ProductoStockEntity } from './entities/producto-stock.entity';
 import { CreateRecetaDto } from './dto/create-receta.dto';
 import { UpdateRecetaDto } from './dto/update-receta.dto';
 
@@ -24,6 +26,10 @@ export class RecetasService {
     private readonly tipoRepo: Repository<ProductoTipoEntity>,
     @InjectRepository(InsumoGrupoEntity)
     private readonly grupoRepo: Repository<InsumoGrupoEntity>,
+    @InjectRepository(UbicacionEntity)
+    private readonly ubicacionRepo: Repository<UbicacionEntity>,
+    @InjectRepository(ProductoStockEntity)
+    private readonly stockRepo: Repository<ProductoStockEntity>,
   ) {}
 
   private async assertTipo(productoId: string, tipo: ProductoTipoEnum) {
@@ -284,5 +290,103 @@ export class RecetasService {
       costoPorcion: costoPorcion !== null ? costoPorcion.toFixed(2) : null,
       items,
     };
+  }
+
+  async posiblesMasivo() {
+    const sala = await this.ubicacionRepo.findOne({
+      where: { tipo: 'SALA_VENTA', activa: true },
+      order: { createdAt: 'ASC' },
+    });
+    if (!sala) throw new BadRequestException('No hay sala de ventas activa.');
+
+    const comidas = await this.productoRepo
+      .createQueryBuilder('p')
+      .innerJoin('p.tipos', 'pt', 'pt.tipo = :tipo', { tipo: ProductoTipoEnum.COMIDA })
+      .select(['p.id as id', 'p.name as name', 'p.unidadBase as unidadBase'])
+      .orderBy('p.createdAt', 'DESC')
+      .getRawMany<{ id: string; name: string; unidadBase: string | null }>();
+
+    const stockRows = await this.stockRepo.find({
+      where: { ubicacion: { id: sala.id } as any },
+      relations: { producto: true },
+    });
+
+    const stockMap = new Map<string, number>();
+    for (const row of stockRows) {
+      const id = row.producto?.id;
+      if (!id) continue;
+      stockMap.set(id, Number(row.cantidad ?? 0));
+    }
+
+    const results = [] as { comidaId: string; nombre: string; unidadBase: string | null; posibles: number }[];
+
+    for (const comida of comidas) {
+      const recetas = await this.recetaRepo.find({
+        where: { comida: { id: comida.id } as any },
+        relations: { grupo: { items: { producto: true } } },
+        order: { id: 'ASC' },
+      });
+
+      if (!recetas || recetas.length === 0) {
+        results.push({
+          comidaId: comida.id,
+          nombre: comida.name,
+          unidadBase: comida.unidadBase ?? null,
+          posibles: 0,
+        });
+        continue;
+      }
+
+      const insumoPorcion = new Map<string, { producto: ProductoEntity; cantidad: number }>();
+      let invalido = false;
+
+      for (const r of recetas) {
+        const insumo = this.resolveGrupoProductoCosto(r.grupo ?? null);
+        if (!insumo || !r.grupo?.isActive) {
+          invalido = true;
+          break;
+        }
+
+        const cantidadBase = Number(r.cantidadBase ?? 0);
+        if (!Number.isFinite(cantidadBase) || cantidadBase <= 0) {
+          invalido = true;
+          break;
+        }
+
+        const prev = insumoPorcion.get(insumo.id);
+        if (prev) {
+          prev.cantidad += cantidadBase;
+        } else {
+          insumoPorcion.set(insumo.id, { producto: insumo, cantidad: cantidadBase });
+        }
+      }
+
+      if (invalido || insumoPorcion.size === 0) {
+        results.push({
+          comidaId: comida.id,
+          nombre: comida.name,
+          unidadBase: comida.unidadBase ?? null,
+          posibles: 0,
+        });
+        continue;
+      }
+
+      let posibles = Number.POSITIVE_INFINITY;
+      for (const [insumoId, data] of insumoPorcion) {
+        const stock = stockMap.get(insumoId) ?? 0;
+        const porcion = data.cantidad;
+        const posibleInsumo = porcion > 0 ? Math.floor(stock / porcion) : 0;
+        posibles = Math.min(posibles, posibleInsumo);
+      }
+
+      results.push({
+        comidaId: comida.id,
+        nombre: comida.name,
+        unidadBase: comida.unidadBase ?? null,
+        posibles: Number.isFinite(posibles) ? posibles : 0,
+      });
+    }
+
+    return results;
   }
 }

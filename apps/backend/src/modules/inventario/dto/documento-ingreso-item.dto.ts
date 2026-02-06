@@ -1,12 +1,9 @@
 import { Type } from 'class-transformer';
 import { IsNumber, IsUUID, Min } from 'class-validator';
 
-export class CreateIngresoDto {
+export class DocumentoIngresoItemDto {
   @IsUUID()
   productoId!: string;
-
-  @IsUUID()
-  ubicacionId!: string;
 
   @Type(() => Number)
   @IsNumber()

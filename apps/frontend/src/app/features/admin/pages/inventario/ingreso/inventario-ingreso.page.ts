@@ -30,6 +30,7 @@ export class InventarioIngresoPage {
     barcode: string | null;
     unidadBase: string | null;
     cantidad: number;
+    costoIngreso: number;
   }[] = [];
   loading = false;
   errorMsg = '';
@@ -45,6 +46,7 @@ export class InventarioIngresoPage {
 
   cantidadRapida = 1;
   editCantidad: Record<string, number> = {};
+  editCosto: Record<string, number> = {};
 
 
   ngOnInit() {
@@ -234,6 +236,8 @@ export class InventarioIngresoPage {
       this.scanError = 'No se permite ingresar productos COMIDA.';
       return;
     }
+    const costoBase = Number(producto.precioCosto ?? 0);
+    const costoIngreso = Number.isFinite(costoBase) ? costoBase : 0;
     const existing = this.items.find((it) => it.id === producto.id);
     if (!existing) {
       this.items = [
@@ -245,9 +249,11 @@ export class InventarioIngresoPage {
           barcode: producto.barcode ?? null,
           unidadBase: producto.unidadBase ?? null,
           cantidad,
+          costoIngreso,
         },
       ];
       this.editCantidad[producto.id] = cantidad;
+      this.editCosto[producto.id] = costoIngreso;
     } else {
       existing.cantidad += cantidad;
       this.editCantidad[producto.id] = existing.cantidad;
@@ -269,6 +275,17 @@ export class InventarioIngresoPage {
     if (item) item.cantidad = cantidad;
   }
 
+  guardarCosto(itemId: string) {
+    const costo = Number(this.editCosto[itemId]);
+    if (!Number.isFinite(costo) || costo <= 0) {
+      this.scanError = 'El costo debe ser mayor a 0.';
+      return;
+    }
+
+    const item = this.items.find((it) => it.id === itemId);
+    if (item) item.costoIngreso = costo;
+  }
+
   eliminarItem(itemId: string) {
     this.items = this.items.filter((it) => it.id !== itemId);
   }
@@ -283,6 +300,14 @@ export class InventarioIngresoPage {
       return;
     }
 
+    const invalido = this.items.find(
+      (it) => !Number.isFinite(Number(it.costoIngreso)) || Number(it.costoIngreso) <= 0,
+    );
+    if (invalido) {
+      this.errorMsg = 'Cada item debe tener un costo válido (> 0).';
+      return;
+    }
+
     this.loading = true;
     this.errorMsg = '';
     this.successMsg = '';
@@ -292,6 +317,7 @@ export class InventarioIngresoPage {
       items: this.items.map((it) => ({
         productoId: it.id,
         cantidad: it.cantidad,
+        costoIngreso: it.costoIngreso,
       })),
     };
 

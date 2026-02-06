@@ -11,6 +11,7 @@ import { ProductoEntity, ProductoTipoEnum } from '../productos/entities/producto
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { UserEntity } from '../users/entities/user.entity';
+import { RecetasService } from '../productos/recetas.service';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
 import { CreateAjusteDto } from './dto/create-ajuste.dto';
 import { CreateTraspasoDto } from './dto/create-traspaso.dto';
@@ -34,6 +35,7 @@ export class InventarioService {
     private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(ProductoConversionEntity)
     private readonly conversionRepo: Repository<ProductoConversionEntity>,
+    private readonly recetasService: RecetasService,
   ) {}
 
   private async getProductoOrThrow(productoId: string) {
@@ -64,8 +66,29 @@ export class InventarioService {
     return cantidad;
   }
 
+  private parseCosto(raw: number) {
+    const costo = Number(raw);
+    if (!Number.isFinite(costo) || costo <= 0) {
+      throw new BadRequestException('costoIngreso debe ser un número > 0');
+    }
+    return costo;
+  }
+
   private formatCantidad(value: number) {
     return value.toFixed(3);
+  }
+
+  private async getStockTotalByProductoId(
+    productoId: string,
+    stockRepo: Repository<ProductoStockEntity>,
+  ) {
+    const row = await stockRepo
+      .createQueryBuilder('ps')
+      .select('COALESCE(SUM(ps.cantidad), 0)', 'total')
+      .where('ps.producto = :productoId', { productoId })
+      .getRawOne<{ total: string }>();
+
+    return Number(row?.total ?? 0);
   }
 
   private getUnidadBaseMeta(producto: ProductoEntity) {
@@ -126,14 +149,29 @@ export class InventarioService {
     const destino = await this.getUbicacionOrThrow(dto.destinoId);
     const documentoRef = randomUUID();
 
+    const insumosRecalc: string[] = [];
+
     await this.dataSource.transaction(async (manager) => {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
+      const productoRepoTx = manager.getRepository(ProductoEntity);
 
       for (const it of dto.items) {
         await this.assertProductoNoComida(it.productoId);
         const producto = await this.getProductoOrThrow(it.productoId);
         const cantidad = this.parseCantidad(it.cantidad);
+        const costoIngreso = this.parseCosto(it.costoIngreso);
+
+        const stockTotal = await this.getStockTotalByProductoId(producto.id, stockRepoTx);
+        const costoActual = Number(producto.precioCosto ?? 0);
+        if (!Number.isFinite(costoActual)) {
+          throw new BadRequestException('precioCosto del producto no es válido');
+        }
+
+        const nuevoCostoProm =
+          (stockTotal * costoActual + cantidad * costoIngreso) / (stockTotal + cantidad);
+        const nuevoCostoFixed = nuevoCostoProm.toFixed(2);
+        const costoChanged = Number(nuevoCostoFixed) !== costoActual;
 
         const stockRow = await stockRepoTx.findOne({
           where: {
@@ -156,6 +194,17 @@ export class InventarioService {
           );
         }
 
+        if (
+          producto.tipo === ProductoTipoEnum.INSUMO ||
+          producto.tipo === ProductoTipoEnum.REVENTA
+        ) {
+          producto.precioCosto = nuevoCostoFixed;
+          await productoRepoTx.save(producto);
+          if (producto.tipo === ProductoTipoEnum.INSUMO && costoChanged) {
+            insumosRecalc.push(producto.id);
+          }
+        }
+
         const unidadMeta = this.getUnidadBaseMeta(producto);
         await alteraRepoTx.save(
           alteraRepoTx.create({
@@ -174,6 +223,11 @@ export class InventarioService {
         );
       }
     });
+
+    if (insumosRecalc.length > 0) {
+      const unique = Array.from(new Set(insumosRecalc));
+      await Promise.all(unique.map((id) => this.recetasService.recalculateCostosByInsumo(id)));
+    }
 
     return this.obtenerDocumento(documentoRef);
   }
@@ -277,14 +331,29 @@ export class InventarioService {
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
       throw new BadRequestException('cantidad debe ser un número > 0');
     }
+    const costoIngreso = this.parseCosto(dto.costoIngreso);
 
-    return this.dataSource.transaction(async (manager) => {
+    let insumoRecalcId: string | null = null;
+
+    const mov = await this.dataSource.transaction(async (manager) => {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
+      const productoRepoTx = manager.getRepository(ProductoEntity);
 
       await this.assertProductoNoComida(dto.productoId);
       const producto = await this.getProductoOrThrow(dto.productoId);
       const ubicacion = await this.getUbicacionOrThrow(dto.ubicacionId);
+
+      const stockTotal = await this.getStockTotalByProductoId(producto.id, stockRepoTx);
+      const costoActual = Number(producto.precioCosto ?? 0);
+      if (!Number.isFinite(costoActual)) {
+        throw new BadRequestException('precioCosto del producto no es válido');
+      }
+
+      const nuevoCostoProm =
+        (stockTotal * costoActual + cantidad * costoIngreso) / (stockTotal + cantidad);
+      const nuevoCostoFixed = nuevoCostoProm.toFixed(2);
+      const costoChanged = Number(nuevoCostoFixed) !== costoActual;
 
       const stockRow = await stockRepoTx.findOne({
         where: {
@@ -310,6 +379,17 @@ export class InventarioService {
         );
       }
 
+      if (
+        producto.tipo === ProductoTipoEnum.INSUMO ||
+        producto.tipo === ProductoTipoEnum.REVENTA
+      ) {
+        producto.precioCosto = nuevoCostoFixed;
+        await productoRepoTx.save(producto);
+        if (producto.tipo === ProductoTipoEnum.INSUMO && costoChanged) {
+          insumoRecalcId = producto.id;
+        }
+      }
+
       const unidadMeta = this.getUnidadBaseMeta(producto);
       const mov = alteraRepoTx.create({
         tipo: 'INGRESO',
@@ -326,6 +406,12 @@ export class InventarioService {
 
       return alteraRepoTx.save(mov);
     });
+
+    if (insumoRecalcId) {
+      await this.recetasService.recalculateCostosByInsumo(insumoRecalcId);
+    }
+
+    return mov;
   }
 
   async registrarAjuste(dto: CreateAjusteDto, usuarioId: string) {
@@ -521,7 +607,9 @@ export class InventarioService {
       throw new BadRequestException('factor debe ser un número > 0');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    let insumoRecalcId: string | null = null;
+
+    await this.dataSource.transaction(async (manager) => {
       const productoOrigen = await manager.getRepository(ProductoEntity).findOne({
         where: { id: dto.productoOrigenId },
       });
@@ -538,6 +626,7 @@ export class InventarioService {
       if (!ubicacion) throw new NotFoundException('Ubicación no encontrada');
 
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
+      const productoRepoTx = manager.getRepository(ProductoEntity);
 
       const stockOrigen = await stockRepoTx.findOne({
         where: { producto: { id: productoOrigen.id } as any, ubicacion: { id: ubicacion.id } as any },
@@ -556,6 +645,19 @@ export class InventarioService {
       await stockRepoTx.save(stockOrigen!);
 
       const cantidadDestino = cantidadOrigen * factor;
+      const stockTotalDestino = await this.getStockTotalByProductoId(productoDestino.id, stockRepoTx);
+
+      const costoOrigen = Number(productoOrigen.precioCosto ?? 0);
+      if (!Number.isFinite(costoOrigen)) {
+        throw new BadRequestException('precioCosto del producto origen no es válido');
+      }
+      const costoActualDestino = Number(productoDestino.precioCosto ?? 0);
+      if (!Number.isFinite(costoActualDestino)) {
+        throw new BadRequestException('precioCosto del producto destino no es válido');
+      }
+
+      const costoTotalTransferido = cantidadOrigen * costoOrigen;
+
       const stockDestino = await stockRepoTx.findOne({
         where: { producto: { id: productoDestino.id } as any, ubicacion: { id: ubicacion.id } as any },
       });
@@ -572,6 +674,22 @@ export class InventarioService {
             cantidad: this.formatCantidad(cantidadDestino),
           }),
         );
+      }
+
+      if (
+        productoDestino.tipo === ProductoTipoEnum.INSUMO ||
+        productoDestino.tipo === ProductoTipoEnum.REVENTA
+      ) {
+        const nuevaCantidadTotal = stockTotalDestino + cantidadDestino;
+        const nuevoCostoProm =
+          (stockTotalDestino * costoActualDestino + costoTotalTransferido) / nuevaCantidadTotal;
+        const nuevoCostoFixed = nuevoCostoProm.toFixed(2);
+        const costoChanged = Number(nuevoCostoFixed) !== costoActualDestino;
+        productoDestino.precioCosto = nuevoCostoFixed;
+        await productoRepoTx.save(productoDestino);
+        if (productoDestino.tipo === ProductoTipoEnum.INSUMO && costoChanged) {
+          insumoRecalcId = productoDestino.id;
+        }
       }
 
       const alteraRepoTx = manager.getRepository(AlteraEntity);
@@ -613,6 +731,12 @@ export class InventarioService {
 
       return { ok: true };
     });
+
+    if (insumoRecalcId) {
+      await this.recetasService.recalculateCostosByInsumo(insumoRecalcId);
+    }
+
+    return { ok: true };
   }
 
   async obtenerMovimientoDetalle(tipo: 'SALIDA' | 'CONVERSION_PRODUCTO', ref: string) {

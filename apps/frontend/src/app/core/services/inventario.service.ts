@@ -122,6 +122,7 @@ export interface CreateIngresoDto {
   productoId: string;
   ubicacionId: string;
   cantidad: number;
+  costoIngreso: number;
 }
 
 export interface CreateAjusteDto {
@@ -143,9 +144,15 @@ export interface DocumentoItemInput {
   cantidad: number;
 }
 
+export interface DocumentoIngresoItemInput {
+  productoId: string;
+  cantidad: number;
+  costoIngreso: number;
+}
+
 export interface CreateDocumentoIngresoDto {
   destinoId: string;
-  items: DocumentoItemInput[];
+  items: DocumentoIngresoItemInput[];
 }
 
 export interface CreateDocumentoTraspasoDto {

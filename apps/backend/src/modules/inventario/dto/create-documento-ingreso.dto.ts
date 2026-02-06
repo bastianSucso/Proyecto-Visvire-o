@@ -1,6 +1,6 @@
 import { ArrayNotEmpty, IsArray, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { DocumentoItemDto } from './documento-item.dto';
+import { DocumentoIngresoItemDto } from './documento-ingreso-item.dto';
 
 export class CreateDocumentoIngresoDto {
   @IsUUID()
@@ -9,6 +9,6 @@ export class CreateDocumentoIngresoDto {
   @IsArray()
   @ArrayNotEmpty()
   @ValidateNested({ each: true })
-  @Type(() => DocumentoItemDto)
-  items!: DocumentoItemDto[];
+  @Type(() => DocumentoIngresoItemDto)
+  items!: DocumentoIngresoItemDto[];
 }

@@ -26,5 +26,6 @@ import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
   ],
   controllers: [ProductosController, RecetasController, InsumoGruposController],
   providers: [ProductosService, RecetasService, InsumoGruposService],
+  exports: [RecetasService],
 })
 export class ProductosModule {}

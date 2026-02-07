@@ -115,7 +115,9 @@ export class RecetasService {
     const { total } = await this.computeCostoComida(comidaId);
     const comida = await this.productoRepo.findOne({ where: { id: comidaId } });
     if (!comida) throw new NotFoundException('Comida no encontrada');
-    comida.precioCosto = total > 0 ? total.toFixed(2) : '0.00';
+    const rendimiento = Number(comida.rendimiento ?? 0);
+    const costoUnitario = rendimiento > 0 ? total / rendimiento : total;
+    comida.precioCosto = costoUnitario > 0 ? costoUnitario.toFixed(2) : '0.00';
     await this.productoRepo.save(comida);
 
     return { comidaId, totalCosto: total.toFixed(2) };

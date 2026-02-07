@@ -189,6 +189,7 @@ export class ProductosService {
     if (!existing) throw new NotFoundException('Producto no encontrado');
 
     const prevPrecioCosto = Number(existing.precioCosto ?? 0);
+    const prevRendimiento = Number(existing.rendimiento ?? 0);
     const tipoActual = existing.tipo;
     const tipoFinal = dto.tipo ?? tipoActual;
     const isComida = tipoFinal === ProductoTipoEnum.COMIDA;
@@ -251,6 +252,12 @@ export class ProductosService {
       if (saved.tipo === ProductoTipoEnum.INSUMO) {
         await this.recetasService.recalculateCostosByInsumo(saved.id);
       }
+    }
+
+    const rendimientoChanged =
+      isComida && dto.rendimiento !== undefined && Number(dto.rendimiento ?? 0) !== prevRendimiento;
+    if (rendimientoChanged) {
+      await this.recetasService.recalculateCostoComida(saved.id);
     }
     const cantidadTotal = await this.getCantidadTotalByProductoId(saved.id);
     const full = await this.repo.findOne({

@@ -73,7 +73,6 @@
         <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Grupos de insumos</span>
       </a>
 
-
       <a
         routerLink="/admin/recetas"
         routerLinkActive="bg-blue-50 text-blue-700"
@@ -108,6 +107,15 @@
       >
         <span class="w-5 text-center">📊</span>
         <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Inventario</span>
+      </a>
+
+      <a
+        routerLink="/admin/alojamiento-mapa"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">🏨</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Alojamiento Mapa</span>
       </a>
     </nav>
 
@@ -184,6 +192,15 @@
         (click)="closeMobile()"
       >
         Grupos de insumos
+      </a>
+
+      <a
+        routerLink="/admin/alojamiento-mapa"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Alojamiento/Hostal
       </a>
 
 

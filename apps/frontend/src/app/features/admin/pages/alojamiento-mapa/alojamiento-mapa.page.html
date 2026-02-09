@@ -1,0 +1,694 @@
+<div class="space-y-4" (click)="errorMsg && clearError()">
+  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-slate-900">Plano del alojamiento</h1>
+      <p class="text-sm text-slate-500">Diseña pisos/zonas y administra habitaciones en el mapa.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button
+        *ngIf="pisos.length === 0"
+        class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white"
+        (click)="startCreatePiso()"
+      >
+        Crear piso/zona
+      </button>
+      <button
+        *ngIf="pisos.length > 0 && !mapEditMode"
+        class="rounded-lg border px-3 py-2 text-sm"
+        (click)="enterMapEdit()"
+      >
+        Editar mapa
+      </button>
+      <button
+        *ngIf="mapEditMode"
+        class="rounded-lg border px-3 py-2 text-sm"
+        (click)="exitMapEdit()"
+      >
+        Volver a vista
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="errorMsg" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+    {{ errorMsg }}
+  </div>
+
+  <div class="space-y-4">
+    <div class="rounded-xl border bg-white p-3">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-sm text-slate-600">Piso/Zona</span>
+          <select
+            class="rounded border px-2 py-2 text-sm"
+            [ngModel]="selectedPiso?.id"
+            (ngModelChange)="onPisoSelect($event)"
+            name="floorSelect"
+          >
+            <option [ngValue]="null" disabled>Selecciona piso/zona</option>
+            <option *ngFor="let piso of pisos; trackBy: trackById" [value]="piso.id">
+              {{ piso.nombre }} (#{{ piso.orden }})
+            </option>
+          </select>
+          <ng-container *ngIf="!mapEditMode">
+            <button
+              class="rounded-lg border px-3 py-2 text-sm"
+              [class.opacity-50]="!selectedPiso"
+              [disabled]="!selectedPiso"
+              (click)="selectedPiso && openEditPiso(selectedPiso)"
+            >
+              Administrar
+            </button>
+            <button
+              class="rounded-lg border px-3 py-2 text-sm"
+              (click)="openCreatePiso()"
+            >
+              Nuevo piso/zona
+            </button>
+          </ng-container>
+        </div>
+        <div *ngIf="!mapEditMode" class="flex flex-wrap items-center gap-2">
+          <button class="rounded-lg border px-3 py-2 text-sm" (click)="openCatalog()">
+            Comodidades
+          </button>
+        </div>
+        <div *ngIf="mapEditMode" class="flex flex-wrap items-center gap-2">
+          <button
+            class="rounded-lg border px-3 py-2 text-sm"
+            [class.opacity-50]="selectedRoomIds.size === 0"
+            [disabled]="selectedRoomIds.size === 0"
+            (click)="removeSelectedRooms()"
+          >
+            Eliminar seleccionadas
+          </button>
+        </div>
+      </div>
+      <div *ngIf="selectedPiso && mapEditMode" class="mt-2 text-xs text-slate-500">
+        {{ selectedPiso.anchoLienzo }}x{{ selectedPiso.altoLienzo }} · grid {{ selectedPiso.tamanoCuadricula }} · snap {{ selectedPiso.snapActivo ? 'on' : 'off' }}
+      </div>
+    </div>
+
+    <section>
+      <div class="flex flex-col gap-4 lg:flex-row">
+        <div class="flex-1 rounded-xl border bg-white p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2 text-sm text-slate-600">
+            <span *ngIf="mapEditMode">Herramienta: <strong>{{ tool }}</strong></span>
+            <span *ngIf="selectedPiso && mapEditMode" class="text-slate-400">|</span>
+            <span *ngIf="selectedPiso">{{ selectedPiso.nombre }}</span>
+          </div>
+          <div *ngIf="mapEditMode" class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center rounded-lg border bg-white p-1 text-sm">
+              <button
+                class="rounded-md px-3 py-2"
+                [class.bg-slate-900]="tool === 'select'"
+                [class.text-white]="tool === 'select'"
+                (click)="tool = 'select'"
+              >
+                Seleccionar
+              </button>
+              <button
+                class="rounded-md px-3 py-2"
+                [class.bg-slate-900]="tool === 'draw'"
+                [class.text-white]="tool === 'draw'"
+                (click)="tool = 'draw'"
+              >
+                Dibujar
+              </button>
+            </div>
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" [(ngModel)]="showGrid" />
+              Mostrar grid
+            </label>
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" [checked]="snapActivo" (change)="toggleSnap()" />
+              Snap
+            </label>
+            <div class="flex items-center gap-2 text-sm">
+              <span>Grid</span>
+              <input
+                class="w-16 rounded border px-2 py-1 text-sm"
+                type="number"
+                [value]="gridSize"
+                (change)="updateGridSize($any($event.target).value)"
+              />
+            </div>
+          </div>
+        </div>
+
+        <ng-container *ngIf="selectedPiso; else emptyMap">
+          <div class="mt-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100 p-3">
+            <svg
+              #svgRef
+              class="h-[520px] w-full rounded-lg bg-white shadow-sm"
+              [attr.viewBox]="viewBox"
+              (contextmenu)="$event.preventDefault()"
+              (wheel)="onWheel($event)"
+              (mousedown)="onSvgMouseDown($event)"
+              (mousemove)="onSvgMouseMove($event)"
+              (mouseup)="onSvgMouseUp()"
+              (mouseleave)="onSvgMouseLeave()"
+            >
+              <defs>
+                <pattern
+                  id="grid"
+                  [attr.width]="gridSize"
+                  [attr.height]="gridSize"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <path
+                    [attr.d]="'M ' + gridSize + ' 0 L 0 0 0 ' + gridSize"
+                    fill="none"
+                    stroke="#e2e8f0"
+                    stroke-width="1"
+                  ></path>
+                </pattern>
+              </defs>
+
+              <rect
+                [attr.width]="selectedPiso.anchoLienzo || 1400"
+                [attr.height]="selectedPiso.altoLienzo || 900"
+                [attr.fill]="!mapEditMode ? '#f8f3ec' : (showGrid ? 'url(#grid)' : '#f8fafc')"
+              ></rect>
+
+              <g>
+                <ng-container *ngFor="let room of habitaciones; trackBy: trackById">
+                  <rect
+                    [attr.data-room-id]="room.id"
+                    [attr.x]="room.posX"
+                    [attr.y]="room.posY"
+                    [attr.width]="room.ancho"
+                    [attr.height]="room.alto"
+                    [attr.fill]="!mapEditMode
+                      ? (room.estadoActivo
+                        ? (hoveredRoomId === room.id ? '#e3edf7' : '#eef4fb')
+                        : '#e2e8f0')
+                      : (room.estadoActivo ? '#93c5fd' : '#e2e8f0')"
+                    [attr.stroke]="isSelected(room.id)
+                      ? (!mapEditMode ? '#5b7ea6' : '#2563eb')
+                      : (hoveredRoomId === room.id && !mapEditMode ? '#5b7ea6' : '#0f172a')"
+                    stroke-width="2"
+                    rx="6"
+                    (mousedown)="onRoomMouseDown($event, room)"
+                    (click)="onRoomClick($event, room)"
+                    (mouseenter)="hoveredRoomId = room.id"
+                    (mouseleave)="hoveredRoomId = null"
+                  ></rect>
+                  <text
+                    [attr.x]="room.posX + room.ancho / 2"
+                    [attr.y]="room.posY + room.alto / 2"
+                    class="select-none text-[12px] font-semibold"
+                    fill="#0f172a"
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                    pointer-events="none"
+                  >
+                    {{ room.identificador }}
+                  </text>
+
+                  <g *ngIf="isSelected(room.id) && tool === 'select' && mapEditMode">
+                    <rect
+                      [attr.x]="room.posX - handleSize / 2"
+                      [attr.y]="room.posY - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#2563eb"
+                      (mousedown)="onResizeMouseDown($event, room, 'nw')"
+                    ></rect>
+                    <rect
+                      [attr.x]="room.posX + room.ancho - handleSize / 2"
+                      [attr.y]="room.posY - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#2563eb"
+                      (mousedown)="onResizeMouseDown($event, room, 'ne')"
+                    ></rect>
+                    <rect
+                      [attr.x]="room.posX - handleSize / 2"
+                      [attr.y]="room.posY + room.alto - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#2563eb"
+                      (mousedown)="onResizeMouseDown($event, room, 'sw')"
+                    ></rect>
+                    <rect
+                      [attr.x]="room.posX + room.ancho - handleSize / 2"
+                      [attr.y]="room.posY + room.alto - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#2563eb"
+                      (mousedown)="onResizeMouseDown($event, room, 'se')"
+                    ></rect>
+
+                    <rect
+                      [attr.x]="room.posX + room.ancho / 2 - handleSize / 2"
+                      [attr.y]="room.posY - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#0ea5e9"
+                      (mousedown)="onResizeMouseDown($event, room, 'n')"
+                    ></rect>
+                    <rect
+                      [attr.x]="room.posX + room.ancho / 2 - handleSize / 2"
+                      [attr.y]="room.posY + room.alto - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#0ea5e9"
+                      (mousedown)="onResizeMouseDown($event, room, 's')"
+                    ></rect>
+                    <rect
+                      [attr.x]="room.posX - handleSize / 2"
+                      [attr.y]="room.posY + room.alto / 2 - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#0ea5e9"
+                      (mousedown)="onResizeMouseDown($event, room, 'w')"
+                    ></rect>
+                    <rect
+                      [attr.x]="room.posX + room.ancho - handleSize / 2"
+                      [attr.y]="room.posY + room.alto / 2 - handleSize / 2"
+                      [attr.width]="handleSize"
+                      [attr.height]="handleSize"
+                      fill="#0ea5e9"
+                      (mousedown)="onResizeMouseDown($event, room, 'e')"
+                    ></rect>
+                  </g>
+                </ng-container>
+
+                <rect
+                  *ngIf="mapEditMode && drawRect"
+                  [attr.x]="drawRect.x"
+                  [attr.y]="drawRect.y"
+                  [attr.width]="drawRect.w"
+                  [attr.height]="drawRect.h"
+                  fill="rgba(59,130,246,0.2)"
+                  stroke="#2563eb"
+                  stroke-dasharray="6 4"
+                ></rect>
+                <text
+                  *ngIf="mapEditMode && drawRect && !isDrawing && !roomForm.id"
+                  [attr.x]="drawRect.x + drawRect.w / 2"
+                  [attr.y]="drawRect.y + drawRect.h / 2"
+                  class="select-none text-[12px] font-semibold"
+                  fill="#1d4ed8"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                  pointer-events="none"
+                >
+                  Sin ID
+                </text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="mt-4 grid grid-cols-12 gap-3">
+            <div class="col-span-12 md:col-span-4">
+              <div class="rounded-lg border bg-white p-3">
+                <div class="text-xs font-semibold text-slate-600">Vista previa</div>
+                <div class="mt-2 rounded-md border bg-slate-50">
+                  <svg
+                    *ngIf="selectedPiso"
+                    class="h-[160px] w-full"
+                    [attr.viewBox]="'0 0 ' + selectedPiso.anchoLienzo + ' ' + selectedPiso.altoLienzo"
+                  >
+                    <rect
+                      [attr.width]="selectedPiso.anchoLienzo"
+                      [attr.height]="selectedPiso.altoLienzo"
+                      fill="#f8fafc"
+                      stroke="#e2e8f0"
+                    ></rect>
+                    <rect
+                      *ngFor="let room of habitaciones; trackBy: trackById"
+                      [attr.x]="room.posX"
+                      [attr.y]="room.posY"
+                      [attr.width]="room.ancho"
+                      [attr.height]="room.alto"
+                      fill="#bfdbfe"
+                      stroke="#93c5fd"
+                    ></rect>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div class="col-span-12 md:col-span-8">
+              <div class="rounded-lg border bg-white p-3 text-sm text-slate-600">
+                <div>Habitaciones: <strong>{{ habitaciones.length }}</strong></div>
+                <div>Seleccionadas: <strong>{{ selectedRoomIds.size }}</strong></div>
+                <div *ngIf="selectedPiso && mapEditMode" class="mt-1 text-xs text-slate-500">
+                  {{ selectedPiso.anchoLienzo }}x{{ selectedPiso.altoLienzo }} · grid {{ selectedPiso.tamanoCuadricula }} · snap {{ selectedPiso.snapActivo ? 'on' : 'off' }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-template #emptyMap>
+          <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+            <div class="text-sm font-semibold text-slate-700">Aun no hay pisos/zonas creados</div>
+            <div class="mt-1 text-xs text-slate-500">Crea tu primer piso/zona para comenzar el mapa.</div>
+            <button class="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" (click)="startCreatePiso()">
+              Crear piso/zona
+            </button>
+          </div>
+        </ng-template>
+
+        </div>
+
+        <ng-template #roomEditForm>
+          <div class="mt-3 space-y-3">
+            <label class="text-xs text-slate-600">
+              Identificador
+              <input class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" [(ngModel)]="roomForm.identificador" name="roomId" />
+            </label>
+            <label class="text-xs text-slate-600">
+              Precio
+              <input class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" type="number" [(ngModel)]="roomForm.precio" name="roomPrice" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-slate-600">
+              <input type="checkbox" [(ngModel)]="roomForm.estadoActivo" name="roomActive" />
+              Activa
+            </label>
+
+            <div>
+              <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M4 11V7a3 3 0 0 1 3-3h10" stroke-linecap="round" />
+                  <path d="M20 13v4a3 3 0 0 1-3 3H7" stroke-linecap="round" />
+                  <path d="M8 11h8M8 15h5" stroke-linecap="round" />
+                </svg>
+                Comodidades
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <label *ngFor="let c of comodidades; trackBy: trackById" class="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    [checked]="isAmenitySelected(c.id)"
+                    (change)="toggleAmenity(c.id, $any($event.target).checked)"
+                  />
+                  {{ c.nombre }}
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 10V8a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v2" stroke-linecap="round" />
+                    <path d="M3 10h18v6" stroke-linecap="round" />
+                    <path d="M5 16v3M19 16v3" stroke-linecap="round" />
+                  </svg>
+                  Camas
+                </div>
+                <button class="rounded-lg border px-2 py-1 text-xs" (click)="addCama()">+ Agregar</button>
+              </div>
+              <div class="mt-2 space-y-2">
+                <div *ngFor="let cama of roomForm.camas; let i = index" class="grid grid-cols-12 items-center gap-2">
+                  <input
+                    class="col-span-7 rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    placeholder="Tipo de cama"
+                    [(ngModel)]="roomForm.camas![i].item"
+                    [name]="'bedItem' + i"
+                  />
+                  <input
+                    class="col-span-3 rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    type="number"
+                    min="1"
+                    placeholder="Cant"
+                    [(ngModel)]="roomForm.camas![i].cantidad"
+                    [name]="'bedQty' + i"
+                  />
+                  <button class="col-span-2 rounded-lg border px-1 py-1 text-[10px]" (click)="removeCama(i)">Quitar</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M4 7h16" stroke-linecap="round" />
+                    <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" stroke-linecap="round" />
+                    <path d="M9 7V5a3 3 0 0 1 6 0v2" stroke-linecap="round" />
+                  </svg>
+                  Inventario
+                </div>
+                <button class="rounded-lg border px-2 py-1 text-xs" (click)="addInventario()">+ Agregar</button>
+              </div>
+              <div class="mt-2 space-y-2">
+                <div *ngFor="let inv of roomForm.inventario; let i = index" class="grid grid-cols-12 items-center gap-2">
+                  <input
+                    class="col-span-7 rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    placeholder="Item"
+                    [(ngModel)]="roomForm.inventario![i].item"
+                    [name]="'invItem' + i"
+                  />
+                  <input
+                    class="col-span-3 rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    placeholder="Cant"
+                    type="number"
+                    [(ngModel)]="roomForm.inventario![i].cantidad"
+                    [name]="'invQty' + i"
+                  />
+                  <button class="col-span-2 rounded-lg border px-1 py-1 text-[10px]" (click)="removeInventario(i)">Quitar</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-center justify-between">
+              <button
+                *ngIf="roomForm.id"
+                class="rounded-lg border px-3 py-2 text-sm"
+                (click)="selectedRoom && removeRoom(selectedRoom)"
+              >
+                Eliminar
+              </button>
+              <div class="ml-auto flex items-center gap-2">
+                <button
+                  *ngIf="!mapEditMode"
+                  class="rounded-lg border px-3 py-2 text-sm"
+                  (click)="cancelRoomEdit()"
+                >
+                  Cancelar
+                </button>
+                <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white" (click)="saveRoom()">
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </ng-template>
+
+        <aside *ngIf="isRoomPanelOpen && !mapEditMode" class="w-full lg:w-96">
+          <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-md">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="text-xs uppercase tracking-wide text-slate-400">Habitación</div>
+                <div class="text-lg font-semibold text-slate-800">
+                  {{ selectedRoom?.identificador || 'Sin identificador' }}
+                </div>
+                <span
+                  class="mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                  [class.bg-emerald-100]="selectedRoom?.estadoActivo"
+                  [class.text-emerald-700]="selectedRoom?.estadoActivo"
+                  [class.bg-slate-200]="!selectedRoom?.estadoActivo"
+                  [class.text-slate-600]="!selectedRoom?.estadoActivo"
+                >
+                  {{ selectedRoom?.estadoActivo ? 'Activa' : 'Inactiva' }}
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  *ngIf="selectedRoom && !roomEditMode"
+                  class="rounded-lg border px-3 py-1 text-xs"
+                  (click)="startRoomEdit()"
+                >
+                  Editar
+                </button>
+                <button class="text-slate-500" (click)="closeRoomPanel()">✕</button>
+              </div>
+            </div>
+
+            <div *ngIf="!roomEditMode">
+              <div class="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <div class="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 3v18" stroke-linecap="round" />
+                    <path d="M16 7H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H8" stroke-linecap="round" />
+                  </svg>
+                  Precio
+                </div>
+                <div class="text-xl font-semibold text-slate-900">{{ selectedRoom?.precio | currency:'CLP':'symbol-narrow':'1.0-0' }}</div>
+              </div>
+
+              <div class="mt-4 space-y-3">
+                <div class="rounded-lg border border-slate-100 bg-white p-3">
+                  <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M4 11V7a3 3 0 0 1 3-3h10" stroke-linecap="round" />
+                      <path d="M20 13v4a3 3 0 0 1-3 3H7" stroke-linecap="round" />
+                      <path d="M8 11h8M8 15h5" stroke-linecap="round" />
+                    </svg>
+                    Comodidades
+                  </div>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span
+                      *ngFor="let c of selectedRoom?.comodidades"
+                      class="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                    >
+                      {{ c.nombre }}
+                    </span>
+                    <span *ngIf="(selectedRoom?.comodidades?.length || 0) === 0" class="text-xs text-slate-400">
+                      Sin comodidades
+                    </span>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-slate-100 bg-white p-3">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M3 10V8a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v2" stroke-linecap="round" />
+                        <path d="M3 10h18v6" stroke-linecap="round" />
+                        <path d="M5 16v3M19 16v3" stroke-linecap="round" />
+                      </svg>
+                      Camas
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                    {{ getBedTotal(selectedRoom) }}
+                  </span>
+                </div>
+                <div class="mt-2 space-y-2">
+                  <div *ngFor="let bed of getBedTypeSummary(selectedRoom)" class="flex items-center justify-between text-xs">
+                    <div class="text-slate-700">{{ bed.name }}</div>
+                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{{ bed.count }}</span>
+                  </div>
+                  <div *ngIf="getBedTotal(selectedRoom) === 0" class="text-xs text-slate-400">
+                    Sin camas registradas
+                  </div>
+                </div>
+                </div>
+
+                <div class="rounded-lg border border-slate-100 bg-white p-3">
+                  <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M4 7h16" stroke-linecap="round" />
+                      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" stroke-linecap="round" />
+                      <path d="M9 7V5a3 3 0 0 1 6 0v2" stroke-linecap="round" />
+                    </svg>
+                    Inventario
+                  </div>
+                  <div class="mt-2 space-y-2 text-xs">
+                    <div *ngFor="let inv of selectedRoom?.inventarios" class="flex items-start justify-between">
+                      <div>
+                        <div class="text-slate-700">{{ inv.item }}</div>
+                        <div *ngIf="inv.observacion" class="text-[11px] text-slate-400">{{ inv.observacion }}</div>
+                      </div>
+                      <span class="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{{ inv.cantidad }}</span>
+                    </div>
+                    <div *ngIf="(selectedRoom?.inventarios?.length || 0) === 0" class="text-xs text-slate-400">
+                      Sin inventario
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="roomEditMode">
+              <ng-container *ngTemplateOutlet="roomEditForm"></ng-container>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </section>
+  </div>
+
+  <!-- Modal Piso/Zona -->
+  <div *ngIf="isFloorModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-lg rounded-xl bg-white p-5">
+      <div class="text-sm font-semibold text-slate-800">
+        {{ floorForm.id ? 'Editar piso/zona' : 'Crear piso/zona' }}
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-3">
+        <label class="col-span-2 text-xs text-slate-600">
+          Nombre
+          <input class="mt-1 w-full rounded border px-2 py-2 text-sm" [(ngModel)]="floorForm.nombre" name="floorName" />
+        </label>
+        <label class="text-xs text-slate-600">
+          Orden
+          <input class="mt-1 w-full rounded border px-2 py-2 text-sm" type="number" [(ngModel)]="floorForm.orden" name="floorOrder" />
+        </label>
+        <label class="text-xs text-slate-600">
+          Ancho lienzo
+          <input class="mt-1 w-full rounded border px-2 py-2 text-sm" type="number" [(ngModel)]="floorForm.anchoLienzo" name="floorWidth" />
+        </label>
+        <label class="text-xs text-slate-600">
+          Alto lienzo
+          <input class="mt-1 w-full rounded border px-2 py-2 text-sm" type="number" [(ngModel)]="floorForm.altoLienzo" name="floorHeight" />
+        </label>
+        <label class="text-xs text-slate-600">
+          Tamaño cuadrícula
+          <input class="mt-1 w-full rounded border px-2 py-2 text-sm" type="number" [(ngModel)]="floorForm.tamanoCuadricula" name="floorGrid" />
+        </label>
+        <label class="flex items-center gap-2 text-xs text-slate-600">
+          <input type="checkbox" [(ngModel)]="floorForm.snapActivo" name="floorSnap" />
+          Snap activo
+        </label>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button
+          *ngIf="floorForm.id"
+          class="rounded-lg border px-3 py-2 text-sm"
+          (click)="removePisoById(floorForm.id)"
+        >
+          Eliminar
+        </button>
+        <button class="rounded-lg border px-3 py-2 text-sm" (click)="closeFloorModal()">Cancelar</button>
+        <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white" (click)="savePiso()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal Catálogos -->
+  <div *ngIf="isCatalogModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-3xl rounded-xl bg-white p-5">
+      <div class="flex items-center justify-between">
+        <div class="text-sm font-semibold text-slate-800">Catálogos</div>
+        <button class="text-slate-500" (click)="closeCatalog()">✕</button>
+      </div>
+
+      <div class="mt-4">
+        <div class="grid grid-cols-12 gap-2">
+          <input class="col-span-4 rounded border px-2 py-1 text-sm" placeholder="Nombre" [(ngModel)]="newAmenity.nombre" name="amenityName" />
+          <input class="col-span-6 rounded border px-2 py-1 text-sm" placeholder="Descripción" [(ngModel)]="newAmenity.descripcion" name="amenityDesc" />
+          <button class="col-span-2 rounded border px-2 py-1 text-sm" (click)="createAmenity()">Agregar</button>
+        </div>
+
+        <div class="mt-3 space-y-2">
+          <div *ngFor="let a of comodidades; trackBy: trackById" class="rounded border p-2 text-sm">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-medium text-slate-800">{{ a.nombre }}</div>
+                <div class="text-xs text-slate-500">{{ a.descripcion || 'Sin descripción' }}</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs" [class.text-green-600]="a.activa" [class.text-slate-400]="!a.activa">
+                  {{ a.activa ? 'Activa' : 'Inactiva' }}
+                </span>
+                <button class="rounded border px-2 py-1 text-xs" (click)="editAmenityRow(a)">Editar</button>
+                <button class="rounded border px-2 py-1 text-xs" (click)="removeAmenity(a)">Eliminar</button>
+              </div>
+            </div>
+
+            <div *ngIf="editAmenity?.id === a.id && editAmenity as ea" class="mt-2 grid grid-cols-12 gap-2">
+              <input class="col-span-4 rounded border px-2 py-1 text-xs" [(ngModel)]="ea.nombre" name="editAmenityName" />
+              <input class="col-span-6 rounded border px-2 py-1 text-xs" [(ngModel)]="ea.descripcion" name="editAmenityDesc" />
+              <button class="col-span-2 rounded border px-2 py-1 text-xs" (click)="saveAmenity()">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

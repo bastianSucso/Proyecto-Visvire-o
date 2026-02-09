@@ -11,6 +11,7 @@ import { CajaModule } from './modules/caja/caja.module';
 import { VentasModule } from './modules/ventas/ventas.module';
 import { UbicacionesModule } from './modules/ubicaciones/ubicaciones.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
+import { AlojamientoModule } from './modules/alojamiento/alojamiento.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { InventarioModule } from './modules/inventario/inventario.module';
     HistorialModule,
     CajaModule,
     VentasModule,
+    AlojamientoModule,
   ],
 })
 export class AppModule {}

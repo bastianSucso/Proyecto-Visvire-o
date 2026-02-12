@@ -46,6 +46,8 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard-vendedor' },
       { path: 'dashboard-vendedor', loadComponent: () => import('./features/vendedor/pages/dashboard/dashboard-vendedor').then(m => m.DashboarVendedordPage) },
+      { path: 'alojamiento', loadComponent: () => import('./features/vendedor/pages/alojamiento-home/alojamiento-home.page').then(m => m.AlojamientoHomePage) },
+      { path: 'alojamiento/disponibilidad', loadComponent: () => import('./features/vendedor/pages/alojamiento/alojamiento.page').then(m => m.AlojamientoPage) },
       { path: 'caja', loadComponent: () => import('./features/vendedor/pages/caja/caja.page').then(m => m.CajaPage) },
       { path: 'historial-caja', loadComponent: () => import('./features/vendedor/pages/historial-caja/historial-caja.page').then(m => m.HistorialCajaPage) },
       { path: 'historial-caja/:id', loadComponent: () => import('./features/vendedor/pages/historial-caja-detalle/historial-caja-detalle.page').then(m => m.HistorialCajaDetallePage) },

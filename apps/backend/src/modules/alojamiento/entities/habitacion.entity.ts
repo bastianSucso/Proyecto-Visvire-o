@@ -15,6 +15,7 @@ import { PisoZonaEntity } from './piso-zona.entity';
 import { CamaEntity } from './cama.entity';
 import { ComodidadEntity } from './comodidad.entity';
 import { InventarioHabitacionEntity } from './inventario-habitacion.entity';
+import { AsignacionHabitacionEntity } from './asignacion-habitacion.entity';
 
 @Entity('habitacion')
 @Unique('ux_habitacion_identificador_piso', ['identificador', 'pisoZona'])
@@ -60,6 +61,9 @@ export class HabitacionEntity {
 
   @OneToMany(() => InventarioHabitacionEntity, (i) => i.habitacion)
   inventarios: InventarioHabitacionEntity[];
+
+  @OneToMany(() => AsignacionHabitacionEntity, (a) => a.habitacion)
+  asignaciones: AsignacionHabitacionEntity[];
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt: Date;

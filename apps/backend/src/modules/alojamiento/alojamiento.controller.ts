@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AlojamientoService } from './alojamiento.service';
@@ -19,6 +20,10 @@ import { CreateHabitacionDto } from './dto/create-habitacion.dto';
 import { UpdateHabitacionDto } from './dto/update-habitacion.dto';
 import { CreateComodidadDto } from './dto/create-comodidad.dto';
 import { UpdateComodidadDto } from './dto/update-comodidad.dto';
+import { CreateEmpresaHostalDto } from './dto/create-empresa-hostal.dto';
+import { CreateHuespedDto } from './dto/create-huesped.dto';
+import { CreateAsignacionHabitacionDto } from './dto/create-asignacion-habitacion.dto';
+import { UpdateHuespedDto } from './dto/update-huesped.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/alojamiento')
@@ -27,7 +32,7 @@ export class AlojamientoController {
 
   // Pisos / zonas
   @Get('floors')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'VENDEDOR')
   listPisos() {
     return this.service.listPisos();
   }
@@ -52,7 +57,7 @@ export class AlojamientoController {
 
   // Habitaciones
   @Get('floors/:id/rooms')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'VENDEDOR')
   listRooms(@Param('id') pisoId: string) {
     return this.service.listHabitacionesByPiso(pisoId);
   }
@@ -79,6 +84,54 @@ export class AlojamientoController {
   @Roles('ADMIN')
   bulkRemove(@Body() body: { ids: string[] }) {
     return this.service.bulkRemoveHabitaciones(body.ids ?? []);
+  }
+
+  @Get('rooms/available')
+  @Roles('ADMIN', 'VENDEDOR')
+  listDisponibles(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.service.listHabitacionesDisponibles(from ?? '', to ?? '');
+  }
+
+  // Empresas
+  @Get('companies')
+  @Roles('ADMIN', 'VENDEDOR')
+  listEmpresas() {
+    return this.service.listEmpresasHostal();
+  }
+
+  @Post('companies')
+  @Roles('ADMIN', 'VENDEDOR')
+  createEmpresa(@Body() dto: CreateEmpresaHostalDto) {
+    return this.service.createEmpresaHostal(dto);
+  }
+
+  // Huéspedes
+  @Get('guests')
+  @Roles('ADMIN', 'VENDEDOR')
+  listHuespedes(@Query('search') search?: string) {
+    if (search) {
+      return this.service.searchHuespedes(search);
+    }
+    return this.service.listHuespedes();
+  }
+
+  @Post('guests')
+  @Roles('ADMIN', 'VENDEDOR')
+  createHuesped(@Body() dto: CreateHuespedDto) {
+    return this.service.createHuesped(dto);
+  }
+
+  @Patch('guests/:id')
+  @Roles('ADMIN', 'VENDEDOR')
+  updateHuesped(@Param('id') id: string, @Body() dto: UpdateHuespedDto) {
+    return this.service.updateHuesped(id, dto);
+  }
+
+  // Asignaciones
+  @Post('assignments')
+  @Roles('ADMIN', 'VENDEDOR')
+  createAsignacion(@Body() dto: CreateAsignacionHabitacionDto, @Req() req: any) {
+    return this.service.createAsignacion(dto, req.user.idUsuario);
   }
 
   // Comodidades

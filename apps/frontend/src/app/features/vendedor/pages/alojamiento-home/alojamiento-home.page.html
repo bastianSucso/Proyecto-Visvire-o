@@ -1,0 +1,431 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-slate-900">Alojamiento</h1>
+      <p class="text-sm text-slate-500">
+        Acceso rapido a disponibilidad y asignacion de habitaciones.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a
+        routerLink="/pos/alojamiento/disponibilidad"
+        class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300"
+      >
+        Ver disponibilidad
+      </a>
+      <button
+        class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+        (click)="refreshDisponibles()"
+      >
+        Actualizar resumen
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="errorMsg" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+    {{ errorMsg }}
+  </div>
+  <div *ngIf="successMsg" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+    {{ successMsg }}
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-400">Disponibilidad</div>
+      <div class="mt-2 text-3xl font-semibold text-slate-900">
+        {{ availableRooms.length }}
+      </div>
+      <div class="mt-1 text-xs text-slate-500">Habitaciones disponibles en el rango</div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 md:col-span-2">
+      <div class="text-xs uppercase tracking-wide text-slate-400">Rango</div>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="datetime-local"
+          class="rounded-lg border px-2 py-2 text-sm"
+          [(ngModel)]="rangeFrom"
+          (change)="onRangeChange()"
+        />
+        <span class="text-sm text-slate-400">→</span>
+        <input
+          type="datetime-local"
+          class="rounded-lg border px-2 py-2 text-sm"
+          [(ngModel)]="rangeTo"
+          (change)="onRangeChange()"
+        />
+        <span *ngIf="loading" class="text-xs text-slate-500">Actualizando...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-4">
+    <section class="col-span-12 lg:col-span-7 space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Mapa por piso</div>
+            <div class="text-sm font-semibold text-slate-800">Disponibilidad visual</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">Piso/Zona</span>
+            <select
+              class="rounded border px-2 py-2 text-sm"
+              [ngModel]="selectedPiso?.id"
+              (ngModelChange)="onPisoSelect($event)"
+            >
+              <option [ngValue]="null" disabled>Selecciona piso/zona</option>
+              <option *ngFor="let piso of pisos" [value]="piso.id">
+                {{ piso.nombre }} (#{{ piso.orden }})
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div *ngIf="selectedPiso" class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <svg
+            #svgRef
+            class="h-[680px] w-full rounded-lg bg-white"
+            [attr.viewBox]="viewBox"
+            (wheel)="onWheel($event)"
+            (mousedown)="onSvgMouseDown($event)"
+            (mousemove)="onSvgMouseMove($event)"
+            (mouseup)="onSvgMouseUp()"
+            (mouseleave)="onSvgMouseUp()"
+          >
+            <rect
+              [attr.width]="selectedPiso.anchoLienzo"
+              [attr.height]="selectedPiso.altoLienzo"
+              fill="#f8fafc"
+            ></rect>
+            <ng-container *ngFor="let room of habitacionesPiso">
+              <rect
+                [attr.data-room-id]="room.id"
+                [attr.x]="room.posX"
+                [attr.y]="room.posY"
+                [attr.width]="room.ancho"
+                [attr.height]="room.alto"
+                [attr.fill]="getRoomFill(room)"
+                [attr.stroke]="getRoomStroke(room)"
+                stroke-width="2.5"
+                rx="6"
+                (click)="selectRoom(room)"
+              ></rect>
+              <text
+                [attr.data-room-id]="room.id"
+                [attr.x]="room.posX + room.ancho / 2"
+                [attr.y]="room.posY + room.alto / 2"
+                class="select-none text-[16px] font-semibold"
+                fill="#0f172a"
+                text-anchor="middle"
+                dominant-baseline="middle"
+                (click)="selectRoom(room)"
+              >
+                {{ room.identificador }}
+              </text>
+            </ng-container>
+          </svg>
+        </div>
+
+        <div *ngIf="!selectedPiso" class="mt-4 text-sm text-slate-500">
+          No hay pisos disponibles para mostrar.
+        </div>
+      </div>
+    </section>
+
+    <aside class="col-span-12 lg:col-span-5 space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Asignar habitación</div>
+        <div class="text-sm font-semibold text-slate-800">Registro de ingreso</div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <label class="col-span-2 text-xs text-slate-600">
+            Habitación disponible
+            <select class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="asignacionForm.habitacionId">
+              <option [ngValue]="''">Selecciona una habitación</option>
+              <option *ngFor="let r of availableRooms" [ngValue]="r.id">
+                {{ r.identificador }} · {{ r.pisoZona?.nombre ?? 'Sin piso' }}
+              </option>
+            </select>
+          </label>
+          <div class="col-span-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-600">Huésped</span>
+              <button
+                type="button"
+                class="text-xs text-slate-600 hover:text-slate-900"
+                (click)="openGuestModal()"
+              >
+                Registrar huésped
+              </button>
+            </div>
+            <div class="relative mt-1">
+              <input
+                type="text"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900
+                      focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Buscar por nombre o RUT"
+                [(ngModel)]="guestSearchTerm"
+                (ngModelChange)="onGuestSearchChange($event)"
+                (keydown)="onGuestKeydown($event)"
+                (focus)="openGuestSuggestions()"
+                (blur)="closeGuestSearchDelayed()"
+                autocomplete="off"
+              />
+
+              <div
+                *ngIf="showGuestSug"
+                class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
+                      overflow-hidden max-h-60 overflow-auto"
+              >
+                <div *ngIf="guestSearchLoading" class="px-3 py-2 text-xs text-slate-500">
+                  Buscando...
+                </div>
+                <button
+                  type="button"
+                  *ngFor="let g of guestSuggestions; let i = index"
+                  (mousedown)="$event.preventDefault()"
+                  (mouseenter)="activeGuestIndex = i"
+                  (click)="selectGuestFromSearch(g)"
+                  class="w-full px-3 py-2 text-left flex items-center justify-between
+                        transition focus:outline-none"
+                  [ngClass]="
+                    i === activeGuestIndex
+                      ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                      : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+                  "
+                >
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900 truncate">
+                      {{ g.nombreCompleto }}
+                    </p>
+                    <p class="text-xs text-slate-500 truncate">
+                      {{ g.rut ?? 'Sin RUT' }}
+                      <span *ngIf="g.empresaHostal">• {{ g.empresaHostal.nombreEmpresa }}</span>
+                    </p>
+                  </div>
+                </button>
+                <div *ngIf="!guestSearchLoading && guestSuggestions.length === 0" class="px-3 py-2 text-xs text-slate-500">
+                  Sin resultados
+                </div>
+              </div>
+            </div>
+            <div *ngIf="selectedGuest" class="mt-2 flex items-center justify-between text-xs text-slate-600">
+              <span>Seleccionado: {{ selectedGuest.nombreCompleto }}</span>
+              <button type="button" class="text-xs text-slate-500" (click)="clearGuestSelection()">
+                Quitar
+              </button>
+            </div>
+          </div>
+          <label class="text-xs text-slate-600">
+            Fecha ingreso
+            <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" type="datetime-local" [(ngModel)]="asignacionForm.fechaIngreso" />
+          </label>
+          <label class="text-xs text-slate-600">
+            Fecha salida estimada
+            <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" type="datetime-local" [(ngModel)]="asignacionForm.fechaSalidaEstimada" />
+          </label>
+        </div>
+
+        <div *ngIf="selectedRoom" class="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-slate-500">Seleccionada</div>
+              <div class="text-sm font-semibold text-slate-800">{{ selectedRoom.identificador }}</div>
+            </div>
+            <span class="rounded-full px-2 py-1 text-[11px]"
+              [class.bg-emerald-100]="getRoomStatus(selectedRoom) === 'DISPONIBLE'"
+              [class.text-emerald-700]="getRoomStatus(selectedRoom) === 'DISPONIBLE'"
+              [class.bg-amber-100]="getRoomStatus(selectedRoom) === 'OCUPADA'"
+              [class.text-amber-700]="getRoomStatus(selectedRoom) === 'OCUPADA'"
+              [class.bg-slate-200]="getRoomStatus(selectedRoom) === 'INACTIVA'"
+              [class.text-slate-600]="getRoomStatus(selectedRoom) === 'INACTIVA'"
+            >
+              {{ getRoomStatus(selectedRoom) }}
+            </span>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <span class="rounded-full bg-white px-2 py-1 text-[11px] text-slate-600">
+              {{ bedTotal(selectedRoom) }} camas
+            </span>
+            <span class="rounded-full bg-white px-2 py-1 text-[11px] text-slate-600">
+              {{ +selectedRoom.precio | currency:'CLP':'symbol-narrow':'1.0-0' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button
+            class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+            [disabled]="savingAsignacion"
+            (click)="saveAsignacion()"
+          >
+            {{ savingAsignacion ? 'Asignando...' : 'Asignar habitación' }}
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div *ngIf="isGuestModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-start justify-between border-b border-slate-200 p-4">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-400">Huésped</div>
+          <div class="text-lg font-semibold text-slate-900">
+            {{ modalSelectedGuest ? 'Editar huésped' : 'Registrar huésped' }}
+          </div>
+        </div>
+        <button class="text-slate-500 hover:text-slate-700" (click)="closeGuestModal()">✕</button>
+      </div>
+
+      <div class="p-4 space-y-4">
+        <div *ngIf="modalErrorMsg" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {{ modalErrorMsg }}
+        </div>
+        <div *ngIf="modalSuccessMsg" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {{ modalSuccessMsg }}
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-600">Buscar huésped existente</label>
+          <div class="relative mt-1">
+            <input
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900
+                    focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="Buscar por nombre o RUT"
+              [(ngModel)]="modalSearchTerm"
+              (ngModelChange)="onModalSearchChange($event)"
+              (keydown)="onModalSearchKeydown($event)"
+              (focus)="openModalSuggestions()"
+              (blur)="closeModalSearchDelayed()"
+              autocomplete="off"
+            />
+            <div
+              *ngIf="showModalSug"
+              class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
+                    overflow-hidden max-h-60 overflow-auto"
+            >
+              <div *ngIf="modalSearchLoading" class="px-3 py-2 text-xs text-slate-500">
+                Buscando...
+              </div>
+              <button
+                type="button"
+                *ngFor="let g of modalSearchResults; let i = index"
+                (mousedown)="$event.preventDefault()"
+                (mouseenter)="activeModalSearchIndex = i"
+                (click)="selectModalGuest(g)"
+                class="w-full px-3 py-2 text-left flex items-center justify-between
+                      transition focus:outline-none"
+                [ngClass]="
+                  i === activeModalSearchIndex
+                    ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                    : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+                "
+              >
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-slate-900 truncate">
+                    {{ g.nombreCompleto }}
+                  </p>
+                  <p class="text-xs text-slate-500 truncate">
+                    {{ g.rut ?? 'Sin RUT' }}
+                    <span *ngIf="g.empresaHostal">• {{ g.empresaHostal.nombreEmpresa }}</span>
+                  </p>
+                </div>
+              </button>
+              <div *ngIf="!modalSearchLoading && modalSearchResults.length === 0" class="px-3 py-2 text-xs text-slate-500">
+                Sin resultados
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <label class="col-span-2 text-xs text-slate-600">
+            Nombre completo
+            <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="guestForm.nombreCompleto" />
+          </label>
+          <label class="col-span-2 text-xs text-slate-600">
+            Correo (opcional)
+            <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="guestForm.correo" />
+          </label>
+          <label class="text-xs text-slate-600">
+            RUT (opcional)
+            <input
+              class="mt-1 w-full rounded-lg border px-2 py-2 text-sm"
+              [(ngModel)]="guestForm.rut"
+              [readonly]="modalRutLocked"
+            />
+          </label>
+          <label class="text-xs text-slate-600">
+            Teléfono (opcional)
+            <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="guestForm.telefono" />
+          </label>
+          <label class="col-span-2 text-xs text-slate-600">
+            Empresa (opcional)
+            <select class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="guestForm.empresaHostalId">
+              <option [ngValue]="undefined">Sin empresa</option>
+              <option *ngFor="let e of empresas" [ngValue]="e.id">{{ e.nombreEmpresa }}</option>
+            </select>
+          </label>
+          <label class="col-span-2 text-xs text-slate-600">
+            Observación (opcional)
+            <textarea class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" rows="2" [(ngModel)]="guestForm.observacion"></textarea>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <button class="text-xs text-slate-500" (click)="showCompanyForm = !showCompanyForm">
+            {{ showCompanyForm ? 'Ocultar empresa' : 'Agregar empresa' }}
+          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="rounded-lg border px-3 py-2 text-xs"
+              (click)="closeGuestModal()"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+              (click)="saveGuestFromModal()"
+            >
+              Guardar
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="showCompanyForm" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="text-xs font-semibold text-slate-600">Nueva empresa</div>
+          <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
+            <label class="col-span-2">
+              Nombre empresa
+              <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="companyForm.nombreEmpresa" />
+            </label>
+            <label>
+              Contacto
+              <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="companyForm.nombreContratista" />
+            </label>
+            <label>
+              Fono
+              <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="companyForm.fonoContratista" />
+            </label>
+            <label class="col-span-2">
+              Correo
+              <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="companyForm.correoContratista" />
+            </label>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <button
+              class="rounded-lg border px-3 py-2 text-xs"
+              (click)="saveEmpresaFromModal()"
+            >
+              Crear empresa
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

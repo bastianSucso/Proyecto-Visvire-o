@@ -11,12 +11,19 @@ import { HabitacionEntity } from './entities/habitacion.entity';
 import { ComodidadEntity } from './entities/comodidad.entity';
 import { CamaEntity } from './entities/cama.entity';
 import { InventarioHabitacionEntity } from './entities/inventario-habitacion.entity';
+import { EmpresaHostalEntity } from './entities/empresa-hostal.entity';
+import { HuespedEntity } from './entities/huesped.entity';
+import { AsignacionHabitacionEntity } from './entities/asignacion-habitacion.entity';
 import { CreatePisoZonaDto } from './dto/create-piso-zona.dto';
 import { UpdatePisoZonaDto } from './dto/update-piso-zona.dto';
 import { CreateHabitacionDto } from './dto/create-habitacion.dto';
 import { UpdateHabitacionDto } from './dto/update-habitacion.dto';
 import { CreateComodidadDto } from './dto/create-comodidad.dto';
 import { UpdateComodidadDto } from './dto/update-comodidad.dto';
+import { CreateEmpresaHostalDto } from './dto/create-empresa-hostal.dto';
+import { CreateHuespedDto } from './dto/create-huesped.dto';
+import { CreateAsignacionHabitacionDto } from './dto/create-asignacion-habitacion.dto';
+import { UpdateHuespedDto } from './dto/update-huesped.dto';
 
 type Rect = { posX: number; posY: number; ancho: number; alto: number };
 
@@ -33,7 +40,198 @@ export class AlojamientoService {
     private readonly camaRepo: Repository<CamaEntity>,
     @InjectRepository(InventarioHabitacionEntity)
     private readonly inventarioRepo: Repository<InventarioHabitacionEntity>,
+    @InjectRepository(EmpresaHostalEntity)
+    private readonly empresaHostalRepo: Repository<EmpresaHostalEntity>,
+    @InjectRepository(HuespedEntity)
+    private readonly huespedRepo: Repository<HuespedEntity>,
+    @InjectRepository(AsignacionHabitacionEntity)
+    private readonly asignacionRepo: Repository<AsignacionHabitacionEntity>,
   ) {}
+
+  // -------- Empresas --------
+  async listEmpresasHostal() {
+    return this.empresaHostalRepo.find({ order: { nombreEmpresa: 'ASC', createdAt: 'ASC' } });
+  }
+
+  async createEmpresaHostal(dto: CreateEmpresaHostalDto) {
+    const nombreEmpresa = dto.nombreEmpresa.trim();
+    if (!nombreEmpresa) throw new BadRequestException('nombreEmpresa es requerido');
+
+    const entity = this.empresaHostalRepo.create({
+      nombreEmpresa,
+      nombreContratista: dto.nombreContratista?.trim() || null,
+      correoContratista: dto.correoContratista?.trim() || null,
+      fonoContratista: dto.fonoContratista?.trim() || null,
+    });
+
+    return this.empresaHostalRepo.save(entity);
+  }
+
+  // -------- Huespedes --------
+  async listHuespedes() {
+    return this.huespedRepo.find({
+      relations: { empresaHostal: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async createHuesped(dto: CreateHuespedDto) {
+    const nombreCompleto = dto.nombreCompleto.trim();
+    if (!nombreCompleto) throw new BadRequestException('nombreCompleto es requerido');
+
+    let empresaHostal: EmpresaHostalEntity | null = null;
+    if (dto.empresaHostalId) {
+      empresaHostal = await this.empresaHostalRepo.findOne({ where: { id: dto.empresaHostalId } });
+      if (!empresaHostal) throw new NotFoundException('Empresa hostal no encontrada');
+    }
+
+    const entity = this.huespedRepo.create({
+      nombreCompleto,
+      correo: dto.correo?.trim() || null,
+      rut: dto.rut?.trim() || null,
+      observacion: dto.observacion?.trim() || null,
+      telefono: dto.telefono?.trim() || null,
+      empresaHostal,
+    });
+
+    try {
+      return await this.huespedRepo.save(entity);
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        throw new ConflictException('El RUT ya existe');
+      }
+      throw err;
+    }
+  }
+
+  async searchHuespedes(search: string) {
+    const term = search.trim();
+    if (!term) return [];
+    const like = `%${term.toLowerCase()}%`;
+
+    return this.huespedRepo
+      .createQueryBuilder('h')
+      .leftJoinAndSelect('h.empresaHostal', 'e')
+      .where('LOWER(h.nombreCompleto) LIKE :term', { term: like })
+      .orWhere('LOWER(h.rut) LIKE :term', { term: like })
+      .orWhere('LOWER(h.correo) LIKE :term', { term: like })
+      .orWhere('LOWER(h.telefono) LIKE :term', { term: like })
+      .orWhere('LOWER(e.nombreEmpresa) LIKE :term', { term: like })
+      .orderBy('h.createdAt', 'DESC')
+      .limit(20)
+      .getMany();
+  }
+
+  async updateHuesped(id: string, dto: UpdateHuespedDto) {
+    const huesped = await this.huespedRepo.findOne({ where: { id }, relations: { empresaHostal: true } });
+    if (!huesped) throw new NotFoundException('Huésped no encontrado');
+
+    if (dto.nombreCompleto !== undefined) {
+      const nombreCompleto = dto.nombreCompleto.trim();
+      if (!nombreCompleto) throw new BadRequestException('nombreCompleto es requerido');
+      huesped.nombreCompleto = nombreCompleto;
+    }
+
+    if (dto.correo !== undefined) huesped.correo = dto.correo?.trim() || null;
+    if (dto.observacion !== undefined) huesped.observacion = dto.observacion?.trim() || null;
+    if (dto.telefono !== undefined) huesped.telefono = dto.telefono?.trim() || null;
+
+    if (dto.rut !== undefined) {
+      const rut = dto.rut?.trim() || null;
+      if (huesped.rut && rut && huesped.rut !== rut) {
+        throw new BadRequestException('El RUT no puede ser modificado');
+      }
+      if (!huesped.rut) {
+        huesped.rut = rut;
+      }
+    }
+
+    if (dto.empresaHostalId !== undefined) {
+      if (!dto.empresaHostalId) {
+        huesped.empresaHostal = null;
+      } else {
+        const empresa = await this.empresaHostalRepo.findOne({ where: { id: dto.empresaHostalId } });
+        if (!empresa) throw new NotFoundException('Empresa hostal no encontrada');
+        huesped.empresaHostal = empresa;
+      }
+    }
+
+    try {
+      return await this.huespedRepo.save(huesped);
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        throw new ConflictException('El RUT ya existe');
+      }
+      throw err;
+    }
+  }
+
+  private parseTimestamp(value?: string) {
+    if (!value) throw new BadRequestException('Fechas requeridas');
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Fecha inválida');
+    return date;
+  }
+
+  async listHabitacionesDisponibles(from: string, to: string) {
+    const fechaIngreso = this.parseTimestamp(from);
+    const fechaSalidaEstimada = this.parseTimestamp(to);
+    if (fechaSalidaEstimada <= fechaIngreso) {
+      throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+    }
+
+    return this.habitacionRepo
+      .createQueryBuilder('h')
+      .leftJoin(
+        'h.asignaciones',
+        'a',
+        'a.fechaIngreso < :fechaSalida AND a.fechaSalidaEstimada > :fechaIngreso',
+        { fechaIngreso, fechaSalida: fechaSalidaEstimada },
+      )
+      .leftJoinAndSelect('h.pisoZona', 'p')
+      .leftJoinAndSelect('h.comodidades', 'c')
+      .leftJoinAndSelect('h.camas', 'ca')
+      .where('h.estadoActivo = :activo', { activo: true })
+      .andWhere('a.id IS NULL')
+      .orderBy('h.createdAt', 'ASC')
+      .getMany();
+  }
+
+  async createAsignacion(dto: CreateAsignacionHabitacionDto, vendedorId: string) {
+    const fechaIngreso = this.parseTimestamp(dto.fechaIngreso);
+    const fechaSalidaEstimada = this.parseTimestamp(dto.fechaSalidaEstimada);
+    if (fechaSalidaEstimada <= fechaIngreso) {
+      throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+    }
+
+    const habitacion = await this.habitacionRepo.findOne({ where: { id: dto.habitacionId } });
+    if (!habitacion) throw new NotFoundException('Habitación no encontrada');
+    if (!habitacion.estadoActivo) throw new BadRequestException('La habitación no está activa');
+
+    const huesped = await this.huespedRepo.findOne({ where: { id: dto.huespedId } });
+    if (!huesped) throw new NotFoundException('Huésped no encontrado');
+
+    const overlap = await this.asignacionRepo
+      .createQueryBuilder('a')
+      .where('a.habitacion = :habitacionId', { habitacionId: habitacion.id })
+      .andWhere('a.fechaIngreso < :fechaSalida', { fechaSalida: fechaSalidaEstimada })
+      .andWhere('a.fechaSalidaEstimada > :fechaIngreso', { fechaIngreso })
+      .getCount();
+
+    if (overlap > 0) {
+      throw new ConflictException('La habitación no está disponible en el rango indicado');
+    }
+
+    const asignacion = this.asignacionRepo.create({
+      habitacion: { id: habitacion.id } as any,
+      huesped: { id: huesped.id } as any,
+      vendedor: { idUsuario: vendedorId } as any,
+      fechaIngreso,
+      fechaSalidaEstimada,
+    });
+
+    return this.asignacionRepo.save(asignacion);
+  }
 
   // -------- Pisos / Zonas --------
   async listPisos() {

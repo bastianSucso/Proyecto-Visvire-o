@@ -7,6 +7,9 @@ import { HabitacionEntity } from './entities/habitacion.entity';
 import { CamaEntity } from './entities/cama.entity';
 import { ComodidadEntity } from './entities/comodidad.entity';
 import { InventarioHabitacionEntity } from './entities/inventario-habitacion.entity';
+import { EmpresaHostalEntity } from './entities/empresa-hostal.entity';
+import { HuespedEntity } from './entities/huesped.entity';
+import { AsignacionHabitacionEntity } from './entities/asignacion-habitacion.entity';
 
 @Module({
   imports: [
@@ -16,6 +19,9 @@ import { InventarioHabitacionEntity } from './entities/inventario-habitacion.ent
       CamaEntity,
       ComodidadEntity,
       InventarioHabitacionEntity,
+      EmpresaHostalEntity,
+      HuespedEntity,
+      AsignacionHabitacionEntity,
     ]),
   ],
   controllers: [AlojamientoController],

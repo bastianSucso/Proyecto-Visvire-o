@@ -89,7 +89,13 @@ export class AlojamientoController {
   @Get('rooms/available')
   @Roles('ADMIN', 'VENDEDOR')
   listDisponibles(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.service.listHabitacionesDisponibles(from ?? '', to ?? '');
+    return this.service.listHabitacionesDisponibles(from, to);
+  }
+
+  @Get('rooms/:id/current-assignment')
+  @Roles('ADMIN', 'VENDEDOR')
+  getCurrentAssignment(@Param('id') habitacionId: string) {
+    return this.service.getAsignacionActualByHabitacion(habitacionId);
   }
 
   // Empresas

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import {
   AlojamientoService,
+  AsignacionActualResumen,
   CreateAsignacionHabitacionDto,
   Habitacion,
   Huesped,
@@ -24,11 +25,17 @@ export class AlojamientoHomePage implements OnInit {
   private alojamientoService = inject(AlojamientoService);
   private readonly guestSuggestionLimit = 8;
   private readonly guestSearchMinChars = 2;
+  private readonly dateTimeFormatter = new Intl.DateTimeFormat('es-CL', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 
   @ViewChild('svgRef', { static: false }) svgRef?: ElementRef<SVGSVGElement>;
 
-  rangeFrom = '';
-  rangeTo = '';
   availableRooms: Habitacion[] = [];
   availableRoomIds = new Set<string>();
 
@@ -37,6 +44,7 @@ export class AlojamientoHomePage implements OnInit {
   habitacionesPiso: Habitacion[] = [];
 
   selectedRoom: Habitacion | null = null;
+  selectedRoomAssignment: AsignacionActualResumen | null = null;
   selectedGuest: Huesped | null = null;
 
   empresas: EmpresaHostal[] = [];
@@ -51,8 +59,7 @@ export class AlojamientoHomePage implements OnInit {
   asignacionForm: CreateAsignacionHabitacionDto = {
     habitacionId: '',
     huespedId: '',
-    fechaIngreso: '',
-    fechaSalidaEstimada: '',
+    cantidadNoches: 1,
   };
 
   loading = false;
@@ -83,6 +90,7 @@ export class AlojamientoHomePage implements OnInit {
   modalLastRemoteTerm = '';
   modalSelectedGuest: Huesped | null = null;
   modalRutLocked = false;
+  modalGuestSelectionLocked = false;
   modalErrorMsg = '';
   modalSuccessMsg = '';
 
@@ -107,30 +115,14 @@ export class AlojamientoHomePage implements OnInit {
   private guestCache = new Map<string, Huesped>();
 
   ngOnInit() {
-    this.setDefaultRange();
     this.loadPisos();
     this.loadEmpresas();
     this.refreshDisponibles();
   }
 
-  private setDefaultRange() {
-    const now = new Date();
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    this.rangeFrom = this.formatDatetimeLocal(now);
-    this.rangeTo = this.formatDatetimeLocal(tomorrow);
-    this.asignacionForm.fechaIngreso = this.rangeFrom;
-    this.asignacionForm.fechaSalidaEstimada = this.rangeTo;
-  }
-
-  private formatDatetimeLocal(date: Date) {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
-
   refreshDisponibles() {
-    if (!this.rangeFrom || !this.rangeTo) return;
     this.loading = true;
-    this.alojamientoService.listDisponibles(this.rangeFrom, this.rangeTo).subscribe({
+    this.alojamientoService.listDisponibles().subscribe({
       next: (data) => {
         this.availableRooms = data ?? [];
         this.availableRoomIds = new Set(this.availableRooms.map((r) => r.id));
@@ -141,12 +133,6 @@ export class AlojamientoHomePage implements OnInit {
       },
       complete: () => (this.loading = false),
     });
-  }
-
-  onRangeChange() {
-    this.asignacionForm.fechaIngreso = this.rangeFrom;
-    this.asignacionForm.fechaSalidaEstimada = this.rangeTo;
-    this.refreshDisponibles();
   }
 
   loadPisos() {
@@ -172,6 +158,7 @@ export class AlojamientoHomePage implements OnInit {
   selectPiso(piso: PisoZona) {
     this.selectedPiso = piso;
     this.selectedRoom = null;
+    this.selectedRoomAssignment = null;
     this.resetViewBox(piso);
     this.loadHabitaciones(piso.id);
   }
@@ -257,9 +244,31 @@ export class AlojamientoHomePage implements OnInit {
 
   selectRoom(room: Habitacion) {
     this.selectedRoom = room;
+    this.selectedRoomAssignment = null;
     if (this.availableRoomIds.has(room.id)) {
       this.asignacionForm.habitacionId = room.id;
+      return;
     }
+    this.asignacionForm.habitacionId = '';
+    this.loadCurrentAssignment(room.id);
+  }
+
+  private loadCurrentAssignment(roomId: string) {
+    this.alojamientoService.getCurrentAssignment(roomId).subscribe({
+      next: (assignment) => {
+        this.selectedRoomAssignment = assignment;
+      },
+      error: () => {
+        this.selectedRoomAssignment = null;
+      },
+    });
+  }
+
+  openEditCurrentAssignmentGuest() {
+    const guest = this.selectedRoomAssignment?.huesped;
+    if (!guest) return;
+    this.openGuestModal(true);
+    this.selectModalGuest(guest);
   }
 
   onGuestSearchChange(term: string) {
@@ -413,8 +422,9 @@ export class AlojamientoHomePage implements OnInit {
     this.showGuestSug = false;
   }
 
-  openGuestModal() {
+  openGuestModal(lockGuestSelection = false) {
     this.isGuestModalOpen = true;
+    this.modalGuestSelectionLocked = lockGuestSelection;
     this.modalSearchTerm = '';
     this.modalSearchResults = [];
     this.showModalSug = false;
@@ -436,6 +446,7 @@ export class AlojamientoHomePage implements OnInit {
 
   closeGuestModal() {
     this.isGuestModalOpen = false;
+    this.modalGuestSelectionLocked = false;
   }
 
   onModalSearchChange(term: string) {
@@ -631,8 +642,8 @@ export class AlojamientoHomePage implements OnInit {
       this.setError('Selecciona habitación y huésped para asignar.');
       return;
     }
-    if (!this.asignacionForm.fechaIngreso || !this.asignacionForm.fechaSalidaEstimada) {
-      this.setError('Debes indicar fecha de ingreso y salida.');
+    if (this.getCantidadNoches() < 1) {
+      this.setError('Debes indicar una cantidad de noches válida.');
       return;
     }
 
@@ -641,6 +652,7 @@ export class AlojamientoHomePage implements OnInit {
       next: () => {
         this.successMsg = 'Asignación registrada correctamente.';
         this.asignacionForm.habitacionId = '';
+        this.asignacionForm.cantidadNoches = 1;
         this.refreshDisponibles();
       },
       error: (err) => {
@@ -653,6 +665,28 @@ export class AlojamientoHomePage implements OnInit {
 
   bedTotal(room: Habitacion) {
     return (room.camas ?? []).reduce((sum, c) => sum + (c.cantidad ?? 0), 0);
+  }
+
+  getBedTypeSummary(room: Habitacion | null) {
+    const list = room?.camas ?? [];
+    const counter = new Map<string, number>();
+    for (const bed of list) {
+      const name = (bed.item ?? '').trim() || 'Sin tipo';
+      counter.set(name, (counter.get(name) ?? 0) + (bed.cantidad ?? 0));
+    }
+    return Array.from(counter.entries()).map(([name, count]) => ({ name, count }));
+  }
+
+  get selectedRoomIsAvailable() {
+    return !!this.selectedRoom && this.getRoomStatus(this.selectedRoom) === 'DISPONIBLE';
+  }
+
+  get canAssign() {
+    return this.selectedRoomIsAvailable && !!this.asignacionForm.huespedId && this.getCantidadNoches() >= 1;
+  }
+
+  get hasCurrentAssignmentDetails() {
+    return !!this.selectedRoom && this.getRoomStatus(this.selectedRoom) === 'OCUPADA' && !!this.selectedRoomAssignment;
   }
 
   getRoomStatus(room: Habitacion) {
@@ -686,6 +720,57 @@ export class AlojamientoHomePage implements OnInit {
 
   private normalizeSearchTerm(value: string) {
     return (value || '').trim().toLowerCase();
+  }
+
+  get fechaIngresoPreview() {
+    return this.formatPreviewDate(new Date());
+  }
+
+  get fechaSalidaPreview() {
+    const noches = this.getCantidadNoches();
+    if (noches < 1) return '-';
+
+    const salida = this.calculateFechaSalida(new Date(), noches);
+    return this.formatPreviewDate(salida);
+  }
+
+  get montoPreview() {
+    const noches = this.getCantidadNoches();
+    const room = this.getHabitacionSeleccionada();
+    if (noches < 1 || !room) return null;
+
+    const precio = Number(room.precio);
+    if (!Number.isFinite(precio)) return null;
+    return precio * noches;
+  }
+
+  private getCantidadNoches() {
+    const noches = Number(this.asignacionForm.cantidadNoches);
+    if (!Number.isInteger(noches)) return 0;
+    return noches;
+  }
+
+  private getHabitacionSeleccionada() {
+    if (!this.asignacionForm.habitacionId) return null;
+    return this.availableRooms.find((room) => room.id === this.asignacionForm.habitacionId) ?? null;
+  }
+
+  private calculateFechaSalida(fechaIngreso: Date, cantidadNoches: number) {
+    const salida = new Date(fechaIngreso);
+    salida.setDate(salida.getDate() + cantidadNoches);
+    salida.setHours(12, 0, 0, 0);
+    return salida;
+  }
+
+  private formatPreviewDate(date: Date) {
+    return this.dateTimeFormatter.format(date);
+  }
+
+  formatApiDate(value?: string) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return this.formatPreviewDate(date);
   }
 
   private storeGuestCache(guests: Huesped[]) {

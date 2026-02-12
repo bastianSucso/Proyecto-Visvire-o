@@ -72,6 +72,15 @@ export interface Huesped {
   updatedAt: string;
 }
 
+export interface AsignacionActualResumen {
+  id: string;
+  noches: number;
+  monto: string;
+  fechaIngreso: string;
+  fechaSalidaEstimada: string;
+  huesped: Huesped;
+}
+
 export interface CreatePisoZonaDto {
   nombre: string;
   orden?: number;
@@ -169,8 +178,7 @@ export interface UpdateHuespedDto {
 export interface CreateAsignacionHabitacionDto {
   habitacionId: string;
   huespedId: string;
-  fechaIngreso: string;
-  fechaSalidaEstimada: string;
+  cantidadNoches: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -256,11 +264,21 @@ export class AlojamientoService {
     return this.http.get<Huesped[]>(`/api/alojamiento/guests?search=${q}`);
   }
 
-  listDisponibles(from: string, to: string) {
-    const fromParam = encodeURIComponent(from);
-    const toParam = encodeURIComponent(to);
-    return this.http.get<Habitacion[]>(
-      `/api/alojamiento/rooms/available?from=${fromParam}&to=${toParam}`,
+  listDisponibles(from?: string, to?: string) {
+    if (from !== undefined || to !== undefined) {
+      const queryParts: string[] = [];
+      if (from !== undefined) queryParts.push(`from=${encodeURIComponent(from)}`);
+      if (to !== undefined) queryParts.push(`to=${encodeURIComponent(to)}`);
+      const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+      return this.http.get<Habitacion[]>(`/api/alojamiento/rooms/available${query}`);
+    }
+
+    return this.http.get<Habitacion[]>('/api/alojamiento/rooms/available');
+  }
+
+  getCurrentAssignment(roomId: string) {
+    return this.http.get<AsignacionActualResumen | null>(
+      `/api/alojamiento/rooms/${roomId}/current-assignment`,
     );
   }
 

@@ -36,6 +36,12 @@ export class AsignacionHabitacionEntity {
   @Column({ type: 'timestamp', name: 'fecha_salida_estimada' })
   fechaSalidaEstimada: Date;
 
+  @Column({ type: 'int' })
+  noches: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2 })
+  monto: string;
+
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt: Date;
 }

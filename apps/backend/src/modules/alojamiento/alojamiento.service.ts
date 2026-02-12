@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Not, Repository } from 'typeorm';
+import { In, LessThanOrEqual, MoreThan, Not, Repository } from 'typeorm';
 import { PisoZonaEntity } from './entities/piso-zona.entity';
 import { HabitacionEntity } from './entities/habitacion.entity';
 import { ComodidadEntity } from './entities/comodidad.entity';
@@ -173,11 +173,38 @@ export class AlojamientoService {
     return date;
   }
 
-  async listHabitacionesDisponibles(from: string, to: string) {
-    const fechaIngreso = this.parseTimestamp(from);
-    const fechaSalidaEstimada = this.parseTimestamp(to);
-    if (fechaSalidaEstimada <= fechaIngreso) {
-      throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+  private calculateFechaSalidaEstimada(fechaIngreso: Date, cantidadNoches: number) {
+    const fechaSalida = new Date(fechaIngreso);
+    fechaSalida.setDate(fechaSalida.getDate() + cantidadNoches);
+    fechaSalida.setHours(12, 0, 0, 0);
+    return fechaSalida;
+  }
+
+  private parseCantidadNoches(value: number) {
+    const noches = Number(value);
+    if (!Number.isInteger(noches) || noches < 1) {
+      throw new BadRequestException('cantidadNoches debe ser un entero mayor o igual a 1');
+    }
+    return noches;
+  }
+
+  async listHabitacionesDisponibles(from?: string, to?: string) {
+    let fechaIngreso: Date;
+    let fechaSalidaEstimada: Date;
+
+    if (!from && !to) {
+      fechaIngreso = new Date();
+      fechaSalidaEstimada = new Date(fechaIngreso.getTime() + 60 * 1000);
+    } else {
+      if (!from || !to) {
+        throw new BadRequestException('Debes indicar ambas fechas o ninguna');
+      }
+
+      fechaIngreso = this.parseTimestamp(from);
+      fechaSalidaEstimada = this.parseTimestamp(to);
+      if (fechaSalidaEstimada <= fechaIngreso) {
+        throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+      }
     }
 
     return this.habitacionRepo
@@ -198,11 +225,9 @@ export class AlojamientoService {
   }
 
   async createAsignacion(dto: CreateAsignacionHabitacionDto, vendedorId: string) {
-    const fechaIngreso = this.parseTimestamp(dto.fechaIngreso);
-    const fechaSalidaEstimada = this.parseTimestamp(dto.fechaSalidaEstimada);
-    if (fechaSalidaEstimada <= fechaIngreso) {
-      throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
-    }
+    const noches = this.parseCantidadNoches(dto.cantidadNoches);
+    const fechaIngreso = new Date();
+    const fechaSalidaEstimada = this.calculateFechaSalidaEstimada(fechaIngreso, noches);
 
     const habitacion = await this.habitacionRepo.findOne({ where: { id: dto.habitacionId } });
     if (!habitacion) throw new NotFoundException('Habitación no encontrada');
@@ -210,6 +235,12 @@ export class AlojamientoService {
 
     const huesped = await this.huespedRepo.findOne({ where: { id: dto.huespedId } });
     if (!huesped) throw new NotFoundException('Huésped no encontrado');
+
+    const precioHabitacion = Number(habitacion.precio);
+    if (!Number.isFinite(precioHabitacion)) {
+      throw new BadRequestException('Precio de habitación inválido');
+    }
+    const monto = (precioHabitacion * noches).toFixed(2);
 
     const overlap = await this.asignacionRepo
       .createQueryBuilder('a')
@@ -228,9 +259,42 @@ export class AlojamientoService {
       vendedor: { idUsuario: vendedorId } as any,
       fechaIngreso,
       fechaSalidaEstimada,
+      noches,
+      monto,
     });
 
     return this.asignacionRepo.save(asignacion);
+  }
+
+  async getAsignacionActualByHabitacion(habitacionId: string) {
+    const habitacion = await this.habitacionRepo.findOne({ where: { id: habitacionId } });
+    if (!habitacion) throw new NotFoundException('Habitación no encontrada');
+
+    const ahora = new Date();
+    const asignacion = await this.asignacionRepo.findOne({
+      where: {
+        habitacion: { id: habitacionId } as any,
+        fechaIngreso: LessThanOrEqual(ahora),
+        fechaSalidaEstimada: MoreThan(ahora),
+      },
+      relations: {
+        huesped: { empresaHostal: true },
+      },
+      order: {
+        fechaIngreso: 'DESC',
+      },
+    });
+
+    if (!asignacion) return null;
+
+    return {
+      id: asignacion.id,
+      noches: asignacion.noches,
+      monto: asignacion.monto,
+      fechaIngreso: asignacion.fechaIngreso,
+      fechaSalidaEstimada: asignacion.fechaSalidaEstimada,
+      huesped: asignacion.huesped,
+    };
   }
 
   // -------- Pisos / Zonas --------

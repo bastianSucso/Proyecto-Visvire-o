@@ -9,7 +9,17 @@ import {
 } from 'typeorm';
 import { HabitacionEntity } from './habitacion.entity';
 import { HuespedEntity } from './huesped.entity';
-import { UserEntity } from '../../users/entities/user.entity';
+import { SesionCajaEntity } from '../../historial/entities/sesion-caja.entity';
+
+export enum AsignacionEstado {
+  ACTIVA = 'ACTIVA',
+  FINALIZADA = 'FINALIZADA',
+}
+
+export enum AsignacionTipoCobro {
+  DIRECTO = 'DIRECTO',
+  EMPRESA_CONVENIO = 'EMPRESA_CONVENIO',
+}
 
 @Entity('asignacion_habitacion')
 @Index('ix_asignacion_habitacion_fechas', ['habitacion', 'fechaIngreso', 'fechaSalidaEstimada'])
@@ -26,9 +36,9 @@ export class AsignacionHabitacionEntity {
   @JoinColumn({ name: 'id_huesped' })
   huesped: HuespedEntity;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'id_vendedor' })
-  vendedor: UserEntity;
+  @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_sesion_apertura' })
+  sesionApertura: SesionCajaEntity;
 
   @Column({ type: 'timestamp', name: 'fecha_ingreso' })
   fechaIngreso: Date;
@@ -36,11 +46,30 @@ export class AsignacionHabitacionEntity {
   @Column({ type: 'timestamp', name: 'fecha_salida_estimada' })
   fechaSalidaEstimada: Date;
 
+  @Column({
+    type: 'enum',
+    enum: AsignacionEstado,
+    default: AsignacionEstado.ACTIVA,
+  })
+  estado: AsignacionEstado;
+
+  @Column({
+    type: 'enum',
+    enum: AsignacionTipoCobro,
+    name: 'tipo_cobro',
+    default: AsignacionTipoCobro.DIRECTO,
+  })
+  tipoCobro: AsignacionTipoCobro;
+
+  @Column({ type: 'timestamp', name: 'fecha_salida_real', nullable: true })
+  fechaSalidaReal: Date | null;
+
+  @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'id_sesion_checkout' })
+  sesionCheckout: SesionCajaEntity | null;
+
   @Column({ type: 'int' })
   noches: number;
-
-  @Column({ type: 'numeric', precision: 12, scale: 2 })
-  monto: string;
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt: Date;

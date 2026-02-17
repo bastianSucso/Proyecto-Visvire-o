@@ -1,4 +1,5 @@
-<div class="space-y-6">
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full px-4 py-6 space-y-6">
   <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
     <div>
       <h1 class="text-xl font-semibold text-slate-900">Alojamiento</h1>
@@ -13,44 +14,40 @@
       >
         Ver disponibilidad
       </a>
-      <button
-        class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-        (click)="refreshDisponibles()"
-      >
-        Actualizar resumen
-      </button>
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          (click)="volver()"
+        >
+          Volver
+        </button>
     </div>
   </div>
 
-  <div *ngIf="errorMsg" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+  <div *ngIf="errorMsg" data-toast-message class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
     {{ errorMsg }}
   </div>
-  <div *ngIf="successMsg" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+  <div *ngIf="successMsg" data-toast-message class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
     {{ successMsg }}
   </div>
 
-  <div class="grid gap-4 md:grid-cols-3">
-    <div class="rounded-2xl border border-slate-200 bg-white p-4">
-      <div class="text-xs uppercase tracking-wide text-slate-400">Disponibilidad</div>
-      <div class="mt-2 text-3xl font-semibold text-slate-900">
-        {{ availableRooms.length }}
-      </div>
-      <div class="mt-1 text-xs text-slate-500">Habitaciones disponibles actualmente</div>
-    </div>
+  <div *ngIf="!checkingCaja && !cajaAbierta" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    Debes tener una caja abierta para asignar estadías y registrar salidas.
+    <a routerLink="/pos/caja" class="ml-2 font-semibold underline">Ir a caja</a>
   </div>
-
+  
   <div class="grid grid-cols-12 gap-4">
     <section class="col-span-12 lg:col-span-7 space-y-4">
-      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-xs uppercase tracking-wide text-slate-400">Mapa por piso</div>
-            <div class="text-sm font-semibold text-slate-800">Disponibilidad visual</div>
+            <div class="text-sm font-medium text-slate-700">Mapa por piso</div>
+            <div class="text-sm text-slate-500">Disponibilidad visual</div>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-slate-500">Piso/Zona</span>
+            <span class="text-sm text-slate-600">Piso/Zona</span>
             <select
-              class="rounded border px-2 py-2 text-sm"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
               [ngModel]="selectedPiso?.id"
               (ngModelChange)="onPisoSelect($event)"
             >
@@ -114,20 +111,20 @@
     </section>
 
     <aside class="col-span-12 lg:col-span-5 space-y-4">
-      <div class="rounded-2xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Asignar habitación</div>
-        <div class="text-sm font-semibold text-slate-800">Registro de ingreso</div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm font-medium text-slate-700">Asignar habitación</div>
+        <div class="text-sm text-slate-500">Registro de ingreso</div>
 
-        <div *ngIf="selectedRoom; else emptySelectedRoom" class="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-sm">
+        <div *ngIf="selectedRoom; else emptySelectedRoom" class="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <div class="text-[11px] uppercase tracking-wide text-slate-500">Habitación seleccionada</div>
-              <div class="text-base font-semibold text-slate-900">{{ selectedRoom.identificador }}</div>
-              <div class="mt-1 text-[11px] text-slate-500">
+              <div class="text-xs font-medium text-slate-500">Habitación seleccionada</div>
+              <div class="text-lg font-semibold text-slate-900">{{ selectedRoom.identificador }}</div>
+              <div class="mt-1 text-sm text-slate-500">
                 Piso/Zona: <span class="font-medium text-slate-700">{{ selectedRoom.pisoZona?.nombre ?? 'Sin piso' }}</span>
               </div>
             </div>
-            <span class="rounded-full px-2 py-1 text-[11px] font-semibold"
+            <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
               [class.bg-emerald-100]="getRoomStatus(selectedRoom) === 'DISPONIBLE'"
               [class.text-emerald-700]="getRoomStatus(selectedRoom) === 'DISPONIBLE'"
               [class.bg-amber-100]="getRoomStatus(selectedRoom) === 'OCUPADA'"
@@ -139,40 +136,40 @@
             </span>
           </div>
 
-          <div class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-            <div class="text-[11px] uppercase tracking-wide text-slate-500">Precio por noche</div>
+          <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div class="text-xs text-slate-500">Precio por noche</div>
             <div class="mt-1 text-lg font-semibold text-slate-900">
               {{ +selectedRoom.precio | currency:'CLP':'symbol-narrow':'1.0-0' }}
             </div>
           </div>
 
           <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div class="flex items-center justify-between">
-                <div class="text-[11px] uppercase tracking-wide text-slate-500">Camas</div>
-                <span class="rounded-full bg-white px-2 py-1 text-[11px] text-slate-700">{{ bedTotal(selectedRoom) }}</span>
+                <div class="text-xs font-medium text-slate-500">Camas</div>
+                <span class="rounded-full bg-white px-2 py-1 text-xs text-slate-700">{{ bedTotal(selectedRoom) }}</span>
               </div>
               <div class="mt-2 space-y-1">
-                <div *ngFor="let bed of getBedTypeSummary(selectedRoom)" class="flex items-center justify-between text-[11px] text-slate-700">
+                <div *ngFor="let bed of getBedTypeSummary(selectedRoom)" class="flex items-center justify-between text-xs text-slate-700">
                   <span>{{ bed.name }}</span>
-                  <span class="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600">x{{ bed.count }}</span>
+                  <span class="rounded-full bg-white px-2 py-0.5 text-xs text-slate-600">x{{ bed.count }}</span>
                 </div>
-                <div *ngIf="getBedTypeSummary(selectedRoom).length === 0" class="text-[11px] text-slate-400">
+                <div *ngIf="getBedTypeSummary(selectedRoom).length === 0" class="text-xs text-slate-400">
                   Sin camas registradas
                 </div>
               </div>
             </div>
 
-            <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
-              <div class="text-[11px] uppercase tracking-wide text-slate-500">Comodidades</div>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div class="text-xs font-medium text-slate-500">Comodidades</div>
               <div class="mt-2 flex flex-wrap gap-1.5">
                 <span
                   *ngFor="let c of selectedRoom.comodidades"
-                  class="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700"
+                  class="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
                 >
                   {{ c.nombre }}
                 </span>
-                <span *ngIf="selectedRoom.comodidades.length === 0" class="text-[11px] text-slate-400">
+                <span *ngIf="selectedRoom.comodidades.length === 0" class="text-xs text-slate-400">
                   Sin comodidades
                 </span>
               </div>
@@ -182,13 +179,24 @@
           <div *ngIf="hasCurrentAssignmentDetails" class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
             <div class="flex items-center justify-between gap-2">
               <div class="text-xs font-semibold uppercase tracking-wide text-slate-700">Asignación actual</div>
-              <button
-                type="button"
-                class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                (click)="openEditCurrentAssignmentGuest()"
-              >
-                Editar huésped
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  (click)="openEditCurrentAssignmentGuest()"
+                >
+                  Editar huésped
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  [disabled]="!canCheckout"
+                  [class.opacity-50]="!canCheckout"
+                  (click)="checkoutSelectedRoom()"
+                >
+                  Liberar
+                </button>
+              </div>
             </div>
 
             <div class="mt-2 text-sm text-slate-900">
@@ -202,28 +210,30 @@
               </div>
               <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5">
                 <div class="text-slate-600">Monto total</div>
-                <div class="text-base font-semibold">
-                  {{ selectedRoomAssignment?.monto ? (selectedRoomAssignment?.monto | currency:'CLP':'symbol-narrow':'1.0-0') : '-' }}
-                </div>
+                <div class="text-sm font-semibold">{{ montoActualLabel }}</div>
               </div>
               <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5">
                 <div class="text-slate-600">Ingreso</div>
                 <div class="font-semibold">{{ formatApiDate(selectedRoomAssignment?.fechaIngreso) }}</div>
               </div>
               <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5">
-                <div class="text-slate-600">Salida estimada</div>
+                <div class="text-slate-600">Salida Estimada</div>
                 <div class="font-semibold">{{ formatApiDate(selectedRoomAssignment?.fechaSalidaEstimada) }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5 sm:col-span-2">
+                <div class="text-slate-600">Modalidad de cobro</div>
+                <div class="font-semibold">{{ tipoCobroActualLabel }}</div>
               </div>
             </div>
           </div>
 
-          <div *ngIf="!selectedRoomIsAvailable" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+          <div *ngIf="!selectedRoomIsAvailable" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
             Esta habitación no está disponible para asignar en este momento.
           </div>
         </div>
 
         <ng-template #emptySelectedRoom>
-          <div class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+          <div class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
             Selecciona una habitación en el mapa para ver su detalle y poder asignarla.
           </div>
         </ng-template>
@@ -231,10 +241,10 @@
         <div *ngIf="selectedRoomIsAvailable" class="mt-4 grid grid-cols-2 gap-3 text-sm">
           <div class="col-span-2">
             <div class="flex items-center justify-between">
-              <span class="text-xs text-slate-600">Huésped</span>
+              <span class="text-sm text-slate-600">Huésped</span>
               <button
                 type="button"
-                class="text-xs text-slate-600 hover:text-slate-900"
+                class="text-sm font-medium text-slate-600 hover:text-slate-900"
                 (click)="openGuestModal()"
               >
                 Registrar huésped
@@ -291,14 +301,14 @@
                 </div>
               </div>
             </div>
-            <div *ngIf="selectedGuest" class="mt-2 flex items-center justify-between text-xs text-slate-600">
+            <div *ngIf="selectedGuest" class="mt-2 flex items-center justify-between text-sm text-slate-600">
               <span>Seleccionado: {{ selectedGuest.nombreCompleto }}</span>
-              <button type="button" class="text-xs text-slate-500" (click)="clearGuestSelection()">
+              <button type="button" class="text-sm text-slate-500" (click)="clearGuestSelection()">
                 Quitar
               </button>
             </div>
           </div>
-          <label class="col-span-2 text-xs text-slate-600">
+          <label class="col-span-2 text-sm text-slate-600">
             Cantidad de noches
             <input
               class="mt-1 w-full rounded-lg border px-2 py-2 text-sm"
@@ -308,27 +318,37 @@
               [(ngModel)]="asignacionForm.cantidadNoches"
             />
           </label>
+          <label *ngIf="!isEmpresaConvenio" class="col-span-2 text-sm text-slate-600">
+            Medio de pago
+            <select class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="asignacionForm.medioPago">
+              <option value="EFECTIVO">Efectivo</option>
+              <option value="TARJETA">Tarjeta</option>
+            </select>
+          </label>
+          <div *ngIf="isEmpresaConvenio" class="col-span-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+            Huésped con empresa: estadía en modalidad convenio (sin venta directa en caja).
+          </div>
         </div>
 
         <div *ngIf="selectedRoomIsAvailable" class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen de estadía</div>
-          <div class="mt-1 text-xs text-slate-500">
+          <div class="text-sm font-medium text-slate-700">Resumen de estadía</div>
+          <div class="mt-1 text-sm text-slate-500">
             Cálculo automático según noches y tarifa de la habitación.
           </div>
 
           <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
             <div class="rounded-lg border border-slate-200 bg-white p-3">
-              <div class="text-xs text-slate-500">Ingreso</div>
+              <div class="text-sm text-slate-500">Ingreso</div>
               <div class="mt-1 text-base font-semibold text-slate-900">{{ fechaIngresoPreview }}</div>
             </div>
 
             <div class="rounded-lg border border-slate-200 bg-white p-3">
-              <div class="text-xs text-slate-500">Salida estimada</div>
+              <div class="text-sm text-slate-500">Salida</div>
               <div class="mt-1 text-base font-semibold text-slate-900">{{ fechaSalidaPreview }}</div>
             </div>
 
             <div class="rounded-lg border border-slate-200 bg-white p-3">
-              <div class="text-xs text-slate-500">Monto estimado</div>
+              <div class="text-sm text-slate-500">Monto estimado</div>
               <div class="mt-1 text-lg font-semibold text-slate-900">
                 {{ montoPreview === null ? '-' : (montoPreview | currency:'CLP':'symbol-narrow':'1.0-0') }}
               </div>
@@ -337,11 +357,11 @@
         </div>
 
         <div *ngIf="selectedRoomIsAvailable" class="mt-4 flex justify-end">
-          <button
-            class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-            [class.opacity-50]="savingAsignacion || !canAssign"
-            [disabled]="savingAsignacion || !canAssign"
-            (click)="saveAsignacion()"
+            <button
+              class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+              [class.opacity-50]="savingAsignacion || !canAssign"
+              [disabled]="savingAsignacion || !canAssign"
+              (click)="saveAsignacion()"
           >
             {{ savingAsignacion ? 'Asignando...' : 'Asignar habitación' }}
           </button>
@@ -353,11 +373,11 @@
   <div *ngIf="isGuestModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-xl">
       <div class="flex items-start justify-between border-b border-slate-200 p-4">
-        <div>
-          <div class="text-xs uppercase tracking-wide text-slate-400">Huésped</div>
-          <div class="text-lg font-semibold text-slate-900">
-            {{ modalSelectedGuest ? 'Editar huésped' : 'Registrar huésped' }}
-          </div>
+          <div>
+            <div class="text-sm font-medium text-slate-600">Huésped</div>
+            <div class="text-lg font-semibold text-slate-900">
+              {{ modalSelectedGuest ? 'Editar huésped' : 'Registrar huésped' }}
+            </div>
         </div>
         <button class="text-slate-500 hover:text-slate-700" (click)="closeGuestModal()">✕</button>
       </div>
@@ -452,7 +472,7 @@
             Empresa (opcional)
             <select class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="guestForm.empresaHostalId">
               <option [ngValue]="undefined">Sin empresa</option>
-              <option *ngFor="let e of empresas" [ngValue]="e.id">{{ e.nombreEmpresa }}</option>
+              <option *ngFor="let e of empresas" [ngValue]="e.id">{{ e.nombreEmpresa }} · {{ e.rutEmpresa }}</option>
             </select>
           </label>
           <label class="col-span-2 text-xs text-slate-600">
@@ -486,6 +506,10 @@
         <div *ngIf="showCompanyForm" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div class="text-xs font-semibold text-slate-600">Nueva empresa</div>
           <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
+            <label class="col-span-2">
+              RUT empresa
+              <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="companyForm.rutEmpresa" />
+            </label>
             <label class="col-span-2">
               Nombre empresa
               <input class="mt-1 w-full rounded-lg border px-2 py-2 text-sm" [(ngModel)]="companyForm.nombreEmpresa" />

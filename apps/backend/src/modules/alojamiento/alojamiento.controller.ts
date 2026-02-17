@@ -21,6 +21,7 @@ import { UpdateHabitacionDto } from './dto/update-habitacion.dto';
 import { CreateComodidadDto } from './dto/create-comodidad.dto';
 import { UpdateComodidadDto } from './dto/update-comodidad.dto';
 import { CreateEmpresaHostalDto } from './dto/create-empresa-hostal.dto';
+import { UpdateEmpresaHostalDto } from './dto/update-empresa-hostal.dto';
 import { CreateHuespedDto } from './dto/create-huesped.dto';
 import { CreateAsignacionHabitacionDto } from './dto/create-asignacion-habitacion.dto';
 import { UpdateHuespedDto } from './dto/update-huesped.dto';
@@ -111,6 +112,24 @@ export class AlojamientoController {
     return this.service.createEmpresaHostal(dto);
   }
 
+  @Patch('companies/:id')
+  @Roles('ADMIN')
+  updateEmpresa(@Param('id') id: string, @Body() dto: UpdateEmpresaHostalDto) {
+    return this.service.updateEmpresaHostal(id, dto);
+  }
+
+  @Delete('companies/:id')
+  @Roles('ADMIN')
+  removeEmpresa(@Param('id') id: string) {
+    return this.service.removeEmpresaHostal(id);
+  }
+
+  @Get('sales')
+  @Roles('ADMIN', 'VENDEDOR')
+  listVentasAlojamientoSesion(@Query('sesionCajaId') sesionCajaId: string, @Req() req: any) {
+    return this.service.listVentasAlojamientoBySesion(Number(sesionCajaId), req.user.idUsuario);
+  }
+
   // Huéspedes
   @Get('guests')
   @Roles('ADMIN', 'VENDEDOR')
@@ -138,6 +157,12 @@ export class AlojamientoController {
   @Roles('ADMIN', 'VENDEDOR')
   createAsignacion(@Body() dto: CreateAsignacionHabitacionDto, @Req() req: any) {
     return this.service.createAsignacion(dto, req.user.idUsuario);
+  }
+
+  @Post('assignments/:id/checkout')
+  @Roles('ADMIN', 'VENDEDOR')
+  checkoutAsignacion(@Param('id') id: string, @Req() req: any) {
+    return this.service.checkoutAsignacion(id, req.user.idUsuario);
   }
 
   // Comodidades

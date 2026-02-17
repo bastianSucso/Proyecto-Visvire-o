@@ -52,6 +52,7 @@ export interface Habitacion {
 
 export interface EmpresaHostal {
   id: string;
+  rutEmpresa: string;
   nombreEmpresa: string;
   nombreContratista: string | null;
   correoContratista: string | null;
@@ -75,10 +76,16 @@ export interface Huesped {
 export interface AsignacionActualResumen {
   id: string;
   noches: number;
-  monto: string;
+  tipoCobro: 'DIRECTO' | 'EMPRESA_CONVENIO';
   fechaIngreso: string;
   fechaSalidaEstimada: string;
   huesped: Huesped;
+  ventaAlojamiento: {
+    id: number;
+    medioPago: 'EFECTIVO' | 'TARJETA';
+    montoTotal: string;
+    fechaConfirmacion: string;
+  } | null;
 }
 
 export interface CreatePisoZonaDto {
@@ -151,10 +158,33 @@ export interface UpdateComodidadDto {
 }
 
 export interface CreateEmpresaHostalDto {
+  rutEmpresa: string;
   nombreEmpresa: string;
   nombreContratista?: string;
   correoContratista?: string;
   fonoContratista?: string;
+}
+
+export interface UpdateEmpresaHostalDto {
+  rutEmpresa?: string;
+  nombreEmpresa?: string;
+  nombreContratista?: string;
+  correoContratista?: string;
+  fonoContratista?: string;
+}
+
+export interface VentaAlojamientoTurnoItem {
+  idVentaAlojamiento: number;
+  fechaConfirmacion: string;
+  medioPago: 'EFECTIVO' | 'TARJETA';
+  montoTotal: string;
+  asignacion: {
+    id: string;
+    tipoCobro: 'DIRECTO' | 'EMPRESA_CONVENIO';
+    noches: number;
+    habitacion: { id: string; identificador: string };
+    huesped: { id: string; nombreCompleto: string };
+  };
 }
 
 export interface CreateHuespedDto {
@@ -179,6 +209,7 @@ export interface CreateAsignacionHabitacionDto {
   habitacionId: string;
   huespedId: string;
   cantidadNoches: number;
+  medioPago?: 'EFECTIVO' | 'TARJETA';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -247,6 +278,20 @@ export class AlojamientoService {
     return this.http.post<EmpresaHostal>('/api/alojamiento/companies', dto);
   }
 
+  updateEmpresa(id: string, dto: UpdateEmpresaHostalDto) {
+    return this.http.patch<EmpresaHostal>(`/api/alojamiento/companies/${id}`, dto);
+  }
+
+  removeEmpresa(id: string) {
+    return this.http.delete<{ ok: true }>(`/api/alojamiento/companies/${id}`);
+  }
+
+  listVentasAlojamientoSesion(sesionCajaId: number) {
+    return this.http.get<VentaAlojamientoTurnoItem[]>(
+      `/api/alojamiento/sales?sesionCajaId=${sesionCajaId}`,
+    );
+  }
+
   listHuespedes() {
     return this.http.get<Huesped[]>('/api/alojamiento/guests');
   }
@@ -284,6 +329,10 @@ export class AlojamientoService {
 
   createAsignacion(dto: CreateAsignacionHabitacionDto) {
     return this.http.post('/api/alojamiento/assignments', dto);
+  }
+
+  checkoutAsignacion(asignacionId: string) {
+    return this.http.post(`/api/alojamiento/assignments/${asignacionId}/checkout`, {});
   }
 
 }

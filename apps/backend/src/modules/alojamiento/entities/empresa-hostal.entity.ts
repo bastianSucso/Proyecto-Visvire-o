@@ -1,10 +1,22 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { HuespedEntity } from './huesped.entity';
 
 @Entity('empresa_hostal')
+@Index('ux_empresa_hostal_rut_empresa', ['rutEmpresa'], { unique: true })
 export class EmpresaHostalEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ type: 'varchar', length: 30, name: 'rut_empresa' })
+  rutEmpresa: string;
 
   @Column({ type: 'varchar', length: 120, name: 'nombre_empresa' })
   nombreEmpresa: string;

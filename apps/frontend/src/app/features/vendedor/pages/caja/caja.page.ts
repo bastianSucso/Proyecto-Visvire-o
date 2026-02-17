@@ -7,6 +7,11 @@ import { ProductosService, Producto } from '../../../../core/services/productos.
 import { Router } from '@angular/router';
 import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
 import { VentaListItem, VentasService } from '../../../../core/services/ventas.service';
+import {
+  AlojamientoService,
+  VentaAlojamientoTurnoItem,
+} from '../../../../core/services/alojamiento.service';
+import { forkJoin } from 'rxjs';
 
   type CajaFisica = {
     idCaja: number;
@@ -44,6 +49,7 @@ export class CajaPage implements OnInit {
   ventaError = '';
 
   ventas: VentaListItem[] = [];
+  ventasAlojamiento: VentaAlojamientoTurnoItem[] = [];
   ventasLoading = false;
   ventasError = '';
 
@@ -61,6 +67,7 @@ export class CajaPage implements OnInit {
     private productosService: ProductosService,
     private incidenciaService: IncidenciasService,
     private ventasService: VentasService,
+    private alojamientoService: AlojamientoService,
   ) {
     this.form = this.fb.group({
       cajaId: [null],
@@ -92,6 +99,28 @@ export class CajaPage implements OnInit {
   }
   get ventasConfirmadasTurno(): VentaListItem[] {
     return (this.ventas ?? []).filter(v => v.estado === 'CONFIRMADA');
+  }
+
+  get confirmadasTurnoItems() {
+    const ventas = (this.ventasConfirmadas ?? []).map((v) => ({
+      tipo: 'VENTA' as const,
+      idRef: v.idVenta,
+      titulo: `Venta #${v.idVenta}`,
+      detalle: `${v.cantidadTotal} ítems`,
+      total: this.toNumberMoney(v.totalVenta),
+      fecha: new Date(v.fechaConfirmacion ?? v.fechaCreacion),
+    }));
+
+    const alojamientos = (this.ventasAlojamiento ?? []).map((v) => ({
+      tipo: 'ALOJAMIENTO' as const,
+      idRef: v.idVentaAlojamiento,
+      titulo: `Alojamiento #${v.idVentaAlojamiento}`,
+      detalle: `${v.asignacion.habitacion.identificador} · ${v.asignacion.huesped.nombreCompleto}`,
+      total: this.toNumberMoney(v.montoTotal),
+      fecha: new Date(v.fechaConfirmacion),
+    }));
+
+    return [...ventas, ...alojamientos].sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
   }
 
   get totalVentasCLP(): number {
@@ -156,6 +185,8 @@ export class CajaPage implements OnInit {
         if (!this.cajaActual) {
           this.resumen = null;
           this.productos = [];
+          this.ventas = [];
+          this.ventasAlojamiento = [];
           return;
         }
 
@@ -165,6 +196,8 @@ export class CajaPage implements OnInit {
           this.cargarResumenActual();
         } else {
           this.productos = [];
+          this.ventas = [];
+          this.ventasAlojamiento = [];
           this.cargarResumenSesion();
         }
       },
@@ -340,6 +373,10 @@ export class CajaPage implements OnInit {
     });
   }
 
+  irAAlojamiento() {
+    this.router.navigate(['/pos/alojamiento']);
+  }
+
   cargarVentasTurno() {
     const sesionCajaId = this.cajaActual?.sesionCaja.idSesionCaja;
     if (!sesionCajaId) return;
@@ -347,8 +384,14 @@ export class CajaPage implements OnInit {
     this.ventasLoading = true;
     this.ventasError = '';
 
-    this.ventasService.listar(sesionCajaId).subscribe({
-      next: (data) => (this.ventas = data ?? []),
+    forkJoin({
+      ventas: this.ventasService.listar(sesionCajaId),
+      alojamientos: this.alojamientoService.listVentasAlojamientoSesion(sesionCajaId),
+    }).subscribe({
+      next: ({ ventas, alojamientos }) => {
+        this.ventas = ventas ?? [];
+        this.ventasAlojamiento = alojamientos ?? [];
+      },
       error: (err) => {
         this.ventasError = err?.error?.message ?? 'No se pudieron cargar las ventas del turno.';
       },

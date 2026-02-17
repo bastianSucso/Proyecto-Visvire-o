@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import {
   AlojamientoService,
   AsignacionActualResumen,
@@ -14,6 +14,7 @@ import {
   EmpresaHostal,
   CreateEmpresaHostalDto,
 } from '../../../../core/services/alojamiento.service';
+import { CajaService } from '../../../../core/services/caja.service';
 
 @Component({
   selector: 'app-alojamiento-home-page',
@@ -23,12 +24,36 @@ import {
 })
 export class AlojamientoHomePage implements OnInit {
   private alojamientoService = inject(AlojamientoService);
+  private cajaService = inject(CajaService);
+  private router = inject(Router);
   private readonly guestSuggestionLimit = 8;
   private readonly guestSearchMinChars = 2;
+  private readonly businessTimeZone = 'America/Santiago';
+  private readonly nightStartHour = 20;
+  private readonly nightEndHour = 5;
+  private readonly checkoutHour = 12;
   private readonly dateTimeFormatter = new Intl.DateTimeFormat('es-CL', {
+    timeZone: this.businessTimeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  private readonly businessDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: this.businessTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  private readonly businessOffsetFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: this.businessTimeZone,
+    timeZoneName: 'shortOffset',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -60,7 +85,11 @@ export class AlojamientoHomePage implements OnInit {
     habitacionId: '',
     huespedId: '',
     cantidadNoches: 1,
+    medioPago: 'EFECTIVO',
   };
+
+  cajaAbierta = false;
+  checkingCaja = false;
 
   loading = false;
   loadingPisos = false;
@@ -104,6 +133,7 @@ export class AlojamientoHomePage implements OnInit {
   };
 
   companyForm: CreateEmpresaHostalDto = {
+    rutEmpresa: '',
     nombreEmpresa: '',
     nombreContratista: '',
     correoContratista: '',
@@ -115,9 +145,25 @@ export class AlojamientoHomePage implements OnInit {
   private guestCache = new Map<string, Huesped>();
 
   ngOnInit() {
+    this.loadCajaActual();
     this.loadPisos();
     this.loadEmpresas();
     this.refreshDisponibles();
+  }
+
+  loadCajaActual() {
+    this.checkingCaja = true;
+    this.cajaService.cajaActual().subscribe({
+      next: (data) => {
+        this.cajaAbierta = data?.sesionCaja?.estado === 'ABIERTA';
+      },
+      error: () => {
+        this.cajaAbierta = false;
+      },
+      complete: () => {
+        this.checkingCaja = false;
+      },
+    });
   }
 
   refreshDisponibles() {
@@ -126,6 +172,9 @@ export class AlojamientoHomePage implements OnInit {
       next: (data) => {
         this.availableRooms = data ?? [];
         this.availableRoomIds = new Set(this.availableRooms.map((r) => r.id));
+        if (this.selectedRoom && this.availableRoomIds.has(this.selectedRoom.id)) {
+          this.asignacionForm.habitacionId = this.selectedRoom.id;
+        }
       },
       error: (err) => {
         const msg = err?.error?.message;
@@ -611,15 +660,22 @@ export class AlojamientoHomePage implements OnInit {
     }
 
     const payload: CreateEmpresaHostalDto = {
+      rutEmpresa: (this.companyForm.rutEmpresa || '').trim(),
       nombreEmpresa: nombre,
       nombreContratista: this.cleanOptional(this.companyForm.nombreContratista),
       correoContratista: this.cleanOptional(this.companyForm.correoContratista),
       fonoContratista: this.cleanOptional(this.companyForm.fonoContratista),
     };
 
+    if (!payload.rutEmpresa) {
+      this.modalErrorMsg = 'El RUT empresa es obligatorio.';
+      return;
+    }
+
     this.alojamientoService.createEmpresa(payload).subscribe({
       next: (res) => {
         this.companyForm = {
+          rutEmpresa: '',
           nombreEmpresa: '',
           nombreContratista: '',
           correoContratista: '',
@@ -638,6 +694,10 @@ export class AlojamientoHomePage implements OnInit {
 
   saveAsignacion() {
     this.clearMessages();
+    if (!this.cajaAbierta) {
+      this.setError('Debes tener una caja abierta para registrar estadías.');
+      return;
+    }
     if (!this.asignacionForm.habitacionId || !this.asignacionForm.huespedId) {
       this.setError('Selecciona habitación y huésped para asignar.');
       return;
@@ -646,13 +706,24 @@ export class AlojamientoHomePage implements OnInit {
       this.setError('Debes indicar una cantidad de noches válida.');
       return;
     }
+    if (!this.isEmpresaConvenio && !this.asignacionForm.medioPago) {
+      this.setError('Selecciona medio de pago para cobro directo.');
+      return;
+    }
 
     this.savingAsignacion = true;
+    const assignedRoomId = this.asignacionForm.habitacionId;
     this.alojamientoService.createAsignacion({ ...this.asignacionForm }).subscribe({
       next: () => {
         this.successMsg = 'Asignación registrada correctamente.';
         this.asignacionForm.habitacionId = '';
         this.asignacionForm.cantidadNoches = 1;
+        this.asignacionForm.medioPago = 'EFECTIVO';
+        this.clearGuestSelection();
+        this.selectedRoomAssignment = null;
+        if (assignedRoomId) {
+          this.loadCurrentAssignment(assignedRoomId);
+        }
         this.refreshDisponibles();
       },
       error: (err) => {
@@ -660,6 +731,38 @@ export class AlojamientoHomePage implements OnInit {
         this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo asignar la habitación.'));
       },
       complete: () => (this.savingAsignacion = false),
+    });
+  }
+
+  checkoutSelectedRoom() {
+    this.clearMessages();
+    if (!this.cajaAbierta) {
+      this.setError('Debes tener una caja abierta para registrar salida.');
+      return;
+    }
+
+    const assignmentId = this.selectedRoomAssignment?.id;
+    if (!assignmentId) {
+      this.setError('No hay estadía activa para cerrar en esta habitación.');
+      return;
+    }
+
+    const ok = window.confirm('Se registrará la salida y se liberará la habitación. ¿Confirmas?');
+    if (!ok) return;
+
+    this.alojamientoService.checkoutAsignacion(assignmentId).subscribe({
+      next: () => {
+        this.successMsg = 'Salida registrada. Habitación liberada correctamente.';
+        this.selectedRoomAssignment = null;
+        if (this.selectedRoom) {
+          this.asignacionForm.habitacionId = this.selectedRoom.id;
+        }
+        this.refreshDisponibles();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo registrar la salida.'));
+      },
     });
   }
 
@@ -682,7 +785,19 @@ export class AlojamientoHomePage implements OnInit {
   }
 
   get canAssign() {
-    return this.selectedRoomIsAvailable && !!this.asignacionForm.huespedId && this.getCantidadNoches() >= 1;
+    const paymentReady = this.isEmpresaConvenio || !!this.asignacionForm.medioPago;
+    return (
+      this.cajaAbierta &&
+      this.selectedRoomIsAvailable &&
+      !!this.asignacionForm.habitacionId &&
+      !!this.asignacionForm.huespedId &&
+      this.getCantidadNoches() >= 1 &&
+      paymentReady
+    );
+  }
+
+  get canCheckout() {
+    return this.cajaAbierta && this.hasCurrentAssignmentDetails;
   }
 
   get hasCurrentAssignmentDetails() {
@@ -711,6 +826,15 @@ export class AlojamientoHomePage implements OnInit {
   private clearMessages() {
     this.errorMsg = '';
     this.successMsg = '';
+  }
+
+  @HostListener('document:mousedown', ['$event'])
+  onDocumentMouseDown(event: MouseEvent) {
+    if (!this.errorMsg && !this.successMsg) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-toast-message]')) return;
+    this.clearMessages();
   }
 
   private cleanOptional(value?: string) {
@@ -744,6 +868,28 @@ export class AlojamientoHomePage implements OnInit {
     return precio * noches;
   }
 
+  get isEmpresaConvenio() {
+    return !!this.selectedGuest?.empresaHostal;
+  }
+
+  get tipoCobroActualLabel() {
+    const tipo = this.selectedRoomAssignment?.tipoCobro;
+    if (tipo === 'EMPRESA_CONVENIO') return 'Convenio empresa';
+    if (tipo === 'DIRECTO') return 'Cobro directo';
+    return '-';
+  }
+
+  get montoActualLabel() {
+    if (!this.selectedRoomAssignment) return '-';
+    if (this.selectedRoomAssignment.tipoCobro === 'EMPRESA_CONVENIO') {
+      return 'Facturación global empresa';
+    }
+
+    const monto = this.selectedRoomAssignment.ventaAlojamiento?.montoTotal;
+    if (!monto) return '-';
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Number(monto));
+  }
+
   private getCantidadNoches() {
     const noches = Number(this.asignacionForm.cantidadNoches);
     if (!Number.isInteger(noches)) return 0;
@@ -756,10 +902,109 @@ export class AlojamientoHomePage implements OnInit {
   }
 
   private calculateFechaSalida(fechaIngreso: Date, cantidadNoches: number) {
-    const salida = new Date(fechaIngreso);
-    salida.setDate(salida.getDate() + cantidadNoches);
-    salida.setHours(12, 0, 0, 0);
-    return salida;
+    const ingreso = this.getBusinessDateParts(fechaIngreso);
+    const cuentaNocheAnterior = this.isHourInsideNightWindow(ingreso.hour) && ingreso.hour < this.nightEndHour;
+
+    const fechaBase = this.shiftCalendarDate(
+      ingreso.year,
+      ingreso.month,
+      ingreso.day,
+      cuentaNocheAnterior ? -1 : 0,
+    );
+    const fechaCheckout = this.shiftCalendarDate(
+      fechaBase.year,
+      fechaBase.month,
+      fechaBase.day,
+      cantidadNoches,
+    );
+
+    return this.createBusinessDate(
+      fechaCheckout.year,
+      fechaCheckout.month,
+      fechaCheckout.day,
+      this.checkoutHour,
+      0,
+      0,
+    );
+  }
+
+  private isHourInsideNightWindow(hour: number) {
+    return hour >= this.nightStartHour || hour < this.nightEndHour;
+  }
+
+  private getBusinessDateParts(date: Date) {
+    const parts = this.businessDateTimeFormatter.formatToParts(date);
+    const get = (type: Intl.DateTimeFormatPartTypes) => {
+      const value = parts.find((part) => part.type === type)?.value;
+      if (!value) {
+        throw new Error('No se pudieron interpretar las fechas de alojamiento');
+      }
+      return Number(value);
+    };
+
+    return {
+      year: get('year'),
+      month: get('month'),
+      day: get('day'),
+      hour: get('hour'),
+      minute: get('minute'),
+      second: get('second'),
+    };
+  }
+
+  private shiftCalendarDate(year: number, month: number, day: number, deltaDays: number) {
+    const utc = new Date(Date.UTC(year, month - 1, day));
+    utc.setUTCDate(utc.getUTCDate() + deltaDays);
+    return {
+      year: utc.getUTCFullYear(),
+      month: utc.getUTCMonth() + 1,
+      day: utc.getUTCDate(),
+    };
+  }
+
+  private createBusinessDate(
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+  ) {
+    const utcBase = Date.UTC(year, month - 1, day, hour, minute, second, 0);
+    const firstGuess = new Date(utcBase);
+    const offsetMinutes = this.getOffsetMinutesAt(firstGuess);
+    const firstResult = new Date(utcBase - offsetMinutes * 60_000);
+
+    const confirmedOffset = this.getOffsetMinutesAt(firstResult);
+    if (confirmedOffset === offsetMinutes) {
+      return firstResult;
+    }
+
+    return new Date(utcBase - confirmedOffset * 60_000);
+  }
+
+  private getOffsetMinutesAt(date: Date) {
+    const part = this.businessOffsetFormatter
+      .formatToParts(date)
+      .find((item) => item.type === 'timeZoneName')?.value;
+
+    if (!part) {
+      throw new Error('No se pudo resolver zona horaria de negocio');
+    }
+
+    if (part === 'GMT' || part === 'UTC') {
+      return 0;
+    }
+
+    const match = part.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+    if (!match) {
+      throw new Error('Formato de zona horaria no soportado');
+    }
+
+    const sign = match[1] === '-' ? -1 : 1;
+    const hours = Number(match[2]);
+    const minutes = Number(match[3] ?? '0');
+    return sign * (hours * 60 + minutes);
   }
 
   private formatPreviewDate(date: Date) {
@@ -799,5 +1044,9 @@ export class AlojamientoHomePage implements OnInit {
       telefono.includes(normalizedTerm) ||
       empresa.includes(normalizedTerm)
     );
+  }
+
+  volver() {
+    this.router.navigate(['/pos/caja']);
   }
 }

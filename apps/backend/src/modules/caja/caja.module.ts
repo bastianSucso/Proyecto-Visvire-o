@@ -9,6 +9,7 @@ import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { VentaEntity } from '../ventas/entities/venta.entity';
+import { VentaAlojamientoEntity } from '../alojamiento/entities/venta-alojamiento.entity';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { VentaEntity } from '../ventas/entities/venta.entity';
       ProductoStockEntity,
       UbicacionEntity,
       VentaEntity,
+      VentaAlojamientoEntity,
     ]),
   ],
   controllers: [CajaController],

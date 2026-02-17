@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThanOrEqual, MoreThan, Not, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 import { PisoZonaEntity } from './entities/piso-zona.entity';
 import { HabitacionEntity } from './entities/habitacion.entity';
 import { ComodidadEntity } from './entities/comodidad.entity';
@@ -13,7 +13,16 @@ import { CamaEntity } from './entities/cama.entity';
 import { InventarioHabitacionEntity } from './entities/inventario-habitacion.entity';
 import { EmpresaHostalEntity } from './entities/empresa-hostal.entity';
 import { HuespedEntity } from './entities/huesped.entity';
-import { AsignacionHabitacionEntity } from './entities/asignacion-habitacion.entity';
+import {
+  AsignacionEstado,
+  AsignacionHabitacionEntity,
+  AsignacionTipoCobro,
+} from './entities/asignacion-habitacion.entity';
+import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
+import {
+  VentaAlojamientoEntity,
+  VentaAlojamientoEstado,
+} from './entities/venta-alojamiento.entity';
 import { CreatePisoZonaDto } from './dto/create-piso-zona.dto';
 import { UpdatePisoZonaDto } from './dto/update-piso-zona.dto';
 import { CreateHabitacionDto } from './dto/create-habitacion.dto';
@@ -21,15 +30,40 @@ import { UpdateHabitacionDto } from './dto/update-habitacion.dto';
 import { CreateComodidadDto } from './dto/create-comodidad.dto';
 import { UpdateComodidadDto } from './dto/update-comodidad.dto';
 import { CreateEmpresaHostalDto } from './dto/create-empresa-hostal.dto';
+import { UpdateEmpresaHostalDto } from './dto/update-empresa-hostal.dto';
 import { CreateHuespedDto } from './dto/create-huesped.dto';
 import { CreateAsignacionHabitacionDto } from './dto/create-asignacion-habitacion.dto';
 import { UpdateHuespedDto } from './dto/update-huesped.dto';
+import { MedioPago } from '../ventas/entities/venta.entity';
 
 type Rect = { posX: number; posY: number; ancho: number; alto: number };
 
 @Injectable()
 export class AlojamientoService {
+  private readonly businessTimeZone = 'America/Santiago';
+  private readonly nightStartHour = 20;
+  private readonly nightEndHour = 5;
+  private readonly checkoutHour = 12;
+  private readonly businessDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: this.businessTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  private readonly businessOffsetFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: this.businessTimeZone,
+    timeZoneName: 'shortOffset',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(PisoZonaEntity)
     private readonly pisoRepo: Repository<PisoZonaEntity>,
     @InjectRepository(HabitacionEntity)
@@ -46,6 +80,10 @@ export class AlojamientoService {
     private readonly huespedRepo: Repository<HuespedEntity>,
     @InjectRepository(AsignacionHabitacionEntity)
     private readonly asignacionRepo: Repository<AsignacionHabitacionEntity>,
+    @InjectRepository(SesionCajaEntity)
+    private readonly sesionRepo: Repository<SesionCajaEntity>,
+    @InjectRepository(VentaAlojamientoEntity)
+    private readonly ventaAlojamientoRepo: Repository<VentaAlojamientoEntity>,
   ) {}
 
   // -------- Empresas --------
@@ -54,17 +92,60 @@ export class AlojamientoService {
   }
 
   async createEmpresaHostal(dto: CreateEmpresaHostalDto) {
+    const rutEmpresa = dto.rutEmpresa.trim();
     const nombreEmpresa = dto.nombreEmpresa.trim();
+    if (!rutEmpresa) throw new BadRequestException('rutEmpresa es requerido');
     if (!nombreEmpresa) throw new BadRequestException('nombreEmpresa es requerido');
 
     const entity = this.empresaHostalRepo.create({
+      rutEmpresa,
       nombreEmpresa,
       nombreContratista: dto.nombreContratista?.trim() || null,
       correoContratista: dto.correoContratista?.trim() || null,
       fonoContratista: dto.fonoContratista?.trim() || null,
     });
 
-    return this.empresaHostalRepo.save(entity);
+    try {
+      return await this.empresaHostalRepo.save(entity);
+    } catch (err: any) {
+      if (err?.code === '23505') throw new ConflictException('El rutEmpresa ya existe');
+      throw err;
+    }
+  }
+
+  async updateEmpresaHostal(id: string, dto: UpdateEmpresaHostalDto) {
+    const empresa = await this.empresaHostalRepo.findOne({ where: { id } });
+    if (!empresa) throw new NotFoundException('Empresa hostal no encontrada');
+
+    if (dto.rutEmpresa !== undefined) {
+      const rutEmpresa = dto.rutEmpresa.trim();
+      if (!rutEmpresa) throw new BadRequestException('rutEmpresa es requerido');
+      empresa.rutEmpresa = rutEmpresa;
+    }
+
+    if (dto.nombreEmpresa !== undefined) {
+      const nombreEmpresa = dto.nombreEmpresa.trim();
+      if (!nombreEmpresa) throw new BadRequestException('nombreEmpresa es requerido');
+      empresa.nombreEmpresa = nombreEmpresa;
+    }
+
+    if (dto.nombreContratista !== undefined) empresa.nombreContratista = dto.nombreContratista?.trim() || null;
+    if (dto.correoContratista !== undefined) empresa.correoContratista = dto.correoContratista?.trim() || null;
+    if (dto.fonoContratista !== undefined) empresa.fonoContratista = dto.fonoContratista?.trim() || null;
+
+    try {
+      return await this.empresaHostalRepo.save(empresa);
+    } catch (err: any) {
+      if (err?.code === '23505') throw new ConflictException('El rutEmpresa ya existe');
+      throw err;
+    }
+  }
+
+  async removeEmpresaHostal(id: string) {
+    const empresa = await this.empresaHostalRepo.findOne({ where: { id } });
+    if (!empresa) throw new NotFoundException('Empresa hostal no encontrada');
+    await this.empresaHostalRepo.remove(empresa);
+    return { ok: true as const };
   }
 
   // -------- Huespedes --------
@@ -174,10 +255,109 @@ export class AlojamientoService {
   }
 
   private calculateFechaSalidaEstimada(fechaIngreso: Date, cantidadNoches: number) {
-    const fechaSalida = new Date(fechaIngreso);
-    fechaSalida.setDate(fechaSalida.getDate() + cantidadNoches);
-    fechaSalida.setHours(12, 0, 0, 0);
-    return fechaSalida;
+    const ingreso = this.getBusinessDateParts(fechaIngreso);
+    const cuentaNocheAnterior = this.isHourInsideNightWindow(ingreso.hour) && ingreso.hour < this.nightEndHour;
+
+    const fechaBase = this.shiftCalendarDate(
+      ingreso.year,
+      ingreso.month,
+      ingreso.day,
+      cuentaNocheAnterior ? -1 : 0,
+    );
+    const fechaCheckout = this.shiftCalendarDate(
+      fechaBase.year,
+      fechaBase.month,
+      fechaBase.day,
+      cantidadNoches,
+    );
+
+    return this.createBusinessDate(
+      fechaCheckout.year,
+      fechaCheckout.month,
+      fechaCheckout.day,
+      this.checkoutHour,
+      0,
+      0,
+    );
+  }
+
+  private isHourInsideNightWindow(hour: number) {
+    return hour >= this.nightStartHour || hour < this.nightEndHour;
+  }
+
+  private getBusinessDateParts(date: Date) {
+    const parts = this.businessDateTimeFormatter.formatToParts(date);
+    const get = (type: Intl.DateTimeFormatPartTypes) => {
+      const value = parts.find((part) => part.type === type)?.value;
+      if (!value) {
+        throw new BadRequestException('No se pudieron interpretar las fechas de alojamiento');
+      }
+      return Number(value);
+    };
+
+    return {
+      year: get('year'),
+      month: get('month'),
+      day: get('day'),
+      hour: get('hour'),
+      minute: get('minute'),
+      second: get('second'),
+    };
+  }
+
+  private shiftCalendarDate(year: number, month: number, day: number, deltaDays: number) {
+    const utc = new Date(Date.UTC(year, month - 1, day));
+    utc.setUTCDate(utc.getUTCDate() + deltaDays);
+    return {
+      year: utc.getUTCFullYear(),
+      month: utc.getUTCMonth() + 1,
+      day: utc.getUTCDate(),
+    };
+  }
+
+  private createBusinessDate(
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+  ) {
+    const utcBase = Date.UTC(year, month - 1, day, hour, minute, second, 0);
+    const firstGuess = new Date(utcBase);
+    const offsetMinutes = this.getOffsetMinutesAt(firstGuess);
+    const firstResult = new Date(utcBase - offsetMinutes * 60_000);
+
+    const confirmedOffset = this.getOffsetMinutesAt(firstResult);
+    if (confirmedOffset === offsetMinutes) {
+      return firstResult;
+    }
+
+    return new Date(utcBase - confirmedOffset * 60_000);
+  }
+
+  private getOffsetMinutesAt(date: Date) {
+    const part = this.businessOffsetFormatter
+      .formatToParts(date)
+      .find((item) => item.type === 'timeZoneName')?.value;
+
+    if (!part) {
+      throw new BadRequestException('No se pudo resolver zona horaria de negocio');
+    }
+
+    if (part === 'GMT' || part === 'UTC') {
+      return 0;
+    }
+
+    const match = part.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+    if (!match) {
+      throw new BadRequestException('Formato de zona horaria no soportado');
+    }
+
+    const sign = match[1] === '-' ? -1 : 1;
+    const hours = Number(match[2]);
+    const minutes = Number(match[3] ?? '0');
+    return sign * (hours * 60 + minutes);
   }
 
   private parseCantidadNoches(value: number) {
@@ -186,6 +366,17 @@ export class AlojamientoService {
       throw new BadRequestException('cantidadNoches debe ser un entero mayor o igual a 1');
     }
     return noches;
+  }
+
+  private async getSesionAbiertaOrFail(userId: string) {
+    const sesion = await this.sesionRepo.findOne({
+      where: { usuario: { idUsuario: userId }, fechaCierre: IsNull() },
+      relations: { usuario: true, caja: true },
+      order: { fechaApertura: 'DESC' },
+    });
+
+    if (!sesion) throw new ConflictException('No hay caja abierta (sesión abierta).');
+    return sesion;
   }
 
   async listHabitacionesDisponibles(from?: string, to?: string) {
@@ -212,7 +403,7 @@ export class AlojamientoService {
       .leftJoin(
         'h.asignaciones',
         'a',
-        'a.fechaIngreso < :fechaSalida AND a.fechaSalidaEstimada > :fechaIngreso',
+        'a.fechaIngreso < :fechaSalida AND COALESCE(a.fechaSalidaReal, a.fechaSalidaEstimada) > :fechaIngreso',
         { fechaIngreso, fechaSalida: fechaSalidaEstimada },
       )
       .leftJoinAndSelect('h.pisoZona', 'p')
@@ -224,7 +415,8 @@ export class AlojamientoService {
       .getMany();
   }
 
-  async createAsignacion(dto: CreateAsignacionHabitacionDto, vendedorId: string) {
+  async createAsignacion(dto: CreateAsignacionHabitacionDto, userId: string) {
+    const sesionAbierta = await this.getSesionAbiertaOrFail(userId);
     const noches = this.parseCantidadNoches(dto.cantidadNoches);
     const fechaIngreso = new Date();
     const fechaSalidaEstimada = this.calculateFechaSalidaEstimada(fechaIngreso, noches);
@@ -233,37 +425,95 @@ export class AlojamientoService {
     if (!habitacion) throw new NotFoundException('Habitación no encontrada');
     if (!habitacion.estadoActivo) throw new BadRequestException('La habitación no está activa');
 
-    const huesped = await this.huespedRepo.findOne({ where: { id: dto.huespedId } });
+    const huesped = await this.huespedRepo.findOne({
+      where: { id: dto.huespedId },
+      relations: { empresaHostal: true },
+    });
     if (!huesped) throw new NotFoundException('Huésped no encontrado');
+
+    const tipoCobro = huesped.empresaHostal
+      ? AsignacionTipoCobro.EMPRESA_CONVENIO
+      : AsignacionTipoCobro.DIRECTO;
 
     const precioHabitacion = Number(habitacion.precio);
     if (!Number.isFinite(precioHabitacion)) {
       throw new BadRequestException('Precio de habitación inválido');
     }
-    const monto = (precioHabitacion * noches).toFixed(2);
+    const montoTotal = (precioHabitacion * noches).toFixed(2);
 
-    const overlap = await this.asignacionRepo
-      .createQueryBuilder('a')
-      .where('a.habitacion = :habitacionId', { habitacionId: habitacion.id })
-      .andWhere('a.fechaIngreso < :fechaSalida', { fechaSalida: fechaSalidaEstimada })
-      .andWhere('a.fechaSalidaEstimada > :fechaIngreso', { fechaIngreso })
-      .getCount();
-
-    if (overlap > 0) {
-      throw new ConflictException('La habitación no está disponible en el rango indicado');
+    if (tipoCobro === AsignacionTipoCobro.DIRECTO && !dto.medioPago) {
+      throw new BadRequestException('Debes seleccionar medio de pago para cobro directo');
     }
 
-    const asignacion = this.asignacionRepo.create({
-      habitacion: { id: habitacion.id } as any,
-      huesped: { id: huesped.id } as any,
-      vendedor: { idUsuario: vendedorId } as any,
-      fechaIngreso,
-      fechaSalidaEstimada,
-      noches,
-      monto,
+    return this.dataSource.transaction(async (manager) => {
+      const overlap = await manager
+        .getRepository(AsignacionHabitacionEntity)
+        .createQueryBuilder('a')
+        .where('a.habitacion = :habitacionId', { habitacionId: habitacion.id })
+        .andWhere('a.fechaIngreso < :fechaSalida', { fechaSalida: fechaSalidaEstimada })
+        .andWhere('COALESCE(a.fechaSalidaReal, a.fechaSalidaEstimada) > :fechaIngreso', {
+          fechaIngreso,
+        })
+        .getCount();
+
+      if (overlap > 0) {
+        throw new ConflictException('La habitación no está disponible en el rango indicado');
+      }
+
+      const asignacion = manager.getRepository(AsignacionHabitacionEntity).create({
+        habitacion: { id: habitacion.id } as any,
+        huesped: { id: huesped.id } as any,
+        sesionApertura: { id: sesionAbierta.id } as any,
+        fechaIngreso,
+        fechaSalidaEstimada,
+        fechaSalidaReal: null,
+        estado: AsignacionEstado.ACTIVA,
+        tipoCobro,
+        noches,
+      });
+
+      const savedAsignacion = await manager.getRepository(AsignacionHabitacionEntity).save(asignacion);
+
+      if (tipoCobro === AsignacionTipoCobro.DIRECTO) {
+        const venta = manager.getRepository(VentaAlojamientoEntity).create({
+          asignacion: { id: savedAsignacion.id } as any,
+          sesionCaja: { id: sesionAbierta.id } as any,
+          medioPago: dto.medioPago as MedioPago,
+          montoTotal,
+          estado: VentaAlojamientoEstado.CONFIRMADA,
+        });
+        await manager.getRepository(VentaAlojamientoEntity).save(venta);
+      }
+
+      return savedAsignacion;
+    });
+  }
+
+  async checkoutAsignacion(asignacionId: string, userId: string) {
+    const sesionAbierta = await this.getSesionAbiertaOrFail(userId);
+
+    const asignacion = await this.asignacionRepo.findOne({
+      where: { id: asignacionId },
+      relations: { habitacion: true },
     });
 
-    return this.asignacionRepo.save(asignacion);
+    if (!asignacion) throw new NotFoundException('Asignación no encontrada');
+    if (asignacion.estado === AsignacionEstado.FINALIZADA) {
+      throw new ConflictException('La estadía ya se encuentra finalizada');
+    }
+
+    const ahora = new Date();
+    asignacion.fechaSalidaReal = ahora;
+    asignacion.estado = AsignacionEstado.FINALIZADA;
+    asignacion.sesionCheckout = { id: sesionAbierta.id } as any;
+
+    const saved = await this.asignacionRepo.save(asignacion);
+    return {
+      id: saved.id,
+      estado: saved.estado,
+      fechaSalidaReal: saved.fechaSalidaReal,
+      habitacionId: (saved.habitacion as any)?.id,
+    };
   }
 
   async getAsignacionActualByHabitacion(habitacionId: string) {
@@ -271,30 +521,81 @@ export class AlojamientoService {
     if (!habitacion) throw new NotFoundException('Habitación no encontrada');
 
     const ahora = new Date();
-    const asignacion = await this.asignacionRepo.findOne({
-      where: {
-        habitacion: { id: habitacionId } as any,
-        fechaIngreso: LessThanOrEqual(ahora),
-        fechaSalidaEstimada: MoreThan(ahora),
-      },
-      relations: {
-        huesped: { empresaHostal: true },
-      },
-      order: {
-        fechaIngreso: 'DESC',
-      },
-    });
+    const asignacion = await this.asignacionRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.huesped', 'h')
+      .leftJoinAndSelect('h.empresaHostal', 'e')
+      .where('a.habitacion = :habitacionId', { habitacionId })
+      .andWhere('a.fechaIngreso <= :ahora', { ahora })
+      .andWhere('COALESCE(a.fechaSalidaReal, a.fechaSalidaEstimada) > :ahora', { ahora })
+      .orderBy('a.fechaIngreso', 'DESC')
+      .getOne();
 
     if (!asignacion) return null;
+
+    const venta = await this.ventaAlojamientoRepo.findOne({
+      where: { asignacion: { id: asignacion.id } } as any,
+    });
 
     return {
       id: asignacion.id,
       noches: asignacion.noches,
-      monto: asignacion.monto,
+      tipoCobro: asignacion.tipoCobro,
       fechaIngreso: asignacion.fechaIngreso,
       fechaSalidaEstimada: asignacion.fechaSalidaEstimada,
       huesped: asignacion.huesped,
+      ventaAlojamiento: venta
+        ? {
+            id: venta.id,
+            medioPago: venta.medioPago,
+            montoTotal: venta.montoTotal,
+            fechaConfirmacion: venta.fechaConfirmacion,
+          }
+        : null,
     };
+  }
+
+  async listVentasAlojamientoBySesion(sesionCajaId: number, userId: string) {
+    if (!Number.isFinite(sesionCajaId) || sesionCajaId <= 0) {
+      throw new BadRequestException('sesionCajaId inválido');
+    }
+
+    const sesion = await this.sesionRepo.findOne({
+      where: { id: sesionCajaId, usuario: { idUsuario: userId } as any },
+    });
+
+    if (!sesion) throw new NotFoundException('Sesión de caja no encontrada');
+
+    const rows = await this.ventaAlojamientoRepo.find({
+      where: { sesionCaja: { id: sesionCajaId } as any, estado: VentaAlojamientoEstado.CONFIRMADA },
+      relations: {
+        asignacion: {
+          habitacion: true,
+          huesped: true,
+        },
+      },
+      order: { fechaConfirmacion: 'DESC' },
+    });
+
+    return rows.map((row) => ({
+      idVentaAlojamiento: row.id,
+      fechaConfirmacion: row.fechaConfirmacion,
+      medioPago: row.medioPago,
+      montoTotal: row.montoTotal,
+      asignacion: {
+        id: row.asignacion.id,
+        tipoCobro: row.asignacion.tipoCobro,
+        noches: row.asignacion.noches,
+        habitacion: {
+          id: row.asignacion.habitacion.id,
+          identificador: row.asignacion.habitacion.identificador,
+        },
+        huesped: {
+          id: row.asignacion.huesped.id,
+          nombreCompleto: row.asignacion.huesped.nombreCompleto,
+        },
+      },
+    }));
   }
 
   // -------- Pisos / Zonas --------

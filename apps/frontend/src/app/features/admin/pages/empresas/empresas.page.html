@@ -1,0 +1,174 @@
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-6xl px-4 py-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Empresas</h1>
+        <p class="mt-1 text-sm text-slate-500">Gestiona empresas asociadas a huéspedes corporativos.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          (click)="refresh()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Refrescar
+        </button>
+
+        <button
+          type="button"
+          (click)="openCreate()"
+          class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+        >
+          + Nueva empresa
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="errorMsg && !modalOpen" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ errorMsg }}
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="p-5 sm:p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-slate-900">Listado</p>
+            <p class="text-xs text-slate-500">CRUD básico de empresas del hostal.</p>
+          </div>
+
+          <div *ngIf="loading" class="flex items-center gap-3 text-sm text-slate-600">
+            <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+            Cargando empresas...
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            [(ngModel)]="q"
+            (ngModelChange)="onSearchChange()"
+            type="text"
+            placeholder="Buscar por RUT, nombre o contacto..."
+            class="w-full sm:max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+          />
+
+          <div class="flex items-center justify-between gap-3 sm:justify-end">
+            <div class="text-xs text-slate-500">Mostrando {{ fromItem }} - {{ toItem }} de {{ totalItems }}</div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-500">Filas:</label>
+              <select
+                [(ngModel)]="pageSize"
+                (change)="onPageSizeChange()"
+                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              >
+                <option *ngFor="let n of pageSizes" [ngValue]="n">{{ n }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+              <tr>
+                <th class="px-4 py-3">RUT Empresa</th>
+                <th class="px-4 py-3">Nombre empresa</th>
+                <th class="px-4 py-3">Contacto</th>
+                <th class="px-4 py-3">Correo</th>
+                <th class="px-4 py-3">Fono</th>
+                <th class="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody class="text-slate-800">
+              <tr *ngFor="let e of pageItems" class="border-t border-slate-100">
+                <td class="px-4 py-3 font-semibold text-slate-900">{{ e.rutEmpresa }}</td>
+                <td class="px-4 py-3">{{ e.nombreEmpresa }}</td>
+                <td class="px-4 py-3">{{ e.nombreContratista || '-' }}</td>
+                <td class="px-4 py-3">{{ e.correoContratista || '-' }}</td>
+                <td class="px-4 py-3">{{ e.fonoContratista || '-' }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      (click)="openEdit(e)"
+                      class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      (click)="remove(e)"
+                      class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr *ngIf="!loading && pageItems.length === 0">
+                <td colspan="6" class="px-4 py-10 text-center text-slate-500">No hay resultados para la búsqueda.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="modalOpen" class="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+      <div class="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900">{{ editing ? 'Editar empresa' : 'Nueva empresa' }}</h2>
+          <button (click)="closeModal()" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+
+        <form class="p-5 space-y-4" [formGroup]="form" (ngSubmit)="save()">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">RUT empresa</label>
+            <input formControlName="rutEmpresa" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Nombre empresa</label>
+            <input formControlName="nombreEmpresa" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Nombre contratista</label>
+              <input formControlName="nombreContratista" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Fono contratista</label>
+              <input formControlName="fonoContratista" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Correo contratista</label>
+            <input formControlName="correoContratista" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+          </div>
+
+          <div *ngIf="errorMsg" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ errorMsg }}
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              (click)="closeModal()"
+              class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

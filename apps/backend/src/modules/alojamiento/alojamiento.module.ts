@@ -10,6 +10,8 @@ import { InventarioHabitacionEntity } from './entities/inventario-habitacion.ent
 import { EmpresaHostalEntity } from './entities/empresa-hostal.entity';
 import { HuespedEntity } from './entities/huesped.entity';
 import { AsignacionHabitacionEntity } from './entities/asignacion-habitacion.entity';
+import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
+import { VentaAlojamientoEntity } from './entities/venta-alojamiento.entity';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { AsignacionHabitacionEntity } from './entities/asignacion-habitacion.ent
       EmpresaHostalEntity,
       HuespedEntity,
       AsignacionHabitacionEntity,
+      SesionCajaEntity,
+      VentaAlojamientoEntity,
     ]),
   ],
   controllers: [AlojamientoController],

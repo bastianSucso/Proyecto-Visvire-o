@@ -1,15 +1,15 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class CreateEmpresaHostalDto {
+export class UpdateEmpresaHostalDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(30)
-  rutEmpresa: string;
+  rutEmpresa?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  nombreEmpresa: string;
+  nombreEmpresa?: string;
 
   @IsOptional()
   @IsString()

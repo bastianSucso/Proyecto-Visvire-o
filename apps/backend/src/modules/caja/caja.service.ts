@@ -14,6 +14,10 @@ import { StockSesionCajaEntity } from '../historial/entities/stock-sesion-caja.e
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { VentaEntity, VentaEstado, MedioPago } from '../ventas/entities/venta.entity';
+import {
+  VentaAlojamientoEntity,
+  VentaAlojamientoEstado,
+} from '../alojamiento/entities/venta-alojamiento.entity';
 
 import { AbrirCajaDto } from './dto/abrir-caja.dto';
 import { UpdateCajaDto } from './dto/update-caja.dto';
@@ -30,6 +34,8 @@ export class CajaService {
     @InjectRepository(ProductoStockEntity) private readonly productoStockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(UbicacionEntity) private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(VentaEntity) private readonly ventaRepo: Repository<VentaEntity>,
+    @InjectRepository(VentaAlojamientoEntity)
+    private readonly ventaAlojamientoRepo: Repository<VentaAlojamientoEntity>,
   ) {}
 
   // =========================
@@ -79,7 +85,7 @@ export class CajaService {
   }
 
   private async getResumenVentasSesion(sesionId: number) {
-    const row = await this.ventaRepo
+    const rowVentas = await this.ventaRepo
       .createQueryBuilder('v')
       .select('COALESCE(SUM(v.total_venta::numeric), 0)', 'totalVentas')
       .addSelect('COUNT(*)', 'cantidadVentas')
@@ -101,12 +107,43 @@ export class CajaService {
         totalTarjeta: string;
       }>();
 
-    const totalVentas = Number(row?.totalVentas ?? 0).toFixed(2);
-    const cantidadVentas = Number(row?.cantidadVentas ?? 0);
-    const totalEfectivo = Number(row?.totalEfectivo ?? 0).toFixed(2);
-    const totalTarjeta = Number(row?.totalTarjeta ?? 0).toFixed(2);
+    const rowAlojamiento = await this.ventaAlojamientoRepo
+      .createQueryBuilder('va')
+      .select('COALESCE(SUM(va.monto_total::numeric), 0)', 'totalVentas')
+      .addSelect('COUNT(*)', 'cantidadVentas')
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN va.medio_pago = :efectivo THEN va.monto_total::numeric ELSE 0 END), 0)',
+        'totalEfectivo',
+      )
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN va.medio_pago = :tarjeta THEN va.monto_total::numeric ELSE 0 END), 0)',
+        'totalTarjeta',
+      )
+      .where('va.id_sesion_caja = :sesionId', { sesionId })
+      .andWhere('va.estado = :estado', { estado: VentaAlojamientoEstado.CONFIRMADA })
+      .setParameters({ efectivo: MedioPago.EFECTIVO, tarjeta: MedioPago.TARJETA })
+      .getRawOne<{
+        totalVentas: string;
+        cantidadVentas: string;
+        totalEfectivo: string;
+        totalTarjeta: string;
+      }>();
 
-    return { totalVentas, cantidadVentas, totalEfectivo, totalTarjeta };
+    const totalVentas =
+      Number(rowVentas?.totalVentas ?? 0) + Number(rowAlojamiento?.totalVentas ?? 0);
+    const cantidadVentas =
+      Number(rowVentas?.cantidadVentas ?? 0) + Number(rowAlojamiento?.cantidadVentas ?? 0);
+    const totalEfectivo =
+      Number(rowVentas?.totalEfectivo ?? 0) + Number(rowAlojamiento?.totalEfectivo ?? 0);
+    const totalTarjeta =
+      Number(rowVentas?.totalTarjeta ?? 0) + Number(rowAlojamiento?.totalTarjeta ?? 0);
+
+    return {
+      totalVentas: totalVentas.toFixed(2),
+      cantidadVentas,
+      totalEfectivo: totalEfectivo.toFixed(2),
+      totalTarjeta: totalTarjeta.toFixed(2),
+    };
   }
 
   private buildResumenResponse(sesion: SesionCajaEntity, resumen: {

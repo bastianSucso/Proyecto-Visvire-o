@@ -180,11 +180,13 @@
                     [attr.height]="room.alto"
                     [attr.fill]="!mapEditMode
                       ? (room.estadoActivo
-                        ? (hoveredRoomId === room.id ? '#e3edf7' : '#eef4fb')
+                        ? (isSelected(room.id)
+                          ? '#d6e7fa'
+                          : (hoveredRoomId === room.id ? '#e3edf7' : '#eef4fb'))
                         : '#e2e8f0')
                       : (room.estadoActivo ? '#93c5fd' : '#e2e8f0')"
                     [attr.stroke]="isSelected(room.id)
-                      ? (!mapEditMode ? '#5b7ea6' : '#2563eb')
+                      ? (!mapEditMode ? '#315f8d' : '#2563eb')
                       : (hoveredRoomId === room.id && !mapEditMode ? '#5b7ea6' : '#0f172a')"
                     stroke-width="2"
                     rx="6"

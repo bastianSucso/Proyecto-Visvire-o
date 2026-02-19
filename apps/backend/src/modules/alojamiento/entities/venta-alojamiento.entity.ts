@@ -25,11 +25,11 @@ export class VentaAlojamientoEntity {
 
   @OneToOne(() => AsignacionHabitacionEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_asignacion_habitacion' })
-  asignacion: AsignacionHabitacionEntity;
+  asignacion!: AsignacionHabitacionEntity;
 
   @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_sesion_caja' })
-  sesionCaja: SesionCajaEntity;
+  sesionCaja!: SesionCajaEntity;
 
   @Column({ type: 'enum', enum: MedioPago, name: 'medio_pago' })
   medioPago: MedioPago;

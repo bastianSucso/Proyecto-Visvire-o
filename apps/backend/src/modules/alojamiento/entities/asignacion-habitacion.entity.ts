@@ -26,25 +26,25 @@ export enum AsignacionTipoCobro {
 @Index('ix_asignacion_habitacion_huesped', ['huesped'])
 export class AsignacionHabitacionEntity {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @ManyToOne(() => HabitacionEntity, (h) => h.asignaciones, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_habitacion' })
-  habitacion: HabitacionEntity;
+  habitacion!: HabitacionEntity;
 
   @ManyToOne(() => HuespedEntity, (h) => h.asignaciones, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_huesped' })
-  huesped: HuespedEntity;
+  huesped!: HuespedEntity;
 
   @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_sesion_apertura' })
-  sesionApertura: SesionCajaEntity;
+  sesionApertura!: SesionCajaEntity;
 
   @Column({ type: 'timestamp', name: 'fecha_ingreso' })
-  fechaIngreso: Date;
+  fechaIngreso!: Date;
 
   @Column({ type: 'timestamp', name: 'fecha_salida_estimada' })
-  fechaSalidaEstimada: Date;
+  fechaSalidaEstimada!: Date;
 
   @Column({
     type: 'enum',

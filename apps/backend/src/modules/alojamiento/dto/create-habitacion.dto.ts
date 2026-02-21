@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -13,6 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CamaInputDto, InventarioInputDto } from './habitacion-inputs.dto';
+import { HabitacionEstadoOperativo } from '../entities/habitacion.entity';
 
 export class CreateHabitacionDto {
   @IsString()
@@ -28,6 +30,10 @@ export class CreateHabitacionDto {
   @IsOptional()
   @IsBoolean()
   estadoActivo?: boolean;
+
+  @IsOptional()
+  @IsEnum(HabitacionEstadoOperativo)
+  estadoOperativo?: HabitacionEstadoOperativo;
 
   @Type(() => Number)
   @IsInt()

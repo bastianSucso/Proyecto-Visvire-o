@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { EmpresaHostalEntity } from './empresa-hostal.entity';
 import { AsignacionHabitacionEntity } from './asignacion-habitacion.entity';
+import { ReservaHabitacionEntity } from './reserva-habitacion.entity';
 
 @Entity('huesped')
 @Index('ux_huesped_rut_unq', ['rut'], { unique: true, where: '"rut" IS NOT NULL' })
@@ -39,6 +40,9 @@ export class HuespedEntity {
 
   @OneToMany(() => AsignacionHabitacionEntity, (a) => a.huesped)
   asignaciones: AsignacionHabitacionEntity[];
+
+  @OneToMany(() => ReservaHabitacionEntity, (r) => r.huesped)
+  reservas: ReservaHabitacionEntity[];
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt: Date;

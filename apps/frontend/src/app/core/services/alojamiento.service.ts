@@ -40,6 +40,7 @@ export interface Habitacion {
   identificador: string;
   precio: string;
   estadoActivo: boolean;
+  estadoOperativo: 'DISPONIBLE' | 'EN_LIMPIEZA';
   posX: number;
   posY: number;
   ancho: number;
@@ -48,6 +49,8 @@ export interface Habitacion {
   camas: Cama[];
   inventarios: InventarioHabitacion[];
   pisoZona?: PisoZona;
+  hasActiveAssignmentNow?: boolean;
+  hasActiveReservationNow?: boolean;
 }
 
 export interface EmpresaHostal {
@@ -121,6 +124,7 @@ export interface CreateHabitacionDto {
   identificador: string;
   precio: number;
   estadoActivo?: boolean;
+  estadoOperativo?: 'DISPONIBLE' | 'EN_LIMPIEZA';
   posX: number;
   posY: number;
   ancho: number;
@@ -135,6 +139,7 @@ export interface UpdateHabitacionDto {
   identificador?: string;
   precio?: number;
   estadoActivo?: boolean;
+  estadoOperativo?: 'DISPONIBLE' | 'EN_LIMPIEZA';
   posX?: number;
   posY?: number;
   ancho?: number;
@@ -212,6 +217,33 @@ export interface CreateAsignacionHabitacionDto {
   medioPago?: 'EFECTIVO' | 'TARJETA';
 }
 
+export type ReservaHabitacionEstado = 'ACTIVA' | 'CANCELADA' | 'ATENDIDA';
+
+export interface ReservaHabitacion {
+  id: string;
+  fechaIngreso: string;
+  fechaSalidaEstimada: string;
+  estado: ReservaHabitacionEstado;
+  motivoCancelacion: string | null;
+  fechaCancelacion: string | null;
+  fechaAtencion: string | null;
+  huesped: Huesped;
+  habitacion: Habitacion;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReservaHabitacionDto {
+  habitacionId: string;
+  huespedId: string;
+  fechaIngreso: string;
+  fechaSalidaEstimada: string;
+}
+
+export interface CancelReservaHabitacionDto {
+  motivoCancelacion: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AlojamientoService {
   private http = inject(HttpClient);
@@ -242,6 +274,10 @@ export class AlojamientoService {
 
   updateHabitacion(id: string, dto: UpdateHabitacionDto) {
     return this.http.patch<Habitacion>(`/api/alojamiento/rooms/${id}`, dto);
+  }
+
+  finishRoomCleaning(id: string) {
+    return this.http.patch<Habitacion>(`/api/alojamiento/rooms/${id}/finish-cleaning`, {});
   }
 
   removeHabitacion(id: string) {
@@ -333,6 +369,26 @@ export class AlojamientoService {
 
   checkoutAsignacion(asignacionId: string) {
     return this.http.post(`/api/alojamiento/assignments/${asignacionId}/checkout`, {});
+  }
+
+  listReservasByRoom(roomId: string, from?: string, to?: string) {
+    const queryParts: string[] = [];
+    if (from !== undefined) queryParts.push(`from=${encodeURIComponent(from)}`);
+    if (to !== undefined) queryParts.push(`to=${encodeURIComponent(to)}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    return this.http.get<ReservaHabitacion[]>(`/api/alojamiento/rooms/${roomId}/reservations${query}`);
+  }
+
+  createReserva(dto: CreateReservaHabitacionDto) {
+    return this.http.post<ReservaHabitacion>('/api/alojamiento/reservations', dto);
+  }
+
+  cancelReserva(reservaId: string, dto: CancelReservaHabitacionDto) {
+    return this.http.patch<ReservaHabitacion>(`/api/alojamiento/reservations/${reservaId}/cancel`, dto);
+  }
+
+  attendReserva(reservaId: string) {
+    return this.http.patch<ReservaHabitacion>(`/api/alojamiento/reservations/${reservaId}/attend`, {});
   }
 
 }

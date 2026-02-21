@@ -16,6 +16,12 @@ import { CamaEntity } from './cama.entity';
 import { ComodidadEntity } from './comodidad.entity';
 import { InventarioHabitacionEntity } from './inventario-habitacion.entity';
 import { AsignacionHabitacionEntity } from './asignacion-habitacion.entity';
+import { ReservaHabitacionEntity } from './reserva-habitacion.entity';
+
+export enum HabitacionEstadoOperativo {
+  DISPONIBLE = 'DISPONIBLE',
+  EN_LIMPIEZA = 'EN_LIMPIEZA',
+}
 
 @Entity('habitacion')
 @Unique('ux_habitacion_identificador_piso', ['identificador', 'pisoZona'])
@@ -31,6 +37,14 @@ export class HabitacionEntity {
 
   @Column({ type: 'boolean', name: 'estado_activo', default: true })
   estadoActivo: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: HabitacionEstadoOperativo,
+    name: 'estado_operativo',
+    default: HabitacionEstadoOperativo.DISPONIBLE,
+  })
+  estadoOperativo: HabitacionEstadoOperativo;
 
   @Column({ type: 'int', name: 'pos_x' })
   posX: number;
@@ -64,6 +78,9 @@ export class HabitacionEntity {
 
   @OneToMany(() => AsignacionHabitacionEntity, (a) => a.habitacion)
   asignaciones: AsignacionHabitacionEntity[];
+
+  @OneToMany(() => ReservaHabitacionEntity, (r) => r.habitacion)
+  reservas: ReservaHabitacionEntity[];
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt: Date;

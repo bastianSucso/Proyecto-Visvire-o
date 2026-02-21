@@ -6,6 +6,7 @@ import {
   AlojamientoService,
   AsignacionActualResumen,
   CreateAsignacionHabitacionDto,
+  CreateReservaHabitacionDto,
   Habitacion,
   Huesped,
   PisoZona,
@@ -13,6 +14,7 @@ import {
   UpdateHuespedDto,
   EmpresaHostal,
   CreateEmpresaHostalDto,
+  ReservaHabitacion,
 } from '../../../../core/services/alojamiento.service';
 import { CajaService } from '../../../../core/services/caja.service';
 
@@ -72,12 +74,26 @@ export class AlojamientoHomePage implements OnInit {
   selectedRoomAssignment: AsignacionActualResumen | null = null;
   selectedGuest: Huesped | null = null;
 
+  reservasRoom: ReservaHabitacion[] = [];
+  loadingReservas = false;
+  isReservaModalOpen = false;
+  reservaForm: CreateReservaHabitacionDto = {
+    habitacionId: '',
+    huespedId: '',
+    fechaIngreso: '',
+    fechaSalidaEstimada: '',
+  };
+  selectedCalendarDate = '';
+  selectedReserva: ReservaHabitacion | null = null;
+  cancelReservaMotivo = '';
+
   empresas: EmpresaHostal[] = [];
 
   viewBoxX = 0;
   viewBoxY = 0;
   viewBoxW = 1400;
   viewBoxH = 900;
+  calendarMonth = this.startOfMonth(new Date());
   isPanning = false;
   panStart: { x: number; y: number; vx: number; vy: number } | null = null;
 
@@ -96,6 +112,7 @@ export class AlojamientoHomePage implements OnInit {
   loadingRooms = false;
   loadingEmpresas = false;
   savingAsignacion = false;
+  finishingCleaning = false;
   errorMsg = '';
   successMsg = '';
 
@@ -208,6 +225,8 @@ export class AlojamientoHomePage implements OnInit {
     this.selectedPiso = piso;
     this.selectedRoom = null;
     this.selectedRoomAssignment = null;
+    this.reservasRoom = [];
+    this.selectedReserva = null;
     this.resetViewBox(piso);
     this.loadHabitaciones(piso.id);
   }
@@ -227,7 +246,33 @@ export class AlojamientoHomePage implements OnInit {
     this.loadingRooms = true;
     this.alojamientoService.listHabitaciones(pisoId).subscribe({
       next: (data) => {
-        this.habitacionesPiso = data ?? [];
+        const rooms = data ?? [];
+        this.habitacionesPiso = rooms;
+
+        if (!this.selectedRoom) {
+          return;
+        }
+
+        const refreshedSelected = rooms.find((room) => room.id === this.selectedRoom?.id) || null;
+        if (!refreshedSelected) {
+          this.selectedRoom = null;
+          this.selectedRoomAssignment = null;
+          this.selectedReserva = null;
+          this.reservasRoom = [];
+          this.asignacionForm.habitacionId = '';
+          this.reservaForm.habitacionId = '';
+          return;
+        }
+
+        this.selectedRoom = refreshedSelected;
+        this.asignacionForm.habitacionId = refreshedSelected.id;
+        this.reservaForm.habitacionId = refreshedSelected.id;
+
+        if (refreshedSelected.hasActiveAssignmentNow) {
+          this.loadCurrentAssignment(refreshedSelected.id);
+        } else {
+          this.selectedRoomAssignment = null;
+        }
       },
       error: () => this.setError('No se pudieron cargar las habitaciones del piso.'),
       complete: () => (this.loadingRooms = false),
@@ -294,6 +339,14 @@ export class AlojamientoHomePage implements OnInit {
   selectRoom(room: Habitacion) {
     this.selectedRoom = room;
     this.selectedRoomAssignment = null;
+    this.reservaForm.habitacionId = room.id;
+    this.selectedReserva = null;
+    this.cancelReservaMotivo = '';
+    this.selectedCalendarDate = this.dateKey(new Date());
+    this.reservaForm.fechaIngreso = '';
+    this.reservaForm.fechaSalidaEstimada = '';
+    this.calendarMonth = this.startOfMonth(new Date());
+    this.loadReservasForSelectedRoom();
     if (this.availableRoomIds.has(room.id)) {
       this.asignacionForm.habitacionId = room.id;
       return;
@@ -452,6 +505,7 @@ export class AlojamientoHomePage implements OnInit {
     this.storeGuestCache([guest]);
     this.selectedGuest = guest;
     this.asignacionForm.huespedId = guest.id;
+    this.reservaForm.huespedId = guest.id;
     this.guestSearchTerm = guest.nombreCompleto;
     this.guestSuggestions = [];
     this.showGuestSug = false;
@@ -461,6 +515,7 @@ export class AlojamientoHomePage implements OnInit {
   clearGuestSelection() {
     this.selectedGuest = null;
     this.asignacionForm.huespedId = '';
+    this.reservaForm.huespedId = '';
     this.guestSearchTerm = '';
     this.guestSuggestions = [];
     this.showGuestSug = false;
@@ -752,10 +807,13 @@ export class AlojamientoHomePage implements OnInit {
 
     this.alojamientoService.checkoutAsignacion(assignmentId).subscribe({
       next: () => {
-        this.successMsg = 'Salida registrada. Habitación liberada correctamente.';
+        this.successMsg = 'Salida registrada. Habitación marcada en limpieza.';
         this.selectedRoomAssignment = null;
         if (this.selectedRoom) {
           this.asignacionForm.habitacionId = this.selectedRoom.id;
+        }
+        if (this.selectedPiso) {
+          this.loadHabitaciones(this.selectedPiso.id);
         }
         this.refreshDisponibles();
       },
@@ -764,6 +822,433 @@ export class AlojamientoHomePage implements OnInit {
         this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo registrar la salida.'));
       },
     });
+  }
+
+  finishSelectedRoomCleaning() {
+    this.clearMessages();
+    if (!this.selectedRoom) return;
+    this.finishingCleaning = true;
+    this.alojamientoService.finishRoomCleaning(this.selectedRoom.id).subscribe({
+      next: (updatedRoom) => {
+        this.successMsg = `Limpieza finalizada para habitación ${updatedRoom.identificador}.`;
+        if (this.selectedPiso) {
+          this.loadHabitaciones(this.selectedPiso.id);
+        }
+        this.refreshDisponibles();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo finalizar limpieza de la habitación.'));
+      },
+      complete: () => {
+        this.finishingCleaning = false;
+      },
+    });
+  }
+
+  openReservaModal() {
+    if (!this.selectedRoom) return;
+    this.clearMessages();
+    this.isReservaModalOpen = true;
+    this.reservaForm.habitacionId = this.selectedRoom.id;
+    this.selectedReserva = null;
+    this.cancelReservaMotivo = '';
+    this.selectedCalendarDate = this.dateKey(new Date());
+    this.calendarMonth = this.startOfMonth(new Date());
+    this.reservaForm.fechaIngreso = '';
+    this.reservaForm.fechaSalidaEstimada = '';
+    this.loadReservasForSelectedRoom();
+  }
+
+  closeReservaModal() {
+    this.isReservaModalOpen = false;
+  }
+
+  loadReservasForSelectedRoom() {
+    if (!this.selectedRoom) {
+      this.reservasRoom = [];
+      this.selectedReserva = null;
+      return;
+    }
+
+    this.loadingReservas = true;
+    this.alojamientoService.listReservasByRoom(this.selectedRoom.id).subscribe({
+      next: (reservas) => {
+        this.reservasRoom = reservas ?? [];
+        this.selectedReserva = this.findActiveReservaByDate(this.selectedCalendarDate);
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudieron cargar las reservas.'));
+      },
+      complete: () => {
+        this.loadingReservas = false;
+      },
+    });
+  }
+
+  prevCalendarMonth() {
+    this.calendarMonth = this.addMonths(this.calendarMonth, -1);
+    this.loadReservasForSelectedRoom();
+  }
+
+  nextCalendarMonth() {
+    this.calendarMonth = this.addMonths(this.calendarMonth, 1);
+    this.loadReservasForSelectedRoom();
+  }
+
+  onCalendarDayClick(day: Date | null) {
+    if (!day) return;
+    const key = this.dateKey(day);
+    this.selectedCalendarDate = key;
+    const activeReserva = this.findActiveReservaByDate(key);
+    if (activeReserva) {
+      this.selectedReserva = activeReserva;
+      this.cancelReservaMotivo = '';
+      return;
+    }
+
+    this.selectedReserva = null;
+    this.cancelReservaMotivo = '';
+  }
+
+  onReservaRangeInputChange() {
+    const from = this.reservaForm.fechaIngreso;
+    const to = this.reservaForm.fechaSalidaEstimada;
+    if (!from || !to) {
+      return;
+    }
+
+    let start = from;
+    let end = to;
+    if (end < start) {
+      [start, end] = [end, start];
+      this.reservaForm.fechaIngreso = start;
+      this.reservaForm.fechaSalidaEstimada = end;
+    }
+
+    if (start < this.todayDateKey) {
+      this.setError('No se pueden crear reservas con fecha de ingreso en días pasados.');
+      return;
+    }
+
+    if (this.hasActiveReservaBetween(start, end)) {
+      this.setError('El rango incluye días reservados. Ajusta inicio/fin.');
+      return;
+    }
+
+    this.selectedReserva = null;
+    this.reservaForm.fechaIngreso = start;
+    this.reservaForm.fechaSalidaEstimada = end;
+  }
+
+  saveReserva() {
+    this.clearMessages();
+    if (!this.cajaAbierta) {
+      this.setError('Debes tener una caja abierta para registrar reservas.');
+      return;
+    }
+    if (!this.selectedRoom) {
+      this.setError('Selecciona una habitación para reservar.');
+      return;
+    }
+
+    const huespedId = this.selectedGuest?.id || this.asignacionForm.huespedId;
+    if (!huespedId) {
+      this.setError('Selecciona o registra un huésped para la reserva.');
+      return;
+    }
+
+    const { start, end } = this.getReservaRangeBounds();
+    if (!start || !end) {
+      this.setError('Selecciona un rango de fechas para reservar.');
+      return;
+    }
+
+    if (start < this.todayDateKey) {
+      this.setError('No se pueden crear reservas con fecha de ingreso en días pasados.');
+      return;
+    }
+
+    if (this.hasActiveReservaBetween(start, end)) {
+      this.setError('El rango incluye días reservados. Selecciona otro rango.');
+      return;
+    }
+
+    const payload: CreateReservaHabitacionDto = {
+      habitacionId: this.selectedRoom.id,
+      huespedId,
+      fechaIngreso: this.dateAtHourIso(start, 15),
+      fechaSalidaEstimada: this.dateAtHourIso(this.dateKey(this.addDays(this.parseDateKey(end), 1)), 12),
+    };
+
+    this.alojamientoService.createReserva(payload).subscribe({
+      next: () => {
+        this.successMsg = 'Reserva registrada correctamente.';
+        this.selectedReserva = null;
+        this.cancelReservaMotivo = '';
+        this.reservaForm.fechaIngreso = '';
+        this.reservaForm.fechaSalidaEstimada = '';
+        this.loadReservasForSelectedRoom();
+        if (this.selectedPiso) {
+          this.loadHabitaciones(this.selectedPiso.id);
+        }
+        this.refreshDisponibles();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo registrar la reserva.'));
+      },
+    });
+  }
+
+  cancelSelectedReserva() {
+    this.clearMessages();
+    if (!this.cajaAbierta) {
+      this.setError('Debes tener una caja abierta para cancelar reservas.');
+      return;
+    }
+    if (!this.selectedReserva) {
+      this.setError('Selecciona una reserva activa para cancelar.');
+      return;
+    }
+    const motivo = (this.cancelReservaMotivo || '').trim();
+    if (motivo.length < 3) {
+      this.setError('Debes indicar un motivo de cancelación.');
+      return;
+    }
+
+    this.alojamientoService.cancelReserva(this.selectedReserva.id, { motivoCancelacion: motivo }).subscribe({
+      next: () => {
+        this.successMsg = 'Reserva cancelada correctamente.';
+        this.cancelReservaMotivo = '';
+        this.selectedReserva = null;
+        this.loadReservasForSelectedRoom();
+        if (this.selectedPiso) {
+          this.loadHabitaciones(this.selectedPiso.id);
+        }
+        this.refreshDisponibles();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo cancelar la reserva.'));
+      },
+    });
+  }
+
+  attendSelectedReserva() {
+    this.clearMessages();
+    if (!this.cajaAbierta) {
+      this.setError('Debes tener una caja abierta para liberar reservas.');
+      return;
+    }
+    if (!this.selectedReserva) {
+      this.setError('Selecciona una reserva activa para liberar.');
+      return;
+    }
+
+    const reserva = this.selectedReserva;
+    this.alojamientoService.attendReserva(reserva.id).subscribe({
+      next: () => {
+        this.successMsg = 'Reserva liberada para asignación.';
+        this.cancelReservaMotivo = '';
+        this.selectedReserva = null;
+        this.selectGuestFromSearch(reserva.huesped);
+        if (this.selectedRoom) {
+          this.asignacionForm.habitacionId = this.selectedRoom.id;
+        }
+        this.loadReservasForSelectedRoom();
+        if (this.selectedPiso) {
+          this.loadHabitaciones(this.selectedPiso.id);
+        }
+        this.refreshDisponibles();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo liberar la reserva.'));
+      },
+    });
+  }
+
+  get hasSelectedReservaActiva() {
+    return this.selectedReserva?.estado === 'ACTIVA';
+  }
+
+  get reservaNoches() {
+    const { start, end } = this.getReservaRangeBounds();
+    if (!start || !end) return 0;
+    const startDate = this.parseDateKey(start);
+    const endDate = this.parseDateKey(end);
+    const diff = endDate.getTime() - startDate.getTime();
+    return Math.floor(diff / 86_400_000) + 1;
+  }
+
+  get reservaIngresoLabel() {
+    if (!this.reservaForm.fechaIngreso) return '-';
+    return this.formatApiDate(this.dateAtHourIso(this.reservaForm.fechaIngreso, 15));
+  }
+
+  get reservaSalidaLabel() {
+    const { end } = this.getReservaRangeBounds();
+    if (!end) return '-';
+    const salida = this.dateKey(this.addDays(this.parseDateKey(end), 1));
+    return this.formatApiDate(this.dateAtHourIso(salida, 12));
+  }
+
+  get canSaveReserva() {
+    return (
+      this.cajaAbierta &&
+      !!this.selectedRoom &&
+      !!this.selectedGuest &&
+      this.reservaNoches >= 1 &&
+      !this.hasReservaStartInPast
+    );
+  }
+
+  get todayDateKey() {
+    return this.dateKey(new Date());
+  }
+
+  get minReservaDate() {
+    return this.todayDateKey;
+  }
+
+  get hasReservaStartInPast() {
+    const { start } = this.getReservaRangeBounds();
+    return !!start && start < this.todayDateKey;
+  }
+
+  get upcomingActiveReservas() {
+    const today = this.todayDateKey;
+    return this.reservasRoom
+      .filter((reserva) => {
+        if (reserva.estado !== 'ACTIVA') return false;
+        const ingreso = this.dateKey(new Date(reserva.fechaIngreso));
+        return ingreso >= today;
+      })
+      .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime());
+  }
+
+  get calendarMonthLabel() {
+    return new Intl.DateTimeFormat('es-CL', {
+      month: 'long',
+      year: 'numeric',
+    }).format(this.calendarMonth);
+  }
+
+  get calendarWeeks() {
+    const firstDay = this.startOfMonth(this.calendarMonth);
+    const month = firstDay.getMonth();
+    const weekStart = (firstDay.getDay() + 6) % 7;
+    const startCursor = new Date(firstDay.getFullYear(), firstDay.getMonth(), 1 - weekStart);
+    const weeks: Array<Array<Date | null>> = [];
+    for (let w = 0; w < 6; w++) {
+      const week: Array<Date | null> = [];
+      for (let d = 0; d < 7; d++) {
+        const date = new Date(startCursor.getFullYear(), startCursor.getMonth(), startCursor.getDate() + w * 7 + d);
+        week.push(date.getMonth() === month ? date : null);
+      }
+      weeks.push(week);
+    }
+    return weeks;
+  }
+
+  dayNumber(day: Date | null) {
+    return day ? day.getDate() : '';
+  }
+
+  isSelectedDay(day: Date | null) {
+    if (!day) return false;
+    return this.dateKey(day) === this.selectedCalendarDate;
+  }
+
+  hasActiveReservaOnDay(day: Date | null) {
+    if (!day) return false;
+    const key = this.dateKey(day);
+    return this.reservasRoom.some((r) => this.isReservaActiveOnDate(r, key));
+  }
+
+  selectUpcomingReserva(reserva: ReservaHabitacion) {
+    const ingresoDate = new Date(reserva.fechaIngreso);
+    const ingresoKey = this.dateKey(ingresoDate);
+    this.selectedCalendarDate = ingresoKey;
+    this.calendarMonth = this.startOfMonth(this.parseDateKey(ingresoKey));
+    this.selectedReserva = reserva;
+    this.cancelReservaMotivo = '';
+  }
+
+  isWithinSelectedRange(day: Date | null) {
+    if (!day) return false;
+    const key = this.dateKey(day);
+    const { start, end } = this.getReservaRangeBounds();
+    if (!start || !end) return false;
+    return key >= start && key <= end;
+  }
+
+  private findActiveReservaByDate(dateKey: string) {
+    return this.reservasRoom.find((r) => this.isReservaActiveOnDate(r, dateKey)) ?? null;
+  }
+
+  private isReservaActiveOnDate(reserva: ReservaHabitacion, dateKey: string) {
+    if (reserva.estado !== 'ACTIVA') return false;
+    const from = this.dateKey(new Date(reserva.fechaIngreso));
+    const to = this.dateKey(new Date(reserva.fechaSalidaEstimada));
+    return dateKey >= from && dateKey < to;
+  }
+
+  private getReservaRangeBounds() {
+    const start = this.reservaForm.fechaIngreso || '';
+    const end = this.reservaForm.fechaSalidaEstimada || '';
+    if (!start || !end) {
+      return { start: '', end: '' };
+    }
+    if (end < start) {
+      return { start: end, end: start };
+    }
+    return {
+      start,
+      end,
+    };
+  }
+
+  private hasActiveReservaBetween(start: string, end: string) {
+    return this.reservasRoom.some((reserva) => {
+      if (reserva.estado !== 'ACTIVA') return false;
+      const reservaStart = this.dateKey(new Date(reserva.fechaIngreso));
+      const reservaEndInclusive = this.dateKey(
+        this.addDays(this.parseDateKey(this.dateKey(new Date(reserva.fechaSalidaEstimada))), -1),
+      );
+      return reservaStart <= end && reservaEndInclusive >= start;
+    });
+  }
+
+  private startOfMonth(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  private addMonths(date: Date, delta: number) {
+    return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+  }
+
+  private addDays(date: Date, delta: number) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta);
+  }
+
+  private parseDateKey(dateKey: string) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  private dateKey(date: Date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private dateAtHourIso(dateKey: string, hour: number) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return new Date(year, month - 1, day, hour, 0, 0, 0).toISOString();
   }
 
   bedTotal(room: Habitacion) {
@@ -804,14 +1289,25 @@ export class AlojamientoHomePage implements OnInit {
     return !!this.selectedRoom && this.getRoomStatus(this.selectedRoom) === 'OCUPADA' && !!this.selectedRoomAssignment;
   }
 
+  get isSelectedRoomInCleaning() {
+    return !!this.selectedRoom && this.getRoomStatus(this.selectedRoom) === 'EN_LIMPIEZA';
+  }
+
   getRoomStatus(room: Habitacion) {
     if (!room.estadoActivo) return 'INACTIVA';
+    if (room.estadoOperativo === 'EN_LIMPIEZA') return 'EN_LIMPIEZA';
+    if (room.hasActiveAssignmentNow) return 'OCUPADA';
+    if (room.hasActiveReservationNow) return 'RESERVADA';
     return this.availableRoomIds.has(room.id) ? 'DISPONIBLE' : 'OCUPADA';
   }
 
   getRoomFill(room: Habitacion) {
-    if (!room.estadoActivo) return '#e2e8f0';
-    return this.availableRoomIds.has(room.id) ? '#bbf7d0' : '#fed7aa';
+    const status = this.getRoomStatus(room);
+    if (status === 'INACTIVA') return '#e2e8f0';
+    if (status === 'EN_LIMPIEZA') return '#93c5fd';
+    if (status === 'RESERVADA') return '#c4b5fd';
+    if (status === 'DISPONIBLE') return '#bbf7d0';
+    return '#fed7aa';
   }
 
   getRoomStroke(room: Habitacion) {

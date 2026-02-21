@@ -24,10 +24,18 @@
     </div>
   </div>
 
-  <div *ngIf="errorMsg" data-toast-message class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+  <div
+    *ngIf="!isReservaModalOpen && errorMsg"
+    data-toast-message
+    class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+  >
     {{ errorMsg }}
   </div>
-  <div *ngIf="successMsg" data-toast-message class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+  <div
+    *ngIf="!isReservaModalOpen && successMsg"
+    data-toast-message
+    class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
+  >
     {{ successMsg }}
   </div>
 
@@ -112,9 +120,22 @@
 
     <aside class="col-span-12 lg:col-span-5 space-y-4">
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-sm font-medium text-slate-700">Asignar habitación</div>
-        <div class="text-sm text-slate-500">Registro de ingreso</div>
-
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm font-medium text-slate-700">Asignar habitación</div>
+            <div class="text-sm text-slate-500">Registro de ingreso</div>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+            [disabled]="!cajaAbierta || !selectedRoom"
+            [class.opacity-50]="!cajaAbierta || !selectedRoom"
+            (click)="openReservaModal()"
+          >
+            Reservar
+          </button>
+        </div>
+        
         <div *ngIf="selectedRoom; else emptySelectedRoom" class="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -129,6 +150,10 @@
               [class.text-emerald-700]="getRoomStatus(selectedRoom) === 'DISPONIBLE'"
               [class.bg-amber-100]="getRoomStatus(selectedRoom) === 'OCUPADA'"
               [class.text-amber-700]="getRoomStatus(selectedRoom) === 'OCUPADA'"
+              [class.bg-violet-100]="getRoomStatus(selectedRoom) === 'RESERVADA'"
+              [class.text-violet-700]="getRoomStatus(selectedRoom) === 'RESERVADA'"
+              [class.bg-sky-100]="getRoomStatus(selectedRoom) === 'EN_LIMPIEZA'"
+              [class.text-sky-700]="getRoomStatus(selectedRoom) === 'EN_LIMPIEZA'"
               [class.bg-slate-200]="getRoomStatus(selectedRoom) === 'INACTIVA'"
               [class.text-slate-600]="getRoomStatus(selectedRoom) === 'INACTIVA'"
             >
@@ -229,6 +254,22 @@
 
           <div *ngIf="!selectedRoomIsAvailable" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
             Esta habitación no está disponible para asignar en este momento.
+          </div>
+
+          <div *ngIf="isSelectedRoomInCleaning" class="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-800">
+            <div class="font-semibold">Habitación en limpieza</div>
+            <div class="mt-1">Finaliza limpieza para habilitarla nuevamente en disponibilidad.</div>
+            <div class="mt-3 flex justify-end">
+              <button
+                type="button"
+                class="rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100"
+                [disabled]="finishingCleaning"
+                [class.opacity-50]="finishingCleaning"
+                (click)="finishSelectedRoomCleaning()"
+              >
+                {{ finishingCleaning ? 'Guardando...' : 'Marcar limpieza finalizada' }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -368,6 +409,281 @@
         </div>
       </div>
     </aside>
+  </div>
+
+  <div *ngIf="isReservaModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div class="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-start justify-between border-b border-slate-200 p-4">
+        <div>
+          <div class="text-sm font-medium text-slate-600">Reserva de habitación</div>
+          <div class="text-lg font-semibold text-slate-900">{{ selectedRoom?.identificador || '-' }}</div>
+        </div>
+        <button class="text-slate-500 hover:text-slate-700" (click)="closeReservaModal()">✕</button>
+      </div>
+
+      <div class="space-y-2 px-4 pt-4">
+        <div *ngIf="errorMsg" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {{ errorMsg }}
+        </div>
+        <div *ngIf="successMsg" class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+          {{ successMsg }}
+        </div>
+      </div>
+
+      <div class="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-2">
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold text-slate-800">Huésped de reserva</div>
+            <button
+              type="button"
+              class="text-xs font-medium text-slate-600 hover:text-slate-900"
+              (click)="openGuestModal()"
+            >
+              Registrar huésped
+            </button>
+          </div>
+
+          <div class="relative">
+            <input
+              type="text"
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="Buscar por nombre o RUT"
+              [(ngModel)]="guestSearchTerm"
+              (ngModelChange)="onGuestSearchChange($event)"
+              (keydown)="onGuestKeydown($event)"
+              (focus)="openGuestSuggestions()"
+              (blur)="closeGuestSearchDelayed()"
+              autocomplete="off"
+            />
+
+            <div
+              *ngIf="showGuestSug"
+              class="absolute z-50 mt-2 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-60"
+            >
+              <div *ngIf="guestSearchLoading" class="px-3 py-2 text-xs text-slate-500">Buscando...</div>
+              <button
+                type="button"
+                *ngFor="let g of guestSuggestions; let i = index"
+                (mousedown)="$event.preventDefault()"
+                (mouseenter)="activeGuestIndex = i"
+                (click)="selectGuestFromSearch(g)"
+                class="flex w-full items-center justify-between px-3 py-2 text-left transition focus:outline-none"
+                [ngClass]="
+                  i === activeGuestIndex
+                    ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                    : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+                "
+              >
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-slate-900">{{ g.nombreCompleto }}</p>
+                  <p class="truncate text-xs text-slate-500">
+                    {{ g.rut ?? 'Sin RUT' }}
+                    <span *ngIf="g.empresaHostal">• {{ g.empresaHostal.nombreEmpresa }}</span>
+                  </p>
+                </div>
+              </button>
+              <div *ngIf="!guestSearchLoading && guestSuggestions.length === 0" class="px-3 py-2 text-xs text-slate-500">
+                Sin resultados
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="selectedGuest" class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <div class="font-semibold text-slate-800">{{ selectedGuest.nombreCompleto }}</div>
+            <div class="mt-1 text-xs">Teléfono: {{ selectedGuest.telefono || 'Sin teléfono' }}</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-xs text-slate-600">
+              Inicio (manual)
+              <input
+                type="date"
+                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                [attr.min]="minReservaDate"
+                [(ngModel)]="reservaForm.fechaIngreso"
+                (ngModelChange)="onReservaRangeInputChange()"
+              />
+            </label>
+            <label class="text-xs text-slate-600">
+              Fin (manual)
+              <input
+                type="date"
+                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                [attr.min]="minReservaDate"
+                [(ngModel)]="reservaForm.fechaSalidaEstimada"
+                (ngModelChange)="onReservaRangeInputChange()"
+              />
+            </label>
+          </div>
+
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <div class="text-xs uppercase tracking-wide text-slate-500">Resumen reserva</div>
+            <div class="mt-2 grid grid-cols-3 gap-2 text-xs">
+              <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                <div class="text-slate-500">Ingreso</div>
+                <div class="font-semibold text-slate-800">{{ reservaIngresoLabel }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                <div class="text-slate-500">Salida</div>
+                <div class="font-semibold text-slate-800">{{ reservaSalidaLabel }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                <div class="text-slate-500">Noches</div>
+                <div class="font-semibold text-slate-800">{{ reservaNoches }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold text-slate-800">Calendario</div>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                (click)="prevCalendarMonth()"
+              >
+                ←
+              </button>
+              <div class="text-xs font-semibold capitalize text-slate-700">{{ calendarMonthLabel }}</div>
+              <button
+                type="button"
+                class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                (click)="nextCalendarMonth()"
+              >
+                →
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500">
+            <div>Lun</div>
+            <div>Mar</div>
+            <div>Mié</div>
+            <div>Jue</div>
+            <div>Vie</div>
+            <div>Sáb</div>
+            <div>Dom</div>
+          </div>
+
+          <div class="space-y-1">
+            <div *ngFor="let week of calendarWeeks" class="grid grid-cols-7 gap-1">
+              <button
+                type="button"
+                *ngFor="let day of week"
+                class="h-9 rounded-md border text-xs transition"
+                [disabled]="!day"
+                [ngClass]="
+                  !day
+                    ? 'border-transparent bg-transparent'
+                    : isSelectedDay(day) && hasActiveReservaOnDay(day)
+                      ? 'border-red-400 bg-red-200 text-red-800 ring-2 ring-red-300'
+                    : hasActiveReservaOnDay(day)
+                      ? 'border-red-300 bg-red-100 text-red-700'
+                      : isSelectedDay(day) && isWithinSelectedRange(day)
+                        ? 'border-blue-500 bg-blue-200 text-blue-900 ring-2 ring-blue-300'
+                      : isWithinSelectedRange(day)
+                        ? 'border-blue-400 bg-blue-100 text-blue-800'
+                        : isSelectedDay(day)
+                          ? 'border-sky-400 bg-sky-100 text-sky-800 ring-2 ring-sky-300'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                "
+                (click)="onCalendarDayClick(day)"
+              >
+                {{ dayNumber(day) }}
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="loadingReservas" class="text-xs text-slate-500">Cargando reservas...</div>
+
+          <div *ngIf="selectedReserva" class="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
+            <div class="font-semibold text-slate-800">Reserva activa del día seleccionado</div>
+            <div class="mt-1">Huésped: <span class="font-semibold">{{ selectedReserva.huesped.nombreCompleto }}</span></div>
+            <div class="mt-1">Teléfono: <span class="font-semibold">{{ selectedReserva.huesped.telefono || 'Sin teléfono' }}</span></div>
+            <div class="mt-1">Ingreso: <span class="font-semibold">{{ formatApiDate(selectedReserva.fechaIngreso) }}</span></div>
+            <div>Salida: <span class="font-semibold">{{ formatApiDate(selectedReserva.fechaSalidaEstimada) }}</span></div>
+
+            <div *ngIf="hasSelectedReservaActiva" class="mt-2 space-y-2">
+              <label class="block text-xs text-slate-600">
+                Motivo de cancelación
+                <textarea
+                  rows="2"
+                  class="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs"
+                  [(ngModel)]="cancelReservaMotivo"
+                  placeholder="Ej: huésped no confirmó llegada"
+                ></textarea>
+              </label>
+              <div class="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                  [disabled]="!cajaAbierta"
+                  [class.opacity-50]="!cajaAbierta"
+                  (click)="attendSelectedReserva()"
+                >
+                  Liberar para asignar
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"
+                  [disabled]="!cajaAbierta"
+                  [class.opacity-50]="!cajaAbierta"
+                  (click)="cancelSelectedReserva()"
+                >
+                  Cancelar reserva
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
+            <div class="font-semibold text-slate-800">Próximas reservas de esta habitación</div>
+            <div
+              class="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1"
+              *ngIf="upcomingActiveReservas.length > 0; else emptyUpcomingReservas"
+            >
+              <button
+                type="button"
+                *ngFor="let reserva of upcomingActiveReservas"
+                class="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-left hover:border-blue-300 hover:bg-blue-50"
+                (click)="selectUpcomingReserva(reserva)"
+              >
+                <div class="font-semibold text-slate-800">{{ reserva.huesped.nombreCompleto }}</div>
+                <div class="mt-0.5 text-slate-600">
+                  {{ formatApiDate(reserva.fechaIngreso) }} - {{ formatApiDate(reserva.fechaSalidaEstimada) }}
+                </div>
+              </button>
+            </div>
+            <ng-template #emptyUpcomingReservas>
+              <div class="mt-2 text-slate-500">No hay reservas futuras activas para esta habitación.</div>
+            </ng-template>
+          </div>
+        </div>
+      </div>
+
+      <div class="shrink-0 border-t border-slate-200 bg-white p-4">
+        <div class="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          class="rounded-lg border px-3 py-2 text-xs"
+          (click)="closeReservaModal()"
+        >
+          Cerrar
+        </button>
+        <button
+          type="button"
+          class="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
+          [disabled]="!canSaveReserva"
+          [class.opacity-50]="!canSaveReserva"
+          (click)="saveReserva()"
+        >
+          Reservar
+        </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div *ngIf="isGuestModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

@@ -25,6 +25,8 @@ import { UpdateEmpresaHostalDto } from './dto/update-empresa-hostal.dto';
 import { CreateHuespedDto } from './dto/create-huesped.dto';
 import { CreateAsignacionHabitacionDto } from './dto/create-asignacion-habitacion.dto';
 import { UpdateHuespedDto } from './dto/update-huesped.dto';
+import { CreateReservaHabitacionDto } from './dto/create-reserva-habitacion.dto';
+import { CancelReservaHabitacionDto } from './dto/cancel-reserva-habitacion.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/alojamiento')
@@ -75,6 +77,12 @@ export class AlojamientoController {
     return this.service.updateHabitacion(id, dto);
   }
 
+  @Patch('rooms/:id/finish-cleaning')
+  @Roles('ADMIN', 'VENDEDOR')
+  finishRoomCleaning(@Param('id') id: string) {
+    return this.service.finishRoomCleaning(id);
+  }
+
   @Delete('rooms/:id')
   @Roles('ADMIN')
   removeRoom(@Param('id') id: string) {
@@ -97,6 +105,16 @@ export class AlojamientoController {
   @Roles('ADMIN', 'VENDEDOR')
   getCurrentAssignment(@Param('id') habitacionId: string) {
     return this.service.getAsignacionActualByHabitacion(habitacionId);
+  }
+
+  @Get('rooms/:id/reservations')
+  @Roles('ADMIN', 'VENDEDOR')
+  listRoomReservations(
+    @Param('id') habitacionId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.listReservasByHabitacion(habitacionId, from, to);
   }
 
   // Empresas
@@ -163,6 +181,24 @@ export class AlojamientoController {
   @Roles('ADMIN', 'VENDEDOR')
   checkoutAsignacion(@Param('id') id: string, @Req() req: any) {
     return this.service.checkoutAsignacion(id, req.user.idUsuario);
+  }
+
+  @Post('reservations')
+  @Roles('ADMIN', 'VENDEDOR')
+  createReserva(@Body() dto: CreateReservaHabitacionDto) {
+    return this.service.createReserva(dto);
+  }
+
+  @Patch('reservations/:id/cancel')
+  @Roles('ADMIN', 'VENDEDOR')
+  cancelReserva(@Param('id') id: string, @Body() dto: CancelReservaHabitacionDto) {
+    return this.service.cancelReserva(id, dto);
+  }
+
+  @Patch('reservations/:id/attend')
+  @Roles('ADMIN', 'VENDEDOR')
+  attendReserva(@Param('id') id: string) {
+    return this.service.attendReserva(id);
   }
 
   // Comodidades

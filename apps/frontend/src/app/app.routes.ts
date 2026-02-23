@@ -24,6 +24,20 @@ export const routes: Routes = [
       {path: 'preparaciones', loadComponent: () => import('./features/admin/pages/preparaciones/preparaciones.page').then(m => m.PreparacionesPage),},
       {path: 'insumo-grupos', loadComponent: () => import('./features/admin/pages/insumo-grupos/insumo-grupos.page').then(m => m.InsumoGruposPage),},
       {path: 'alojamiento-mapa', loadComponent: () => import('./features/admin/pages/alojamiento-mapa/alojamiento-mapa.page').then(m => m.AlojamientoMapaPage),},
+      {
+        path: 'alojamiento',
+        loadComponent: () =>
+          import('./features/admin/pages/alojamiento-home/alojamiento-home.page').then(
+            (m) => m.AdminAlojamientoHomePage,
+          ),
+      },
+      {
+        path: 'alojamiento/seguimiento',
+        loadComponent: () =>
+          import('./features/admin/pages/alojamiento-seguimiento/alojamiento-seguimiento.page').then(
+            (m) => m.AdminAlojamientoSeguimientoPage,
+          ),
+      },
       {path: 'recetas', loadComponent: () => import('./features/admin/pages/recetas/recetas.page').then(m => m.RecetasPage),},
       {path: 'bodegas', loadComponent: () => import('./features/admin/pages/bodegas/bodegas.page').then(m => m.BodegasPage),},
       {path: 'cajas', loadComponent: () => import('./features/admin/pages/cajas/cajas.page').then(m => m.CajasPage),},
@@ -41,14 +55,26 @@ export const routes: Routes = [
   {
     path: 'pos',
     canActivate: [authGuard, roleGuard],
-    data: { roles: ['VENDEDOR', 'ADMIN'] },
+    data: { roles: ['VENDEDOR'] },
     loadComponent: () =>
       import('./layouts/vendedor-layout/vendedor-layout.component').then((m) => m.VendedorLayoutComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard-vendedor' },
       { path: 'dashboard-vendedor', loadComponent: () => import('./features/vendedor/pages/dashboard/dashboard-vendedor').then(m => m.DashboarVendedordPage) },
-      { path: 'alojamiento', loadComponent: () => import('./features/vendedor/pages/alojamiento-home/alojamiento-home.page').then(m => m.AlojamientoHomePage) },
-      { path: 'alojamiento/disponibilidad', loadComponent: () => import('./features/vendedor/pages/alojamiento/alojamiento.page').then(m => m.AlojamientoPage) },
+      {
+        path: 'alojamiento',
+        loadComponent: () => import('./features/vendedor/pages/alojamiento-home/alojamiento-home.page').then(m => m.AlojamientoHomePage),
+        data: { mode: 'pos' },
+      },
+      { path: 'alojamiento/disponibilidad', pathMatch: 'full', redirectTo: 'alojamiento/seguimiento' },
+      {
+        path: 'alojamiento/seguimiento',
+        loadComponent: () =>
+          import('./features/vendedor/pages/alojamiento-seguimiento/alojamiento-seguimiento.page').then(
+            (m) => m.AlojamientoSeguimientoPage,
+          ),
+        data: { mode: 'pos' },
+      },
       { path: 'caja', loadComponent: () => import('./features/vendedor/pages/caja/caja.page').then(m => m.CajaPage) },
       { path: 'historial-caja', loadComponent: () => import('./features/vendedor/pages/historial-caja/historial-caja.page').then(m => m.HistorialCajaPage) },
       { path: 'historial-caja/:id', loadComponent: () => import('./features/vendedor/pages/historial-caja-detalle/historial-caja-detalle.page').then(m => m.HistorialCajaDetallePage) },

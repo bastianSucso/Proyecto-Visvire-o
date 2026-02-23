@@ -91,6 +91,52 @@ export interface AsignacionActualResumen {
   } | null;
 }
 
+export interface AsignacionDetalle {
+  habitacion: {
+    identificador: string;
+    pisoNombre: string | null;
+  };
+  huesped: {
+    nombreCompleto: string;
+    rut: string | null;
+    correo: string | null;
+    telefono: string | null;
+    empresaNombre: string | null;
+  };
+  estadia: {
+    estado: 'ACTIVA' | 'FINALIZADA';
+    tipoCobro: 'DIRECTO' | 'EMPRESA_CONVENIO';
+    noches: number;
+    fechaIngreso: string;
+    fechaSalidaEstimada: string;
+    fechaSalidaReal: string | null;
+  };
+  ventaAlojamiento: {
+    medioPago: 'EFECTIVO' | 'TARJETA';
+    montoTotal: string;
+    fechaConfirmacion: string;
+  } | null;
+}
+
+export type AsignacionHistorialEstado = 'ACTIVA' | 'FINALIZADA';
+
+export interface AsignacionHistorialItem {
+  id: string;
+  fechaIngreso: string;
+  fechaSalidaEstimada: string;
+  fechaSalidaReal: string | null;
+  estado: AsignacionHistorialEstado;
+  huesped: {
+    id: string;
+    nombreCompleto: string;
+  };
+  habitacion: {
+    id: string;
+    identificador: string;
+    pisoNombre: string | null;
+  };
+}
+
 export interface CreatePisoZonaDto {
   nombre: string;
   orden?: number;
@@ -244,6 +290,38 @@ export interface CancelReservaHabitacionDto {
   motivoCancelacion: string;
 }
 
+export type HabitacionEstadoCambioAccion =
+  | 'ASIGNACION_CREADA'
+  | 'CHECKOUT_MANUAL'
+  | 'CHECKOUT_AUTOMATICO'
+  | 'LIMPIEZA_FINALIZADA'
+  | 'HABITACION_ACTIVADA'
+  | 'HABITACION_INACTIVADA'
+  | 'ESTADO_OPERATIVO_ACTUALIZADO';
+
+export type HabitacionEstadoTimeline = 'INACTIVA' | 'DISPONIBLE' | 'OCUPADA' | 'EN_LIMPIEZA';
+
+export interface RoomStateChangeItem {
+  id: string;
+  asignacionId: string | null;
+  createdAt: string;
+  accion: HabitacionEstadoCambioAccion;
+  estadoAnterior: HabitacionEstadoTimeline;
+  estadoNuevo: HabitacionEstadoTimeline;
+  actorUserId: string | null;
+  detalle: string | null;
+  habitacion: {
+    id: string;
+    identificador: string;
+    pisoNombre: string | null;
+  };
+}
+
+export interface RoomStateChangeGroup {
+  date: string;
+  items: RoomStateChangeItem[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AlojamientoService {
   private http = inject(HttpClient);
@@ -371,12 +449,43 @@ export class AlojamientoService {
     return this.http.post(`/api/alojamiento/assignments/${asignacionId}/checkout`, {});
   }
 
+  getAssignmentById(asignacionId: string) {
+    return this.http.get<AsignacionDetalle>(`/api/alojamiento/assignments/${asignacionId}`);
+  }
+
+  listAssignments(from?: string, to?: string, estado?: AsignacionHistorialEstado) {
+    const queryParts: string[] = [];
+    if (from !== undefined) queryParts.push(`from=${encodeURIComponent(from)}`);
+    if (to !== undefined) queryParts.push(`to=${encodeURIComponent(to)}`);
+    if (estado !== undefined) queryParts.push(`estado=${encodeURIComponent(estado)}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    return this.http.get<AsignacionHistorialItem[]>(`/api/alojamiento/assignments${query}`);
+  }
+
   listReservasByRoom(roomId: string, from?: string, to?: string) {
     const queryParts: string[] = [];
     if (from !== undefined) queryParts.push(`from=${encodeURIComponent(from)}`);
     if (to !== undefined) queryParts.push(`to=${encodeURIComponent(to)}`);
     const query = queryParts.length ? `?${queryParts.join('&')}` : '';
     return this.http.get<ReservaHabitacion[]>(`/api/alojamiento/rooms/${roomId}/reservations${query}`);
+  }
+
+  listReservas(from?: string, to?: string, estado?: ReservaHabitacionEstado, search?: string) {
+    const queryParts: string[] = [];
+    if (from !== undefined) queryParts.push(`from=${encodeURIComponent(from)}`);
+    if (to !== undefined) queryParts.push(`to=${encodeURIComponent(to)}`);
+    if (estado !== undefined) queryParts.push(`estado=${encodeURIComponent(estado)}`);
+    if (search !== undefined) queryParts.push(`search=${encodeURIComponent(search)}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    return this.http.get<ReservaHabitacion[]>(`/api/alojamiento/reservations${query}`);
+  }
+
+  listRoomStateChanges(from?: string, to?: string) {
+    const queryParts: string[] = [];
+    if (from !== undefined) queryParts.push(`from=${encodeURIComponent(from)}`);
+    if (to !== undefined) queryParts.push(`to=${encodeURIComponent(to)}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    return this.http.get<RoomStateChangeGroup[]>(`/api/alojamiento/rooms/state-changes${query}`);
   }
 
   createReserva(dto: CreateReservaHabitacionDto) {

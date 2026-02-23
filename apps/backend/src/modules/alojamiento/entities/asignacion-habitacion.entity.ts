@@ -36,9 +36,9 @@ export class AsignacionHabitacionEntity {
   @JoinColumn({ name: 'id_huesped' })
   huesped!: HuespedEntity;
 
-  @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'id_sesion_apertura' })
-  sesionApertura!: SesionCajaEntity;
+  sesionApertura!: SesionCajaEntity | null;
 
   @Column({ type: 'timestamp', name: 'fecha_ingreso' })
   fechaIngreso!: Date;

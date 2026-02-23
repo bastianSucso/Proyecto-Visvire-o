@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { finalize } from 'rxjs/operators';
 import {
   AlojamientoService,
   AsignacionActualResumen,
@@ -28,6 +29,7 @@ export class AlojamientoHomePage implements OnInit {
   private alojamientoService = inject(AlojamientoService);
   private cajaService = inject(CajaService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private readonly guestSuggestionLimit = 8;
   private readonly guestSearchMinChars = 2;
   private readonly businessTimeZone = 'America/Santiago';
@@ -161,8 +163,36 @@ export class AlojamientoHomePage implements OnInit {
 
   private guestCache = new Map<string, Huesped>();
 
+  private get mode() {
+    if (this.route.snapshot.data['mode'] === 'admin' || this.router.url.startsWith('/admin/')) {
+      return 'admin';
+    }
+    return 'pos';
+  }
+
+  get isAdminMode() {
+    return this.mode === 'admin';
+  }
+
+  get requiresCajaAbierta() {
+    return !this.isAdminMode;
+  }
+
+  get seguimientoRoute() {
+    return this.isAdminMode ? '/admin/alojamiento/seguimiento' : '/pos/alojamiento/seguimiento';
+  }
+
+  get volverRoute() {
+    return this.isAdminMode ? '/admin/dashboard' : '/pos/caja';
+  }
+
   ngOnInit() {
-    this.loadCajaActual();
+    if (this.requiresCajaAbierta) {
+      this.loadCajaActual();
+    } else {
+      this.cajaAbierta = true;
+      this.checkingCaja = false;
+    }
     this.loadPisos();
     this.loadEmpresas();
     this.refreshDisponibles();
@@ -749,7 +779,7 @@ export class AlojamientoHomePage implements OnInit {
 
   saveAsignacion() {
     this.clearMessages();
-    if (!this.cajaAbierta) {
+    if (this.requiresCajaAbierta && !this.cajaAbierta) {
       this.setError('Debes tener una caja abierta para registrar estadías.');
       return;
     }
@@ -765,33 +795,39 @@ export class AlojamientoHomePage implements OnInit {
       this.setError('Selecciona medio de pago para cobro directo.');
       return;
     }
+    if (this.isAdminMode && !this.isEmpresaConvenio) {
+      this.setError('En gestión admin solo puedes asignar huéspedes con empresa (convenio).');
+      return;
+    }
 
     this.savingAsignacion = true;
     const assignedRoomId = this.asignacionForm.habitacionId;
-    this.alojamientoService.createAsignacion({ ...this.asignacionForm }).subscribe({
-      next: () => {
-        this.successMsg = 'Asignación registrada correctamente.';
-        this.asignacionForm.habitacionId = '';
-        this.asignacionForm.cantidadNoches = 1;
-        this.asignacionForm.medioPago = 'EFECTIVO';
-        this.clearGuestSelection();
-        this.selectedRoomAssignment = null;
-        if (assignedRoomId) {
-          this.loadCurrentAssignment(assignedRoomId);
-        }
-        this.refreshDisponibles();
-      },
-      error: (err) => {
-        const msg = err?.error?.message;
-        this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo asignar la habitación.'));
-      },
-      complete: () => (this.savingAsignacion = false),
-    });
+    this.alojamientoService
+      .createAsignacion({ ...this.asignacionForm })
+      .pipe(finalize(() => (this.savingAsignacion = false)))
+      .subscribe({
+        next: () => {
+          this.successMsg = 'Asignación registrada correctamente.';
+          this.asignacionForm.habitacionId = '';
+          this.asignacionForm.cantidadNoches = 1;
+          this.asignacionForm.medioPago = 'EFECTIVO';
+          this.clearGuestSelection();
+          this.selectedRoomAssignment = null;
+          if (assignedRoomId) {
+            this.loadCurrentAssignment(assignedRoomId);
+          }
+          this.refreshDisponibles();
+        },
+        error: (err) => {
+          const msg = err?.error?.message;
+          this.setError(Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo asignar la habitación.'));
+        },
+      });
   }
 
   checkoutSelectedRoom() {
     this.clearMessages();
-    if (!this.cajaAbierta) {
+    if (this.requiresCajaAbierta && !this.cajaAbierta) {
       this.setError('Debes tener una caja abierta para registrar salida.');
       return;
     }
@@ -944,7 +980,7 @@ export class AlojamientoHomePage implements OnInit {
 
   saveReserva() {
     this.clearMessages();
-    if (!this.cajaAbierta) {
+    if (this.requiresCajaAbierta && !this.cajaAbierta) {
       this.setError('Debes tener una caja abierta para registrar reservas.');
       return;
     }
@@ -1004,7 +1040,7 @@ export class AlojamientoHomePage implements OnInit {
 
   cancelSelectedReserva() {
     this.clearMessages();
-    if (!this.cajaAbierta) {
+    if (this.requiresCajaAbierta && !this.cajaAbierta) {
       this.setError('Debes tener una caja abierta para cancelar reservas.');
       return;
     }
@@ -1038,7 +1074,7 @@ export class AlojamientoHomePage implements OnInit {
 
   attendSelectedReserva() {
     this.clearMessages();
-    if (!this.cajaAbierta) {
+    if (this.requiresCajaAbierta && !this.cajaAbierta) {
       this.setError('Debes tener una caja abierta para liberar reservas.');
       return;
     }
@@ -1097,7 +1133,7 @@ export class AlojamientoHomePage implements OnInit {
 
   get canSaveReserva() {
     return (
-      this.cajaAbierta &&
+      (!this.requiresCajaAbierta || this.cajaAbierta) &&
       !!this.selectedRoom &&
       !!this.selectedGuest &&
       this.reservaNoches >= 1 &&
@@ -1272,17 +1308,18 @@ export class AlojamientoHomePage implements OnInit {
   get canAssign() {
     const paymentReady = this.isEmpresaConvenio || !!this.asignacionForm.medioPago;
     return (
-      this.cajaAbierta &&
+      (!this.requiresCajaAbierta || this.cajaAbierta) &&
       this.selectedRoomIsAvailable &&
       !!this.asignacionForm.habitacionId &&
       !!this.asignacionForm.huespedId &&
       this.getCantidadNoches() >= 1 &&
-      paymentReady
+      paymentReady &&
+      (!this.isAdminMode || this.isEmpresaConvenio)
     );
   }
 
   get canCheckout() {
-    return this.cajaAbierta && this.hasCurrentAssignmentDetails;
+    return (!this.requiresCajaAbierta || this.cajaAbierta) && this.hasCurrentAssignmentDetails;
   }
 
   get hasCurrentAssignmentDetails() {
@@ -1291,6 +1328,10 @@ export class AlojamientoHomePage implements OnInit {
 
   get isSelectedRoomInCleaning() {
     return !!this.selectedRoom && this.getRoomStatus(this.selectedRoom) === 'EN_LIMPIEZA';
+  }
+
+  get isSelectedRoomOccupied() {
+    return !!this.selectedRoom && this.getRoomStatus(this.selectedRoom) === 'OCUPADA';
   }
 
   getRoomStatus(room: Habitacion) {
@@ -1543,6 +1584,6 @@ export class AlojamientoHomePage implements OnInit {
   }
 
   volver() {
-    this.router.navigate(['/pos/caja']);
+    this.router.navigate([this.volverRoute]);
   }
 }

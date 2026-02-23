@@ -73,14 +73,14 @@ export class AlojamientoController {
 
   @Patch('rooms/:id')
   @Roles('ADMIN')
-  updateRoom(@Param('id') id: string, @Body() dto: UpdateHabitacionDto) {
-    return this.service.updateHabitacion(id, dto);
+  updateRoom(@Param('id') id: string, @Body() dto: UpdateHabitacionDto, @Req() req: any) {
+    return this.service.updateHabitacion(id, dto, req.user.idUsuario);
   }
 
   @Patch('rooms/:id/finish-cleaning')
   @Roles('ADMIN', 'VENDEDOR')
-  finishRoomCleaning(@Param('id') id: string) {
-    return this.service.finishRoomCleaning(id);
+  finishRoomCleaning(@Param('id') id: string, @Req() req: any) {
+    return this.service.finishRoomCleaning(id, req.user.idUsuario);
   }
 
   @Delete('rooms/:id')
@@ -115,6 +115,12 @@ export class AlojamientoController {
     @Query('to') to?: string,
   ) {
     return this.service.listReservasByHabitacion(habitacionId, from, to);
+  }
+
+  @Get('rooms/state-changes')
+  @Roles('ADMIN', 'VENDEDOR')
+  listRoomStateChanges(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.service.listRoomStateChanges(from, to);
   }
 
   // Empresas
@@ -174,19 +180,46 @@ export class AlojamientoController {
   @Post('assignments')
   @Roles('ADMIN', 'VENDEDOR')
   createAsignacion(@Body() dto: CreateAsignacionHabitacionDto, @Req() req: any) {
-    return this.service.createAsignacion(dto, req.user.idUsuario);
+    return this.service.createAsignacion(dto, req.user.idUsuario, req.user.role);
+  }
+
+  @Get('assignments/:id')
+  @Roles('ADMIN', 'VENDEDOR')
+  getAsignacion(@Param('id') id: string) {
+    return this.service.getAsignacionById(id);
+  }
+
+  @Get('assignments')
+  @Roles('ADMIN', 'VENDEDOR')
+  listAsignaciones(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('estado') estado?: 'ACTIVA' | 'FINALIZADA',
+  ) {
+    return this.service.listAsignaciones(from, to, estado as any);
   }
 
   @Post('assignments/:id/checkout')
   @Roles('ADMIN', 'VENDEDOR')
   checkoutAsignacion(@Param('id') id: string, @Req() req: any) {
-    return this.service.checkoutAsignacion(id, req.user.idUsuario);
+    return this.service.checkoutAsignacion(id, req.user.idUsuario, req.user.role);
   }
 
   @Post('reservations')
   @Roles('ADMIN', 'VENDEDOR')
   createReserva(@Body() dto: CreateReservaHabitacionDto) {
     return this.service.createReserva(dto);
+  }
+
+  @Get('reservations')
+  @Roles('ADMIN', 'VENDEDOR')
+  listReservas(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('estado') estado?: 'ACTIVA' | 'CANCELADA' | 'ATENDIDA',
+    @Query('search') search?: string,
+  ) {
+    return this.service.listReservas(from, to, estado as any, search);
   }
 
   @Patch('reservations/:id/cancel')

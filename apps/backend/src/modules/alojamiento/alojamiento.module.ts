@@ -13,6 +13,7 @@ import { AsignacionHabitacionEntity } from './entities/asignacion-habitacion.ent
 import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
 import { VentaAlojamientoEntity } from './entities/venta-alojamiento.entity';
 import { ReservaHabitacionEntity } from './entities/reserva-habitacion.entity';
+import { HabitacionEstadoCambioEntity } from './entities/habitacion-estado-cambio.entity';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ReservaHabitacionEntity } from './entities/reserva-habitacion.entity';
       HuespedEntity,
       AsignacionHabitacionEntity,
       ReservaHabitacionEntity,
+      HabitacionEstadoCambioEntity,
       SesionCajaEntity,
       VentaAlojamientoEntity,
     ]),

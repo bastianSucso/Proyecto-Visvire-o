@@ -301,11 +301,9 @@
                       <button
                         type="button"
                         class="shrink-0 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        [disabled]="v.tipo !== 'VENTA'"
-                        [class.opacity-50]="v.tipo !== 'VENTA'"
-                        (click)="v.tipo === 'VENTA' ? verVenta(v.idRef) : null"
+                        (click)="verVentaConfirmada(v)"
                       >
-                        {{ v.tipo === 'VENTA' ? 'Ver' : 'Alojamiento' }}
+                        Ver
                       </button>
                     </div>
                   </div>
@@ -373,6 +371,124 @@
             </form>
           </div>
         </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="alojamientoDetailOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-start justify-between border-b border-slate-200 p-4">
+        <div>
+          <div class="text-sm font-medium text-slate-600">Detalle de venta de alojamiento</div>
+          <div class="text-lg font-semibold text-slate-900">Venta y asignación confirmada</div>
+        </div>
+        <button class="text-slate-500 hover:text-slate-700" (click)="closeAlojamientoDetailModal()">✕</button>
+      </div>
+
+      <div class="max-h-[78vh] space-y-3 overflow-y-auto p-4">
+        <div class="rounded-lg border border-slate-200 bg-white p-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Venta</div>
+          <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+              <div class="text-slate-500">ID venta</div>
+              <div class="font-semibold text-slate-800">#{{ selectedAlojamientoVenta?.idVentaAlojamiento ?? '-' }}</div>
+            </div>
+            <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+              <div class="text-slate-500">Fecha confirmación</div>
+              <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoVenta?.fechaConfirmacion) }}</div>
+            </div>
+            <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+              <div class="text-slate-500">Medio de pago</div>
+              <div class="font-semibold text-slate-800">{{ medioPagoLabel(selectedAlojamientoVenta?.medioPago ?? null) }}</div>
+            </div>
+            <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+              <div class="text-slate-500">Monto total</div>
+              <div class="font-semibold text-slate-800">
+                {{ selectedAlojamientoVenta?.montoTotal ? (selectedAlojamientoVenta?.montoTotal | currency:'CLP':'symbol-narrow':'1.0-0') : '-' }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="alojamientoDetailLoading" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+          Cargando detalle de asignación...
+        </div>
+
+        <div *ngIf="alojamientoDetailError" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {{ alojamientoDetailError }}
+        </div>
+
+        <ng-container *ngIf="!alojamientoDetailLoading && selectedAlojamientoAsignacionDetalle">
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Estadía</div>
+            <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Estado</div>
+                <div class="font-semibold text-slate-800">{{ estadoAsignacionLabel(selectedAlojamientoAsignacionDetalle.estadia.estado) }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Tipo de cobro</div>
+                <div class="font-semibold text-slate-800">{{ tipoCobroLabel(selectedAlojamientoAsignacionDetalle.estadia.tipoCobro) }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Noches</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.estadia.noches }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Ingreso</div>
+                <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoAsignacionDetalle.estadia.fechaIngreso) }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Salida estimada</div>
+                <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaEstimada) }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Salida real</div>
+                <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaReal) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Huésped</div>
+            <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 sm:col-span-2">
+                <div class="text-slate-500">Nombre</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.huesped.nombreCompleto }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">RUT</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.huesped.rut || '-' }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Teléfono</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.huesped.telefono || '-' }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 sm:col-span-2">
+                <div class="text-slate-500">Correo</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.huesped.correo || '-' }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 sm:col-span-2">
+                <div class="text-slate-500">Empresa</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.huesped.empresaNombre || 'Sin empresa' }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Habitación</div>
+            <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Identificador</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.habitacion.identificador }}</div>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div class="text-slate-500">Piso/Zona</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.habitacion.pisoNombre || '-' }}</div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
       </div>
     </div>
   </div>

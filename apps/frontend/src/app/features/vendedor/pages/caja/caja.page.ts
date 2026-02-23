@@ -9,6 +9,7 @@ import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/in
 import { VentaListItem, VentasService } from '../../../../core/services/ventas.service';
 import {
   AlojamientoService,
+  AsignacionDetalle,
   VentaAlojamientoTurnoItem,
 } from '../../../../core/services/alojamiento.service';
 import { forkJoin } from 'rxjs';
@@ -52,6 +53,12 @@ export class CajaPage implements OnInit {
   ventasAlojamiento: VentaAlojamientoTurnoItem[] = [];
   ventasLoading = false;
   ventasError = '';
+
+  alojamientoDetailOpen = false;
+  alojamientoDetailLoading = false;
+  alojamientoDetailError = '';
+  selectedAlojamientoVenta: VentaAlojamientoTurnoItem | null = null;
+  selectedAlojamientoAsignacionDetalle: AsignacionDetalle | null = null;
 
   form!: FormGroup;
   incidenciaForm!: FormGroup;
@@ -105,6 +112,7 @@ export class CajaPage implements OnInit {
     const ventas = (this.ventasConfirmadas ?? []).map((v) => ({
       tipo: 'VENTA' as const,
       idRef: v.idVenta,
+      asignacionId: null as string | null,
       titulo: `Venta #${v.idVenta}`,
       detalle: `${v.cantidadTotal} ítems`,
       total: this.toNumberMoney(v.totalVenta),
@@ -114,6 +122,7 @@ export class CajaPage implements OnInit {
     const alojamientos = (this.ventasAlojamiento ?? []).map((v) => ({
       tipo: 'ALOJAMIENTO' as const,
       idRef: v.idVentaAlojamiento,
+      asignacionId: v.asignacion.id,
       titulo: `Alojamiento #${v.idVentaAlojamiento}`,
       detalle: `${v.asignacion.habitacion.identificador} · ${v.asignacion.huesped.nombreCompleto}`,
       total: this.toNumberMoney(v.montoTotal),
@@ -431,6 +440,80 @@ export class CajaPage implements OnInit {
 
   verVenta(idVenta: number) {
     this.router.navigate(['/pos/ventas', idVenta]); 
+  }
+
+  verVentaConfirmada(item: (typeof this.confirmadasTurnoItems)[number]) {
+    if (item.tipo === 'VENTA') {
+      this.verVenta(item.idRef);
+      return;
+    }
+    if (!item.asignacionId) return;
+
+    const ventaAlojamiento = this.ventasAlojamiento.find((v) => v.idVentaAlojamiento === item.idRef);
+    if (!ventaAlojamiento) {
+      this.ventaError = 'No se encontró la venta de alojamiento seleccionada.';
+      return;
+    }
+
+    this.selectedAlojamientoVenta = ventaAlojamiento;
+    this.selectedAlojamientoAsignacionDetalle = null;
+    this.alojamientoDetailError = '';
+    this.alojamientoDetailOpen = true;
+    this.alojamientoDetailLoading = true;
+
+    this.alojamientoService.getAssignmentById(item.asignacionId).subscribe({
+      next: (data) => {
+        this.selectedAlojamientoAsignacionDetalle = data;
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.alojamientoDetailError = Array.isArray(msg)
+          ? msg.join(' | ')
+          : (msg ?? 'No se pudo cargar el detalle de la asignación.');
+      },
+      complete: () => {
+        this.alojamientoDetailLoading = false;
+      },
+    });
+  }
+
+  closeAlojamientoDetailModal() {
+    this.alojamientoDetailOpen = false;
+    this.alojamientoDetailLoading = false;
+    this.alojamientoDetailError = '';
+    this.selectedAlojamientoVenta = null;
+    this.selectedAlojamientoAsignacionDetalle = null;
+  }
+
+  formatDateTime(value?: string | null) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  medioPagoLabel(medioPago?: 'EFECTIVO' | 'TARJETA' | null) {
+    if (!medioPago) return '-';
+    if (medioPago === 'EFECTIVO') return 'Efectivo';
+    return 'Tarjeta';
+  }
+
+  estadoAsignacionLabel(estado?: AsignacionDetalle['estadia']['estado'] | null) {
+    if (!estado) return '-';
+    if (estado === 'FINALIZADA') return 'Finalizada';
+    return 'Activa';
+  }
+
+  tipoCobroLabel(tipo?: AsignacionDetalle['estadia']['tipoCobro'] | null) {
+    if (!tipo) return '-';
+    if (tipo === 'EMPRESA_CONVENIO') return 'Convenio empresa';
+    return 'Cobro directo';
   }
 
   eliminarVentaEnEdicion(idVenta: number) {

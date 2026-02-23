@@ -1,11 +1,21 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, IsNull, LessThanOrEqual, MoreThan, Not, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  IsNull,
+  LessThanOrEqual,
+  MoreThan,
+  Not,
+  Repository,
+} from 'typeorm';
 import { PisoZonaEntity } from './entities/piso-zona.entity';
 import { HabitacionEntity, HabitacionEstadoOperativo } from './entities/habitacion.entity';
 import { ComodidadEntity } from './entities/comodidad.entity';
@@ -41,6 +51,11 @@ import {
 } from './entities/reserva-habitacion.entity';
 import { CreateReservaHabitacionDto } from './dto/create-reserva-habitacion.dto';
 import { CancelReservaHabitacionDto } from './dto/cancel-reserva-habitacion.dto';
+import {
+  HabitacionEstadoCambioAccion,
+  HabitacionEstadoCambioEntity,
+  HabitacionEstadoTimeline,
+} from './entities/habitacion-estado-cambio.entity';
 
 type Rect = { posX: number; posY: number; ancho: number; alto: number };
 
@@ -88,6 +103,8 @@ export class AlojamientoService {
     private readonly asignacionRepo: Repository<AsignacionHabitacionEntity>,
     @InjectRepository(ReservaHabitacionEntity)
     private readonly reservaRepo: Repository<ReservaHabitacionEntity>,
+    @InjectRepository(HabitacionEstadoCambioEntity)
+    private readonly habitacionEstadoCambioRepo: Repository<HabitacionEstadoCambioEntity>,
     @InjectRepository(SesionCajaEntity)
     private readonly sesionRepo: Repository<SesionCajaEntity>,
     @InjectRepository(VentaAlojamientoEntity)
@@ -413,6 +430,57 @@ export class AlojamientoService {
       .getCount();
   }
 
+  private mapOperativoToTimeline(estado: HabitacionEstadoOperativo) {
+    if (estado === HabitacionEstadoOperativo.EN_LIMPIEZA) {
+      return HabitacionEstadoTimeline.EN_LIMPIEZA;
+    }
+    return HabitacionEstadoTimeline.DISPONIBLE;
+  }
+
+  private getRoomTimelineState(room: Pick<HabitacionEntity, 'estadoActivo' | 'estadoOperativo'>) {
+    if (!room.estadoActivo) {
+      return HabitacionEstadoTimeline.INACTIVA;
+    }
+    return this.mapOperativoToTimeline(room.estadoOperativo);
+  }
+
+  private async logRoomStateChange(
+    input: {
+      habitacionId: string;
+      estadoAnterior: HabitacionEstadoTimeline;
+      estadoNuevo: HabitacionEstadoTimeline;
+      accion: HabitacionEstadoCambioAccion;
+      asignacionId?: string | null;
+      actorUserId?: string | null;
+      detalle?: string | null;
+    },
+    manager?: EntityManager,
+  ) {
+    const repo = manager
+      ? manager.getRepository(HabitacionEstadoCambioEntity)
+      : this.habitacionEstadoCambioRepo;
+    const entity = repo.create({
+      habitacion: { id: input.habitacionId } as any,
+      asignacion: input.asignacionId ? ({ id: input.asignacionId } as any) : null,
+      estadoAnterior: input.estadoAnterior,
+      estadoNuevo: input.estadoNuevo,
+      accion: input.accion,
+      actorUserId: input.actorUserId ?? null,
+      detalle: input.detalle ?? null,
+    });
+    await repo.save(entity);
+  }
+
+  private buildStateChangeGuestDetail(
+    tipo: 'Ingreso' | 'Salida',
+    huesped?: Pick<HuespedEntity, 'nombreCompleto' | 'rut'> | null,
+  ) {
+    const nombreCompleto = huesped?.nombreCompleto?.trim();
+    if (!nombreCompleto) return null;
+    const rut = huesped?.rut?.trim();
+    return rut ? `${tipo}: ${nombreCompleto} (${rut})` : `${tipo}: ${nombreCompleto}`;
+  }
+
   private async autoFinalizeExpiredAssignments() {
     const now = new Date();
     const expiredAssignments = await this.asignacionRepo.find({
@@ -421,13 +489,15 @@ export class AlojamientoService {
         fechaSalidaReal: IsNull(),
         fechaSalidaEstimada: LessThanOrEqual(now),
       },
-      relations: { habitacion: true },
+      relations: { habitacion: true, huesped: true },
     });
 
     if (expiredAssignments.length === 0) return;
 
     await this.dataSource.transaction(async (manager) => {
       const roomIdsToCleaning = new Set<string>();
+      const stateChanges: HabitacionEstadoCambioEntity[] = [];
+      const stateChangeRepo = manager.getRepository(HabitacionEstadoCambioEntity);
 
       for (const assignment of expiredAssignments) {
         assignment.estado = AsignacionEstado.FINALIZADA;
@@ -435,6 +505,19 @@ export class AlojamientoService {
         assignment.sesionCheckout = null;
         if (assignment.habitacion?.id) {
           roomIdsToCleaning.add(assignment.habitacion.id);
+          stateChanges.push(
+            stateChangeRepo.create({
+              habitacion: { id: assignment.habitacion.id } as any,
+              asignacion: { id: assignment.id } as any,
+              estadoAnterior: HabitacionEstadoTimeline.OCUPADA,
+              estadoNuevo: HabitacionEstadoTimeline.EN_LIMPIEZA,
+              accion: HabitacionEstadoCambioAccion.CHECKOUT_AUTOMATICO,
+              actorUserId: null,
+              detalle:
+                this.buildStateChangeGuestDetail('Salida', assignment.huesped) ??
+                'Checkout automático por salida estimada vencida',
+            }),
+          );
         }
       }
 
@@ -445,6 +528,10 @@ export class AlojamientoService {
           { id: In(Array.from(roomIdsToCleaning)) },
           { estadoOperativo: HabitacionEstadoOperativo.EN_LIMPIEZA },
         );
+      }
+
+      if (stateChanges.length > 0) {
+        await stateChangeRepo.save(stateChanges);
       }
     });
   }
@@ -476,6 +563,173 @@ export class AlojamientoService {
     }
 
     return qb.getMany();
+  }
+
+  async listReservas(from?: string, to?: string, estado?: ReservaHabitacionEstado, search?: string) {
+    await this.autoFinalizeExpiredAssignments();
+
+    const qb = this.reservaRepo
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.habitacion', 'room')
+      .leftJoinAndSelect('room.pisoZona', 'piso')
+      .leftJoinAndSelect('r.huesped', 'h')
+      .leftJoinAndSelect('h.empresaHostal', 'e')
+      .orderBy('r.fechaIngreso', 'ASC')
+      .addOrderBy('r.createdAt', 'ASC');
+
+    if (from && to) {
+      const fechaIngreso = this.parseTimestamp(from);
+      const fechaSalidaEstimada = this.parseTimestamp(to);
+      if (fechaSalidaEstimada <= fechaIngreso) {
+        throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+      }
+      qb.andWhere('r.fechaIngreso < :fechaSalida', { fechaSalida: fechaSalidaEstimada }).andWhere(
+        'r.fechaSalidaEstimada > :fechaIngreso',
+        { fechaIngreso },
+      );
+    } else if (from || to) {
+      throw new BadRequestException('Debes indicar ambas fechas o ninguna');
+    }
+
+    if (estado) {
+      if (!Object.values(ReservaHabitacionEstado).includes(estado)) {
+        throw new BadRequestException('Estado de reserva inválido');
+      }
+      qb.andWhere('r.estado = :estado', { estado });
+    }
+
+    if (search && search.trim()) {
+      const value = `%${search.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(room.identificador) LIKE :value OR LOWER(h.nombreCompleto) LIKE :value OR LOWER(COALESCE(h.rut, \'\')) LIKE :value)',
+        { value },
+      );
+    }
+
+    return qb.getMany();
+  }
+
+  async listAsignaciones(from?: string, to?: string, estado?: AsignacionEstado) {
+    await this.autoFinalizeExpiredAssignments();
+
+    const qb = this.asignacionRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.habitacion', 'room')
+      .leftJoinAndSelect('room.pisoZona', 'piso')
+      .leftJoinAndSelect('a.huesped', 'h')
+      .orderBy('a.fechaIngreso', 'DESC')
+      .addOrderBy('a.createdAt', 'DESC');
+
+    if (from && to) {
+      const fechaIngreso = this.parseTimestamp(from);
+      const fechaSalidaEstimada = this.parseTimestamp(to);
+      if (fechaSalidaEstimada <= fechaIngreso) {
+        throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+      }
+      qb.andWhere('a.fechaIngreso < :fechaSalida', { fechaSalida: fechaSalidaEstimada }).andWhere(
+        'COALESCE(a.fechaSalidaReal, a.fechaSalidaEstimada) > :fechaIngreso',
+        { fechaIngreso },
+      );
+    } else if (from || to) {
+      throw new BadRequestException('Debes indicar ambas fechas o ninguna');
+    }
+
+    if (estado) {
+      if (!Object.values(AsignacionEstado).includes(estado)) {
+        throw new BadRequestException('Estado de asignación inválido');
+      }
+      qb.andWhere('a.estado = :estado', { estado });
+    }
+
+    const rows = await qb.getMany();
+
+    return rows.map((row) => ({
+      id: row.id,
+      fechaIngreso: row.fechaIngreso,
+      fechaSalidaEstimada: row.fechaSalidaEstimada,
+      fechaSalidaReal: row.fechaSalidaReal,
+      estado: row.estado,
+      huesped: {
+        id: row.huesped.id,
+        nombreCompleto: row.huesped.nombreCompleto,
+      },
+      habitacion: {
+        id: row.habitacion.id,
+        identificador: row.habitacion.identificador,
+        pisoNombre: row.habitacion.pisoZona?.nombre ?? null,
+      },
+    }));
+  }
+
+  async listRoomStateChanges(from?: string, to?: string) {
+    await this.autoFinalizeExpiredAssignments();
+
+    const qb = this.habitacionEstadoCambioRepo
+      .createQueryBuilder('cambio')
+      .leftJoinAndSelect('cambio.habitacion', 'room')
+      .leftJoinAndSelect('cambio.asignacion', 'asignacion')
+      .leftJoinAndSelect('room.pisoZona', 'piso')
+      .orderBy('cambio.createdAt', 'DESC');
+
+    if (from && to) {
+      const start = this.parseTimestamp(from);
+      const end = this.parseTimestamp(to);
+      if (end <= start) {
+        throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
+      }
+      qb.andWhere('cambio.createdAt >= :start AND cambio.createdAt <= :end', { start, end });
+    } else if (from || to) {
+      throw new BadRequestException('Debes indicar ambas fechas o ninguna');
+    }
+
+    const rows = await qb.getMany();
+    const grouped = new Map<
+      string,
+      {
+        date: string;
+        items: {
+          id: string;
+          asignacionId: string | null;
+          createdAt: Date;
+          accion: HabitacionEstadoCambioAccion;
+          estadoAnterior: HabitacionEstadoTimeline;
+          estadoNuevo: HabitacionEstadoTimeline;
+          actorUserId: string | null;
+          detalle: string | null;
+          habitacion: {
+            id: string;
+            identificador: string;
+            pisoNombre: string | null;
+          };
+        }[];
+      }
+    >();
+
+    for (const row of rows) {
+      const parts = this.getBusinessDateParts(row.createdAt);
+      const dateKey = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+      if (!grouped.has(dateKey)) {
+        grouped.set(dateKey, { date: dateKey, items: [] });
+      }
+
+      grouped.get(dateKey)!.items.push({
+        id: row.id,
+        asignacionId: row.asignacion?.id ?? null,
+        createdAt: row.createdAt,
+        accion: row.accion,
+        estadoAnterior: row.estadoAnterior,
+        estadoNuevo: row.estadoNuevo,
+        actorUserId: row.actorUserId,
+        detalle: row.detalle,
+        habitacion: {
+          id: row.habitacion.id,
+          identificador: row.habitacion.identificador,
+          pisoNombre: row.habitacion.pisoZona?.nombre ?? null,
+        },
+      });
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => b.date.localeCompare(a.date));
   }
 
   async createReserva(dto: CreateReservaHabitacionDto) {
@@ -599,9 +853,14 @@ export class AlojamientoService {
       .getMany();
   }
 
-  async createAsignacion(dto: CreateAsignacionHabitacionDto, userId: string) {
+  async createAsignacion(
+    dto: CreateAsignacionHabitacionDto,
+    userId: string,
+    userRole: 'ADMIN' | 'VENDEDOR',
+  ) {
     await this.autoFinalizeExpiredAssignments();
-    const sesionAbierta = await this.getSesionAbiertaOrFail(userId);
+    const sesionAbierta =
+      userRole === 'VENDEDOR' ? await this.getSesionAbiertaOrFail(userId) : null;
     const noches = this.parseCantidadNoches(dto.cantidadNoches);
     const fechaIngreso = new Date();
     const fechaSalidaEstimada = this.calculateFechaSalidaEstimada(fechaIngreso, noches);
@@ -622,6 +881,12 @@ export class AlojamientoService {
     const tipoCobro = huesped.empresaHostal
       ? AsignacionTipoCobro.EMPRESA_CONVENIO
       : AsignacionTipoCobro.DIRECTO;
+
+    if (userRole === 'ADMIN' && tipoCobro === AsignacionTipoCobro.DIRECTO) {
+      throw new ForbiddenException(
+        'Administrador solo puede asignar huéspedes con empresa (convenio).',
+      );
+    }
 
     const precioHabitacion = Number(habitacion.precio);
     if (!Number.isFinite(precioHabitacion)) {
@@ -661,7 +926,7 @@ export class AlojamientoService {
       const asignacion = manager.getRepository(AsignacionHabitacionEntity).create({
         habitacion: { id: habitacion.id } as any,
         huesped: { id: huesped.id } as any,
-        sesionApertura: { id: sesionAbierta.id } as any,
+        sesionApertura: sesionAbierta ? ({ id: sesionAbierta.id } as any) : null,
         fechaIngreso,
         fechaSalidaEstimada,
         fechaSalidaReal: null,
@@ -672,7 +937,24 @@ export class AlojamientoService {
 
       const savedAsignacion = await manager.getRepository(AsignacionHabitacionEntity).save(asignacion);
 
+      await this.logRoomStateChange(
+        {
+          habitacionId: habitacion.id,
+          estadoAnterior: HabitacionEstadoTimeline.DISPONIBLE,
+          estadoNuevo: HabitacionEstadoTimeline.OCUPADA,
+          accion: HabitacionEstadoCambioAccion.ASIGNACION_CREADA,
+          asignacionId: savedAsignacion.id,
+          actorUserId: userId,
+          detalle:
+            this.buildStateChangeGuestDetail('Ingreso', huesped) ?? 'Asignación de estadía creada',
+        },
+        manager,
+      );
+
       if (tipoCobro === AsignacionTipoCobro.DIRECTO) {
+        if (!sesionAbierta) {
+          throw new ConflictException('No hay sesión de caja disponible para registrar venta directa.');
+        }
         const venta = manager.getRepository(VentaAlojamientoEntity).create({
           asignacion: { id: savedAsignacion.id } as any,
           sesionCaja: { id: sesionAbierta.id } as any,
@@ -687,12 +969,13 @@ export class AlojamientoService {
     });
   }
 
-  async checkoutAsignacion(asignacionId: string, userId: string) {
-    const sesionAbierta = await this.getSesionAbiertaOrFail(userId);
+  async checkoutAsignacion(asignacionId: string, userId: string, userRole: 'ADMIN' | 'VENDEDOR') {
+    const sesionAbierta =
+      userRole === 'VENDEDOR' ? await this.getSesionAbiertaOrFail(userId) : null;
 
     const asignacion = await this.asignacionRepo.findOne({
       where: { id: asignacionId },
-      relations: { habitacion: true },
+      relations: { habitacion: true, huesped: true },
     });
 
     if (!asignacion) throw new NotFoundException('Asignación no encontrada');
@@ -703,10 +986,21 @@ export class AlojamientoService {
     const ahora = new Date();
     asignacion.fechaSalidaReal = ahora;
     asignacion.estado = AsignacionEstado.FINALIZADA;
-    asignacion.sesionCheckout = { id: sesionAbierta.id } as any;
+    asignacion.sesionCheckout = sesionAbierta ? ({ id: sesionAbierta.id } as any) : null;
     if (asignacion.habitacion) {
       asignacion.habitacion.estadoOperativo = HabitacionEstadoOperativo.EN_LIMPIEZA;
       await this.habitacionRepo.save(asignacion.habitacion);
+      await this.logRoomStateChange({
+        habitacionId: asignacion.habitacion.id,
+        estadoAnterior: HabitacionEstadoTimeline.OCUPADA,
+        estadoNuevo: HabitacionEstadoTimeline.EN_LIMPIEZA,
+        accion: HabitacionEstadoCambioAccion.CHECKOUT_MANUAL,
+        asignacionId: asignacion.id,
+        actorUserId: userId,
+        detalle:
+          this.buildStateChangeGuestDetail('Salida', asignacion.huesped) ??
+          'Checkout manual de estadía',
+      });
     }
 
     const saved = await this.asignacionRepo.save(asignacion);
@@ -718,7 +1012,7 @@ export class AlojamientoService {
     };
   }
 
-  async finishRoomCleaning(habitacionId: string) {
+  async finishRoomCleaning(habitacionId: string, userId?: string) {
     await this.autoFinalizeExpiredAssignments();
     const room = await this.habitacionRepo.findOne({ where: { id: habitacionId } });
     if (!room) throw new NotFoundException('Habitación no encontrada');
@@ -753,7 +1047,16 @@ export class AlojamientoService {
     }
 
     room.estadoOperativo = HabitacionEstadoOperativo.DISPONIBLE;
-    return this.habitacionRepo.save(room);
+    const saved = await this.habitacionRepo.save(room);
+    await this.logRoomStateChange({
+      habitacionId: room.id,
+      estadoAnterior: HabitacionEstadoTimeline.EN_LIMPIEZA,
+      estadoNuevo: HabitacionEstadoTimeline.DISPONIBLE,
+      accion: HabitacionEstadoCambioAccion.LIMPIEZA_FINALIZADA,
+      actorUserId: userId ?? null,
+      detalle: 'Limpieza finalizada manualmente',
+    });
+    return saved;
   }
 
   async getAsignacionActualByHabitacion(habitacionId: string) {
@@ -788,6 +1091,51 @@ export class AlojamientoService {
       ventaAlojamiento: venta
         ? {
             id: venta.id,
+            medioPago: venta.medioPago,
+            montoTotal: venta.montoTotal,
+            fechaConfirmacion: venta.fechaConfirmacion,
+          }
+        : null,
+    };
+  }
+
+  async getAsignacionById(asignacionId: string) {
+    const asignacion = await this.asignacionRepo.findOne({
+      where: { id: asignacionId },
+      relations: {
+        habitacion: { pisoZona: true },
+        huesped: { empresaHostal: true },
+      },
+    });
+
+    if (!asignacion) throw new NotFoundException('Asignación no encontrada');
+
+    const venta = await this.ventaAlojamientoRepo.findOne({
+      where: { asignacion: { id: asignacion.id } } as any,
+    });
+
+    return {
+      habitacion: {
+        identificador: asignacion.habitacion.identificador,
+        pisoNombre: asignacion.habitacion.pisoZona?.nombre ?? null,
+      },
+      huesped: {
+        nombreCompleto: asignacion.huesped.nombreCompleto,
+        rut: asignacion.huesped.rut,
+        correo: asignacion.huesped.correo,
+        telefono: asignacion.huesped.telefono,
+        empresaNombre: asignacion.huesped.empresaHostal?.nombreEmpresa ?? null,
+      },
+      estadia: {
+        estado: asignacion.estado,
+        tipoCobro: asignacion.tipoCobro,
+        noches: asignacion.noches,
+        fechaIngreso: asignacion.fechaIngreso,
+        fechaSalidaEstimada: asignacion.fechaSalidaEstimada,
+        fechaSalidaReal: asignacion.fechaSalidaReal,
+      },
+      ventaAlojamiento: venta
+        ? {
             medioPago: venta.medioPago,
             montoTotal: venta.montoTotal,
             fechaConfirmacion: venta.fechaConfirmacion,
@@ -1045,12 +1393,15 @@ export class AlojamientoService {
     });
   }
 
-  async updateHabitacion(id: string, dto: UpdateHabitacionDto) {
+  async updateHabitacion(id: string, dto: UpdateHabitacionDto, userId?: string) {
     const room = await this.habitacionRepo.findOne({
       where: { id },
       relations: { comodidades: true, pisoZona: true },
     });
     if (!room) throw new NotFoundException('Habitación no encontrada');
+    const previousTimelineState = this.getRoomTimelineState(room);
+    const previousEstadoActivo = room.estadoActivo;
+    const previousEstadoOperativo = room.estadoOperativo;
     const pisoId = room.pisoZona?.id;
     if (!pisoId) throw new BadRequestException('Piso/zona inválido');
 
@@ -1085,6 +1436,33 @@ export class AlojamientoService {
     await this.habitacionRepo.save(room);
     await this.applyCamas(room, dto.camas);
     await this.applyInventario(room, dto.inventario);
+
+    const nextTimelineState = this.getRoomTimelineState(room);
+    if (dto.estadoActivo !== undefined && previousEstadoActivo !== room.estadoActivo) {
+      await this.logRoomStateChange({
+        habitacionId: room.id,
+        estadoAnterior: previousTimelineState,
+        estadoNuevo: nextTimelineState,
+        accion: room.estadoActivo
+          ? HabitacionEstadoCambioAccion.HABITACION_ACTIVADA
+          : HabitacionEstadoCambioAccion.HABITACION_INACTIVADA,
+        actorUserId: userId ?? null,
+        detalle: room.estadoActivo ? 'Habitación activada manualmente' : 'Habitación inactivada manualmente',
+      });
+    } else if (
+      dto.estadoOperativo !== undefined &&
+      previousEstadoOperativo !== room.estadoOperativo &&
+      room.estadoActivo
+    ) {
+      await this.logRoomStateChange({
+        habitacionId: room.id,
+        estadoAnterior: this.mapOperativoToTimeline(previousEstadoOperativo),
+        estadoNuevo: this.mapOperativoToTimeline(room.estadoOperativo),
+        accion: HabitacionEstadoCambioAccion.ESTADO_OPERATIVO_ACTUALIZADO,
+        actorUserId: userId ?? null,
+        detalle: 'Estado operativo actualizado manualmente',
+      });
+    }
 
     return this.habitacionRepo.findOne({
       where: { id: room.id },

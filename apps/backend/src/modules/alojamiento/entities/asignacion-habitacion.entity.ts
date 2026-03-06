@@ -40,10 +40,10 @@ export class AsignacionHabitacionEntity {
   @JoinColumn({ name: 'id_sesion_apertura' })
   sesionApertura!: SesionCajaEntity | null;
 
-  @Column({ type: 'timestamp', name: 'fecha_ingreso' })
+  @Column({ type: 'timestamptz', name: 'fecha_ingreso' })
   fechaIngreso!: Date;
 
-  @Column({ type: 'timestamp', name: 'fecha_salida_estimada' })
+  @Column({ type: 'timestamptz', name: 'fecha_salida_estimada' })
   fechaSalidaEstimada!: Date;
 
   @Column({
@@ -61,7 +61,7 @@ export class AsignacionHabitacionEntity {
   })
   tipoCobro: AsignacionTipoCobro;
 
-  @Column({ type: 'timestamp', name: 'fecha_salida_real', nullable: true })
+  @Column({ type: 'timestamptz', name: 'fecha_salida_real', nullable: true })
   fechaSalidaReal: Date | null;
 
   @ManyToOne(() => SesionCajaEntity, { onDelete: 'RESTRICT', nullable: true })
@@ -71,6 +71,6 @@ export class AsignacionHabitacionEntity {
   @Column({ type: 'int' })
   noches: number;
 
-  @CreateDateColumn({ name: 'fecha_creacion' })
+  @CreateDateColumn({ type: 'timestamptz', name: 'fecha_creacion' })
   createdAt: Date;
 }

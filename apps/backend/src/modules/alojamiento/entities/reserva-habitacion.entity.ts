@@ -32,10 +32,10 @@ export class ReservaHabitacionEntity {
   @JoinColumn({ name: 'id_huesped' })
   huesped: HuespedEntity;
 
-  @Column({ type: 'timestamp', name: 'fecha_ingreso' })
+  @Column({ type: 'timestamptz', name: 'fecha_ingreso' })
   fechaIngreso: Date;
 
-  @Column({ type: 'timestamp', name: 'fecha_salida_estimada' })
+  @Column({ type: 'timestamptz', name: 'fecha_salida_estimada' })
   fechaSalidaEstimada: Date;
 
   @Column({
@@ -48,15 +48,15 @@ export class ReservaHabitacionEntity {
   @Column({ type: 'text', name: 'motivo_cancelacion', nullable: true })
   motivoCancelacion: string | null;
 
-  @Column({ type: 'timestamp', name: 'fecha_cancelacion', nullable: true })
+  @Column({ type: 'timestamptz', name: 'fecha_cancelacion', nullable: true })
   fechaCancelacion: Date | null;
 
-  @Column({ type: 'timestamp', name: 'fecha_atencion', nullable: true })
+  @Column({ type: 'timestamptz', name: 'fecha_atencion', nullable: true })
   fechaAtencion: Date | null;
 
-  @CreateDateColumn({ name: 'fecha_creacion' })
+  @CreateDateColumn({ type: 'timestamptz', name: 'fecha_creacion' })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'fecha_actualizacion' })
+  @UpdateDateColumn({ type: 'timestamptz', name: 'fecha_actualizacion' })
   updatedAt: Date;
 }

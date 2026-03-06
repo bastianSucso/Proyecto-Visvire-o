@@ -34,17 +34,8 @@ export class AlojamientoHomePage implements OnInit {
   private readonly guestSearchMinChars = 2;
   private readonly businessTimeZone = 'America/Santiago';
   private readonly nightStartHour = 20;
-  private readonly nightEndHour = 5;
+  private readonly nightEndHour = 6;
   private readonly checkoutHour = 12;
-  private readonly dateTimeFormatter = new Intl.DateTimeFormat('es-CL', {
-    timeZone: this.businessTimeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
   private readonly businessDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: this.businessTimeZone,
     year: 'numeric',
@@ -1119,16 +1110,16 @@ export class AlojamientoHomePage implements OnInit {
     return Math.floor(diff / 86_400_000) + 1;
   }
 
-  get reservaIngresoLabel() {
-    if (!this.reservaForm.fechaIngreso) return '-';
-    return this.formatApiDate(this.dateAtHourIso(this.reservaForm.fechaIngreso, 15));
+  get reservaIngresoDate() {
+    if (!this.reservaForm.fechaIngreso) return null;
+    return this.dateAtHourIso(this.reservaForm.fechaIngreso, 15);
   }
 
-  get reservaSalidaLabel() {
+  get reservaSalidaDate() {
     const { end } = this.getReservaRangeBounds();
-    if (!end) return '-';
+    if (!end) return null;
     const salida = this.dateKey(this.addDays(this.parseDateKey(end), 1));
-    return this.formatApiDate(this.dateAtHourIso(salida, 12));
+    return this.dateAtHourIso(salida, 12);
   }
 
   get canSaveReserva() {
@@ -1383,16 +1374,15 @@ export class AlojamientoHomePage implements OnInit {
     return (value || '').trim().toLowerCase();
   }
 
-  get fechaIngresoPreview() {
-    return this.formatPreviewDate(new Date());
+  get fechaIngresoPreviewDate() {
+    return new Date();
   }
 
-  get fechaSalidaPreview() {
+  get fechaSalidaPreviewDate() {
     const noches = this.getCantidadNoches();
-    if (noches < 1) return '-';
+    if (noches < 1) return null;
 
-    const salida = this.calculateFechaSalida(new Date(), noches);
-    return this.formatPreviewDate(salida);
+    return this.calculateFechaSalida(new Date(), noches);
   }
 
   get montoPreview() {
@@ -1542,17 +1532,6 @@ export class AlojamientoHomePage implements OnInit {
     const hours = Number(match[2]);
     const minutes = Number(match[3] ?? '0');
     return sign * (hours * 60 + minutes);
-  }
-
-  private formatPreviewDate(date: Date) {
-    return this.dateTimeFormatter.format(date);
-  }
-
-  formatApiDate(value?: string) {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '-';
-    return this.formatPreviewDate(date);
   }
 
   private storeGuestCache(guests: Huesped[]) {

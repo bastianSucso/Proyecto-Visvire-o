@@ -149,7 +149,9 @@
             </div>
             <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
               <div class="text-slate-500">Fecha confirmación</div>
-              <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoVenta?.fechaConfirmacion) }}</div>
+              <div class="font-semibold text-slate-800">
+                {{ selectedAlojamientoVenta?.fechaConfirmacion ? (selectedAlojamientoVenta?.fechaConfirmacion | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL') : '-' }}
+              </div>
             </div>
             <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
               <div class="text-slate-500">Medio de pago</div>
@@ -190,15 +192,17 @@
               </div>
               <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                 <div class="text-slate-500">Ingreso</div>
-                <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoAsignacionDetalle.estadia.fechaIngreso) }}</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.estadia.fechaIngreso | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}</div>
               </div>
               <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                 <div class="text-slate-500">Salida estimada</div>
-                <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaEstimada) }}</div>
+                <div class="font-semibold text-slate-800">{{ selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaEstimada | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}</div>
               </div>
               <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                 <div class="text-slate-500">Salida real</div>
-                <div class="font-semibold text-slate-800">{{ formatDateTime(selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaReal) }}</div>
+                <div class="font-semibold text-slate-800">
+                  {{ selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaReal ? (selectedAlojamientoAsignacionDetalle.estadia.fechaSalidaReal | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL') : '-' }}
+                </div>
               </div>
             </div>
           </div>

@@ -63,7 +63,7 @@ type Rect = { posX: number; posY: number; ancho: number; alto: number };
 export class AlojamientoService {
   private readonly businessTimeZone = 'America/Santiago';
   private readonly nightStartHour = 20;
-  private readonly nightEndHour = 5;
+  private readonly nightEndHour = 6;
   private readonly checkoutHour = 12;
   private readonly businessDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: this.businessTimeZone,
@@ -274,6 +274,22 @@ export class AlojamientoService {
 
   private parseTimestamp(value?: string) {
     if (!value) throw new BadRequestException('Fechas requeridas');
+
+    const businessLocalMatch = value.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
+    );
+    if (businessLocalMatch) {
+      const [, year, month, day, hour, minute, second] = businessLocalMatch;
+      return this.createBusinessDate(
+        Number(year),
+        Number(month),
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second ?? '0'),
+      );
+    }
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) throw new BadRequestException('Fecha inválida');
     return date;
@@ -483,18 +499,27 @@ export class AlojamientoService {
 
   private async autoFinalizeExpiredAssignments() {
     const now = new Date();
-    const expiredAssignments = await this.asignacionRepo.find({
-      where: {
-        estado: AsignacionEstado.ACTIVA,
-        fechaSalidaReal: IsNull(),
-        fechaSalidaEstimada: LessThanOrEqual(now),
-      },
-      relations: { habitacion: true, huesped: true },
-    });
-
-    if (expiredAssignments.length === 0) return;
-
     await this.dataSource.transaction(async (manager) => {
+      const expiredRows = await manager
+        .getRepository(AsignacionHabitacionEntity)
+        .createQueryBuilder('asignacion')
+        .select('asignacion.id', 'id')
+        .where('asignacion.estado = :estado', { estado: AsignacionEstado.ACTIVA })
+        .andWhere('asignacion.fechaSalidaReal IS NULL')
+        .andWhere('asignacion.fechaSalidaEstimada <= :now', { now })
+        .setLock('pessimistic_write')
+        .getRawMany<{ id: string }>();
+
+      const expiredIds = expiredRows.map((row) => row.id);
+      if (expiredIds.length === 0) return;
+
+      const expiredAssignments = await manager.getRepository(AsignacionHabitacionEntity).find({
+        where: { id: In(expiredIds) },
+        relations: { habitacion: true, huesped: true },
+      });
+
+      if (expiredAssignments.length === 0) return;
+
       const roomIdsToCleaning = new Set<string>();
       const stateChanges: HabitacionEstadoCambioEntity[] = [];
       const stateChangeRepo = manager.getRepository(HabitacionEstadoCambioEntity);

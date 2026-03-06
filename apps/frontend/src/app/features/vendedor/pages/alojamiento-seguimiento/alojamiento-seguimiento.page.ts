@@ -24,6 +24,17 @@ export class AlojamientoSeguimientoPage implements OnInit {
   private alojamientoService = inject(AlojamientoService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly businessTimeZone = 'America/Santiago';
+  private readonly businessDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: this.businessTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 
   tab: 'cambios' | 'reservas' | 'asignaciones' = 'cambios';
 
@@ -65,16 +76,22 @@ export class AlojamientoSeguimientoPage implements OnInit {
   }
 
   private setDefaultRange() {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    this.rangeFrom = this.formatDatetimeLocal(start);
-    this.rangeTo = this.formatDatetimeLocal(end);
+    const nowParts = this.getBusinessDateParts(new Date());
+    this.rangeFrom = `${nowParts.date}T00:00`;
+    this.rangeTo = `${nowParts.date}T23:59`;
   }
 
-  private formatDatetimeLocal(date: Date) {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  private getBusinessDateParts(date: Date) {
+    const parts = this.businessDateTimeFormatter.formatToParts(date);
+    const get = (type: Intl.DateTimeFormatPartTypes) => {
+      const value = parts.find((part) => part.type === type)?.value;
+      if (!value) throw new Error('No se pudo interpretar la fecha en zona horaria de negocio');
+      return value;
+    };
+
+    return {
+      date: `${get('year')}-${get('month')}-${get('day')}`,
+    };
   }
 
   loadStateChanges() {
@@ -219,29 +236,6 @@ export class AlojamientoSeguimientoPage implements OnInit {
       ESTADO_OPERATIVO_ACTUALIZADO: 'Estado operativo actualizado',
     };
     return labels[accion] ?? accion;
-  }
-
-  formatDay(value: string) {
-    const date = new Date(`${value}T00:00:00`);
-    return date.toLocaleDateString('es-CL', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-  }
-
-  formatDateTime(value: string) {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('es-CL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
 
   statusClass(status: ReservaHabitacionEstado) {

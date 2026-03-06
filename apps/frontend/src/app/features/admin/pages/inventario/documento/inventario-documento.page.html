@@ -60,14 +60,19 @@
       <div class="px-4 py-3 overflow-auto">
         <table class="w-full text-left text-sm">
           <thead class="text-xs text-slate-500">
-            <tr class="border-b border-slate-100">
-              <th class="py-2 pr-3">Producto</th>
-              <th class="py-2 pr-3">Tipo</th>
-              <th class="py-2 pr-3">Unidad</th>
-              <th class="py-2 pr-3 w-32 text-center">Cantidad</th>
-            </tr>
-          </thead>
-          <tbody class="text-sm">
+              <tr class="border-b border-slate-100">
+                <th class="py-2 pr-3">Producto</th>
+                <th class="py-2 pr-3">Tipo</th>
+                <th class="py-2 pr-3">Unidad</th>
+                <th class="py-2 pr-3 w-32 text-center">Cantidad</th>
+                <th class="py-2 pr-3 w-32 text-right">Costo total u.</th>
+                <th class="py-2 pr-3 w-28 text-right">Neto u.</th>
+                <th class="py-2 pr-3 w-28 text-right">IVA u.</th>
+                <th class="py-2 pr-3 w-20 text-center">Tasa</th>
+                <th class="py-2 pr-3 w-28 text-center">Crédito</th>
+              </tr>
+            </thead>
+            <tbody class="text-sm">
             <tr *ngFor="let it of documento?.items" class="border-b border-slate-100 last:border-b-0">
               <td class="py-3 pr-3">
                 <div class="font-medium text-slate-900 leading-5">
@@ -81,9 +86,24 @@
               <td class="py-3 pr-3 text-slate-600">{{ it.producto?.tipo ?? '-' }}</td>
               <td class="py-3 pr-3 text-slate-600">{{ it.unidadBase ?? '-' }}</td>
               <td class="py-3 pr-3 text-center">{{ it.cantidad }}</td>
+              <td class="py-3 pr-3 text-right text-slate-700">
+                {{ it.costoIngresoUnitarioTotal !== null ? (it.costoIngresoUnitarioTotal | number:'1.2-2') : '-' }}
+              </td>
+              <td class="py-3 pr-3 text-right text-slate-700">
+                {{ it.netoUnitario !== null ? (it.netoUnitario | number:'1.2-2') : '-' }}
+              </td>
+              <td class="py-3 pr-3 text-right text-slate-700">
+                {{ it.ivaUnitario !== null ? (it.ivaUnitario | number:'1.2-2') : '-' }}
+              </td>
+              <td class="py-3 pr-3 text-center text-slate-700">
+                {{ it.ivaTasa !== null ? ((it.ivaTasa * 100) | number:'1.0-2') + '%' : '-' }}
+              </td>
+              <td class="py-3 pr-3 text-center text-slate-700">
+                {{ it.aplicaCreditoFiscal === null ? '-' : (it.aplicaCreditoFiscal ? 'Si' : 'No') }}
+              </td>
             </tr>
             <tr *ngIf="!loading && (documento?.items?.length ?? 0) === 0">
-              <td class="py-6 text-slate-500" colspan="4">Sin items.</td>
+              <td class="py-6 text-slate-500" colspan="9">Sin items.</td>
             </tr>
           </tbody>
         </table>

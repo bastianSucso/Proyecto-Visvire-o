@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsUUID, Min } from 'class-validator';
 
 export class CreateIngresoDto {
   @IsUUID()
@@ -17,4 +17,7 @@ export class CreateIngresoDto {
   @IsNumber()
   @Min(0.001)
   costoIngreso!: number;
+
+  @IsBoolean()
+  aplicaCreditoFiscal!: boolean;
 }

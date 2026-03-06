@@ -38,6 +38,27 @@ export class AlteraEntity {
   @Column({ type: 'varchar', length: 300, nullable: true })
   motivo!: string | null;
 
+  @Column({
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    name: 'costo_ingreso_unitario_total',
+    nullable: true,
+  })
+  costoIngresoUnitarioTotal!: string | null;
+
+  @Column({ type: 'boolean', name: 'aplica_credito_fiscal', nullable: true })
+  aplicaCreditoFiscal!: boolean | null;
+
+  @Column({ type: 'numeric', precision: 5, scale: 4, name: 'iva_tasa', nullable: true })
+  ivaTasa!: string | null;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'neto_unitario', nullable: true })
+  netoUnitario!: string | null;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'iva_unitario', nullable: true })
+  ivaUnitario!: string | null;
+
   @Column({ type: 'uuid', name: 'documento_ref', nullable: true })
   documentoRef!: string | null;
 

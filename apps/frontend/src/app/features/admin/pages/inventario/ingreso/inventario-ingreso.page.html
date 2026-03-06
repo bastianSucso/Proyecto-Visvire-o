@@ -49,7 +49,10 @@
                   <th class="py-2 pr-3">Producto</th>
                   <th class="py-2 pr-3">Unidad base</th>
                   <th class="py-2 pr-3 w-32 text-center">Cant.</th>
-                  <th class="py-2 pr-3 w-36 text-center">Costo</th>
+                  <th class="py-2 pr-3 w-44 text-center">Costo unitario total
+                    <p class="mt-1 text-center text-[11px] text-slate-500">(IVA incluido)</p>
+                  </th>
+                  <th class="py-2 pr-3 w-40 text-center">Crédito fiscal</th>
                   <th class="py-2 w-12"></th>
                 </tr>
               </thead>
@@ -97,6 +100,21 @@
                         [disabled]="loading"
                         (blur)="guardarCosto(it.id)"
                       />
+                    </div>
+                  </td>
+
+                  <td class="py-3 pr-4">
+                    <div class="flex items-center justify-center">
+                      <label class="inline-flex items-center gap-2 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          class="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-200"
+                          [(ngModel)]="editAplicaCredito[it.id]"
+                          [disabled]="loading"
+                          (change)="guardarAplicaCredito(it.id)"
+                        />
+                        Aplica
+                      </label>
                     </div>
                   </td>
 

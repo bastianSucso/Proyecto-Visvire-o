@@ -22,6 +22,11 @@ export interface InventarioStockItem {
 export interface InventarioDocumentoItem {
   id: number;
   cantidad: number;
+  costoIngresoUnitarioTotal: number | null;
+  aplicaCreditoFiscal: boolean | null;
+  ivaTasa: number | null;
+  netoUnitario: number | null;
+  ivaUnitario: number | null;
   unidadBase: string | null;
   barcode: string | null;
   producto: {
@@ -60,6 +65,11 @@ export interface InventarioMovimiento {
   cantidad: number;
   unidad?: string | null;
   motivo: string | null;
+  costoIngresoUnitarioTotal: number | null;
+  aplicaCreditoFiscal: boolean | null;
+  ivaTasa: number | null;
+  netoUnitario: number | null;
+  ivaUnitario: number | null;
   fecha: string;
   producto: { id: string; name: string; internalCode: string; barcode: string | null } | null;
   ubicacion: { id: string; nombre: string; tipo: string } | null;
@@ -123,6 +133,7 @@ export interface CreateIngresoDto {
   ubicacionId: string;
   cantidad: number;
   costoIngreso: number;
+  aplicaCreditoFiscal: boolean;
 }
 
 export interface CreateAjusteDto {
@@ -148,6 +159,7 @@ export interface DocumentoIngresoItemInput {
   productoId: string;
   cantidad: number;
   costoIngreso: number;
+  aplicaCreditoFiscal: boolean;
 }
 
 export interface CreateDocumentoIngresoDto {

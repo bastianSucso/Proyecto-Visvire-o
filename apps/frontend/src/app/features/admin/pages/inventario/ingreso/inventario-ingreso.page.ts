@@ -31,6 +31,7 @@ export class InventarioIngresoPage {
     unidadBase: string | null;
     cantidad: number;
     costoIngreso: number;
+    aplicaCreditoFiscal: boolean;
   }[] = [];
   loading = false;
   errorMsg = '';
@@ -47,6 +48,7 @@ export class InventarioIngresoPage {
   cantidadRapida = 1;
   editCantidad: Record<string, number> = {};
   editCosto: Record<string, number> = {};
+  editAplicaCredito: Record<string, boolean> = {};
 
 
   ngOnInit() {
@@ -250,10 +252,12 @@ export class InventarioIngresoPage {
           unidadBase: producto.unidadBase ?? null,
           cantidad,
           costoIngreso,
+          aplicaCreditoFiscal: true,
         },
       ];
       this.editCantidad[producto.id] = cantidad;
       this.editCosto[producto.id] = costoIngreso;
+      this.editAplicaCredito[producto.id] = true;
     } else {
       existing.cantidad += cantidad;
       this.editCantidad[producto.id] = existing.cantidad;
@@ -286,8 +290,17 @@ export class InventarioIngresoPage {
     if (item) item.costoIngreso = costo;
   }
 
+  guardarAplicaCredito(itemId: string) {
+    const item = this.items.find((it) => it.id === itemId);
+    if (!item) return;
+    item.aplicaCreditoFiscal = Boolean(this.editAplicaCredito[itemId]);
+  }
+
   eliminarItem(itemId: string) {
     this.items = this.items.filter((it) => it.id !== itemId);
+    delete this.editCantidad[itemId];
+    delete this.editCosto[itemId];
+    delete this.editAplicaCredito[itemId];
   }
 
   confirmar() {
@@ -308,6 +321,12 @@ export class InventarioIngresoPage {
       return;
     }
 
+    const invalidoCredito = this.items.find((it) => typeof it.aplicaCreditoFiscal !== 'boolean');
+    if (invalidoCredito) {
+      this.errorMsg = 'Cada item debe indicar si aplica crédito fiscal.';
+      return;
+    }
+
     this.loading = true;
     this.errorMsg = '';
     this.successMsg = '';
@@ -318,6 +337,7 @@ export class InventarioIngresoPage {
         productoId: it.id,
         cantidad: it.cantidad,
         costoIngreso: it.costoIngreso,
+        aplicaCreditoFiscal: it.aplicaCreditoFiscal,
       })),
     };
 

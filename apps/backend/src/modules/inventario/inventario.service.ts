@@ -21,6 +21,8 @@ import { ConvertirProductoDto } from './dto/convertir-producto.dto';
 import { CreateConversionFactorDto } from './dto/create-conversion-factor.dto';
 import { ProductoConversionEntity } from './entities/producto-conversion.entity';
 
+const IVA_TASA = 0.19;
+
 @Injectable()
 export class InventarioService {
   constructor(
@@ -72,6 +74,28 @@ export class InventarioService {
       throw new BadRequestException('costoIngreso debe ser un número > 0');
     }
     return costo;
+  }
+
+  private parseAplicaCreditoFiscal(raw: boolean) {
+    if (typeof raw !== 'boolean') {
+      throw new BadRequestException('aplicaCreditoFiscal debe ser boolean');
+    }
+    return raw;
+  }
+
+  private formatMonto(value: number) {
+    return value.toFixed(2);
+  }
+
+  private calcularDatosTributarios(costoIngresoUnitarioTotal: number) {
+    const neto = Number((costoIngresoUnitarioTotal / (1 + IVA_TASA)).toFixed(2));
+    const iva = Number((costoIngresoUnitarioTotal - neto).toFixed(2));
+
+    return {
+      ivaTasa: this.formatMonto(IVA_TASA),
+      netoUnitario: this.formatMonto(neto),
+      ivaUnitario: this.formatMonto(iva),
+    };
   }
 
   private formatCantidad(value: number) {
@@ -126,6 +150,12 @@ export class InventarioService {
       items: items.map((it) => ({
         id: it.id,
         cantidad: Number(it.cantidad ?? 0),
+        costoIngresoUnitarioTotal:
+          it.costoIngresoUnitarioTotal !== null ? Number(it.costoIngresoUnitarioTotal) : null,
+        aplicaCreditoFiscal: it.aplicaCreditoFiscal,
+        ivaTasa: it.ivaTasa !== null ? Number(it.ivaTasa) : null,
+        netoUnitario: it.netoUnitario !== null ? Number(it.netoUnitario) : null,
+        ivaUnitario: it.ivaUnitario !== null ? Number(it.ivaUnitario) : null,
         unidadBase: it.producto?.unidadBase ?? null,
         barcode: it.producto?.barcode ?? null,
         producto: it.producto
@@ -161,6 +191,8 @@ export class InventarioService {
         const producto = await this.getProductoOrThrow(it.productoId);
         const cantidad = this.parseCantidad(it.cantidad);
         const costoIngreso = this.parseCosto(it.costoIngreso);
+        const aplicaCreditoFiscal = this.parseAplicaCreditoFiscal(it.aplicaCreditoFiscal);
+        const datosTributarios = this.calcularDatosTributarios(costoIngreso);
 
         const stockTotal = await this.getStockTotalByProductoId(producto.id, stockRepoTx);
         const costoActual = Number(producto.precioCosto ?? 0);
@@ -213,6 +245,11 @@ export class InventarioService {
             unidad: unidadMeta.unidad,
             factorABase: unidadMeta.factorABase,
             motivo: null,
+            costoIngresoUnitarioTotal: this.formatMonto(costoIngreso),
+            aplicaCreditoFiscal,
+            ivaTasa: datosTributarios.ivaTasa,
+            netoUnitario: datosTributarios.netoUnitario,
+            ivaUnitario: datosTributarios.ivaUnitario,
             producto: { id: producto.id } as any,
             ubicacion: { id: destino.id } as any,
             origen: null,
@@ -298,6 +335,11 @@ export class InventarioService {
             unidad: unidadMeta.unidad,
             factorABase: unidadMeta.factorABase,
             motivo: null,
+            costoIngresoUnitarioTotal: null,
+            aplicaCreditoFiscal: null,
+            ivaTasa: null,
+            netoUnitario: null,
+            ivaUnitario: null,
             producto: { id: producto.id } as any,
             ubicacion: null,
             origen: { id: origen.id } as any,
@@ -332,6 +374,8 @@ export class InventarioService {
       throw new BadRequestException('cantidad debe ser un número > 0');
     }
     const costoIngreso = this.parseCosto(dto.costoIngreso);
+    const aplicaCreditoFiscal = this.parseAplicaCreditoFiscal(dto.aplicaCreditoFiscal);
+    const datosTributarios = this.calcularDatosTributarios(costoIngreso);
 
     let insumoRecalcId: string | null = null;
 
@@ -397,6 +441,11 @@ export class InventarioService {
         unidad: unidadMeta.unidad,
         factorABase: unidadMeta.factorABase,
         motivo: null,
+        costoIngresoUnitarioTotal: this.formatMonto(costoIngreso),
+        aplicaCreditoFiscal,
+        ivaTasa: datosTributarios.ivaTasa,
+        netoUnitario: datosTributarios.netoUnitario,
+        ivaUnitario: datosTributarios.ivaUnitario,
         producto,
         ubicacion,
         origen: null,
@@ -465,6 +514,11 @@ export class InventarioService {
         unidad: unidadMeta.unidad,
         factorABase: unidadMeta.factorABase,
         motivo,
+        costoIngresoUnitarioTotal: null,
+        aplicaCreditoFiscal: null,
+        ivaTasa: null,
+        netoUnitario: null,
+        ivaUnitario: null,
         producto,
         ubicacion,
         origen: null,
@@ -541,6 +595,11 @@ export class InventarioService {
         unidad: unidadMeta.unidad,
         factorABase: unidadMeta.factorABase,
         motivo: null,
+        costoIngresoUnitarioTotal: null,
+        aplicaCreditoFiscal: null,
+        ivaTasa: null,
+        netoUnitario: null,
+        ivaUnitario: null,
         producto,
         ubicacion: null,
         origen,
@@ -704,6 +763,11 @@ export class InventarioService {
           unidad: unidadOrigen.unidad,
           factorABase: unidadOrigen.factorABase,
           motivo: `Conversión a ${productoDestino.name}`,
+          costoIngresoUnitarioTotal: null,
+          aplicaCreditoFiscal: null,
+          ivaTasa: null,
+          netoUnitario: null,
+          ivaUnitario: null,
           producto: { id: productoOrigen.id } as any,
           ubicacion: { id: ubicacion.id } as any,
           origen: null,
@@ -720,6 +784,11 @@ export class InventarioService {
           unidad: unidadDestino.unidad,
           factorABase: unidadDestino.factorABase,
           motivo: `Conversión desde ${productoOrigen.name}`,
+          costoIngresoUnitarioTotal: null,
+          aplicaCreditoFiscal: null,
+          ivaTasa: null,
+          netoUnitario: null,
+          ivaUnitario: null,
           producto: { id: productoDestino.id } as any,
           ubicacion: { id: ubicacion.id } as any,
           origen: null,
@@ -941,6 +1010,12 @@ export class InventarioService {
       cantidad: Number(m.cantidad ?? 0),
       unidad: m.unidad ?? null,
       motivo: m.motivo,
+      costoIngresoUnitarioTotal:
+        m.costoIngresoUnitarioTotal !== null ? Number(m.costoIngresoUnitarioTotal) : null,
+      aplicaCreditoFiscal: m.aplicaCreditoFiscal,
+      ivaTasa: m.ivaTasa !== null ? Number(m.ivaTasa) : null,
+      netoUnitario: m.netoUnitario !== null ? Number(m.netoUnitario) : null,
+      ivaUnitario: m.ivaUnitario !== null ? Number(m.ivaUnitario) : null,
       fecha: m.fecha,
       producto: {
         id: m.producto?.id,

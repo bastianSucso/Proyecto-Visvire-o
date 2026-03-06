@@ -12,14 +12,16 @@ import { VentasModule } from './modules/ventas/ventas.module';
 import { UbicacionesModule } from './modules/ubicaciones/ubicaciones.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
 import { AlojamientoModule } from './modules/alojamiento/alojamiento.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ 
-      isGlobal: true, 
-      envFilePath: process.env.NODE_ENV === 'production'
-            ? ['../../.env.prod']
-            : ['../../.env.dev'],
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath:
+        process.env.NODE_ENV === 'production'
+          ? ['../../.env.prod']
+          : ['../../.env.dev'],
     }),
     TypeOrmModule.forRoot(typeOrmConfig()),
     HealthModule,
@@ -32,6 +34,7 @@ import { AlojamientoModule } from './modules/alojamiento/alojamiento.module';
     CajaModule,
     VentasModule,
     AlojamientoModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

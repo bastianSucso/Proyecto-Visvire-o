@@ -8,6 +8,7 @@ import { ProductoEntity } from '../productos/entities/producto.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { ProductosModule } from '../productos/productos.module';
+import { FinanzasModule } from '../finanzas/finanzas.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ProductosModule } from '../productos/productos.module';
       ProductoStockEntity,
     ]),
     ProductosModule,
+    FinanzasModule,
   ],
   controllers: [InventarioController],
   providers: [InventarioService],

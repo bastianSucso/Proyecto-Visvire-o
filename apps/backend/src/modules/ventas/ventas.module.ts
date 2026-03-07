@@ -10,9 +10,11 @@ import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import { AlteraEntity } from '../inventario/entities/altera.entity';
 import { RecetaEntity } from '../productos/entities/receta.entity';
+import { FinanzasModule } from '../finanzas/finanzas.module';
 
 @Module({
   imports: [
+    FinanzasModule,
     TypeOrmModule.forFeature([
       VentaEntity,
       VentaItemEntity,

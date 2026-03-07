@@ -1,0 +1,233 @@
+import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import {
+  FinanzasService,
+  MovimientoFinanciero,
+  ResumenFinancieroResponse,
+} from '../../../../../core/services/finanzas.service';
+
+@Component({
+  selector: 'app-finanzas-resumen-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule, RouterModule],
+  template: `
+    <div class="space-y-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-slate-900">Finanzas · Resumen consolidado</h1>
+        <p class="text-slate-500 mt-1">Vista consolidada de ingresos, egresos, resultado e IVA.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <a class="rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm text-white" routerLink="/admin/finanzas/resumen">Resumen</a>
+        <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/ingresos">Ingresos</a>
+        <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/egresos">Egresos</a>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <label class="block">
+            <span class="text-sm text-slate-700">Periodo</span>
+            <select [(ngModel)]="periodo" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
+              <option value="hoy">Hoy</option>
+              <option value="semana">Semana</option>
+              <option value="mes">Mes</option>
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="text-sm text-slate-700">Desde (opcional)</span>
+            <input type="date" [(ngModel)]="from" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
+          </label>
+
+          <label class="block">
+            <span class="text-sm text-slate-700">Hasta (opcional)</span>
+            <input type="date" [(ngModel)]="to" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
+          </label>
+
+          <div class="md:col-span-2 flex items-end gap-2">
+            <button (click)="load()" class="rounded-lg bg-blue-600 px-4 py-2 text-white text-sm hover:bg-blue-700">Aplicar</button>
+            <button (click)="clearCustomRange()" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50">Limpiar rango</button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="loading" class="rounded-xl border border-slate-200 bg-white p-4 text-slate-500">Cargando resumen financiero...</div>
+      <div *ngIf="!loading && errorMsg" class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{{ errorMsg }}</div>
+
+      <ng-container *ngIf="!loading && resumen">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-slate-500 text-sm">Ingresos totales</p>
+            <p class="text-2xl font-semibold text-emerald-700 mt-1">{{ money(resumen.ingresosTotales) }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-slate-500 text-sm">Egresos totales</p>
+            <p class="text-2xl font-semibold text-rose-700 mt-1">{{ money(resumen.egresosTotales) }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-slate-500 text-sm">Resultado del periodo</p>
+            <p class="text-2xl font-semibold mt-1" [class.text-emerald-700]="resumen.resultadoPeriodo >= 0" [class.text-rose-700]="resumen.resultadoPeriodo < 0">
+              {{ money(resumen.resultadoPeriodo) }}
+            </p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-slate-500 text-sm">IVA neto</p>
+            <p class="text-2xl font-semibold text-slate-900 mt-1">{{ money(resumen.iva.ivaNeto) }}</p>
+            <p class="text-xs text-slate-500 mt-1">{{ estadoIvaLabel(resumen.iva.estadoIva) }}</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Desglose de ingresos</h2>
+            <div class="mt-3 text-sm text-slate-700 space-y-1">
+              <p>VENTA_POS: <span class="font-medium">{{ money(resumen.ingresosPorOrigen['VENTA_POS'] || 0) }}</span></p>
+              <p>VENTA_ALOJAMIENTO: <span class="font-medium">{{ money(resumen.ingresosPorOrigen['VENTA_ALOJAMIENTO'] || 0) }}</span></p>
+              <p>EXTERNO_MANUAL: <span class="font-medium">{{ money(resumen.ingresosPorOrigen['EXTERNO_MANUAL'] || 0) }}</span></p>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Desglose de egresos</h2>
+            <div class="mt-3 text-sm text-slate-700 space-y-1">
+              <p>EGRESO_MANUAL: <span class="font-medium">{{ money(resumen.egresosPorOrigen['EGRESO_MANUAL'] || 0) }}</span></p>
+              <p>COMPRA_PRODUCTOS_INSUMOS: <span class="font-medium">{{ money(resumen.egresosPorOrigen['INVENTARIO_INGRESO'] || 0) }}</span></p>
+              <p>RRHH_PAGO: <span class="font-medium">{{ money(resumen.egresosPorOrigen['RRHH_PAGO'] || 0) }}</span></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 class="text-lg font-semibold text-slate-900">IVA del periodo</h2>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p class="text-slate-500">Debito fiscal</p>
+              <p class="text-slate-900 font-semibold mt-1">{{ money(resumen.iva.ivaDebito) }}</p>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p class="text-slate-500">Credito fiscal</p>
+              <p class="text-slate-900 font-semibold mt-1">{{ money(resumen.iva.ivaCredito) }}</p>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p class="text-slate-500">Estado</p>
+              <p class="text-slate-900 font-semibold mt-1">{{ estadoIvaLabel(resumen.iva.estadoIva) }}</p>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 class="text-lg font-semibold text-slate-900">Movimientos consolidados (solo lectura)</h2>
+
+        <div *ngIf="movimientosLoading" class="mt-3 text-sm text-slate-500">Cargando movimientos...</div>
+        <div *ngIf="!movimientosLoading && movimientos.length === 0" class="mt-3 text-sm text-slate-500">Sin registros.</div>
+
+        <div *ngIf="!movimientosLoading && movimientos.length > 0" class="mt-4 overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-200 text-left text-slate-500">
+                <th class="py-2 pr-4 font-medium">Fecha</th>
+                <th class="py-2 pr-4 font-medium">Tipo</th>
+                <th class="py-2 pr-4 font-medium">Origen</th>
+                <th class="py-2 pr-4 font-medium">Categoria</th>
+                <th class="py-2 pr-4 font-medium">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of movimientos" class="border-b border-slate-100">
+                <td class="py-2 pr-4 text-slate-800">{{ row.fechaMovimiento | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="py-2 pr-4">
+                  <span class="rounded-md px-2 py-1 text-xs" [class.bg-emerald-100]="row.tipo === 'INGRESO'" [class.text-emerald-700]="row.tipo === 'INGRESO'" [class.bg-rose-100]="row.tipo === 'EGRESO'" [class.text-rose-700]="row.tipo === 'EGRESO'">{{ row.tipo }}</span>
+                </td>
+                <td class="py-2 pr-4 text-slate-700">{{ origenTipoLabel(row.origenTipo) }}</td>
+                <td class="py-2 pr-4 text-slate-700">{{ row.categoria }}</td>
+                <td class="py-2 pr-4 font-medium" [class.text-emerald-700]="row.tipo === 'INGRESO'" [class.text-rose-700]="row.tipo === 'EGRESO'">{{ money(row.monto) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `,
+})
+export class FinanzasResumenPage implements OnInit {
+  private readonly finanzasService = inject(FinanzasService);
+
+  periodo: 'hoy' | 'semana' | 'mes' = 'mes';
+  from = '';
+  to = '';
+
+  resumen: ResumenFinancieroResponse | null = null;
+  movimientos: MovimientoFinanciero[] = [];
+
+  loading = false;
+  movimientosLoading = false;
+  errorMsg = '';
+
+  ngOnInit(): void {
+    this.load();
+  }
+
+  clearCustomRange() {
+    this.from = '';
+    this.to = '';
+    this.load();
+  }
+
+  load() {
+    this.loading = true;
+    this.movimientosLoading = true;
+    this.errorMsg = '';
+
+    this.finanzasService
+      .obtenerResumen(this.periodo, this.from || undefined, this.to || undefined)
+      .subscribe({
+        next: (res) => {
+          this.resumen = res;
+        },
+        error: (err) => {
+          const msg = err?.error?.message;
+          this.errorMsg = Array.isArray(msg) ? msg.join(' | ') : (msg ?? 'No se pudo cargar el resumen financiero.');
+          this.loading = false;
+        },
+        complete: () => {
+          this.loading = false;
+        },
+      });
+
+    this.finanzasService
+      .listarMovimientos({
+        from: this.from || undefined,
+        to: this.to || undefined,
+      })
+      .subscribe({
+        next: (rows) => {
+          this.movimientos = rows;
+        },
+        error: () => {
+          this.movimientos = [];
+          this.movimientosLoading = false;
+        },
+        complete: () => {
+          this.movimientosLoading = false;
+        },
+      });
+  }
+
+  money(value: number) {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value ?? 0);
+  }
+
+  estadoIvaLabel(estado: string) {
+    if (estado === 'IVA_A_PAGAR') return 'IVA a pagar';
+    if (estado === 'REMANENTE_A_FAVOR') return 'Remanente a favor';
+    return 'Sin diferencia';
+  }
+
+  origenTipoLabel(origenTipo: string) {
+    if (origenTipo === 'INVENTARIO_INGRESO') return 'COMPRA_PRODUCTOS_INSUMOS';
+    return origenTipo;
+  }
+}

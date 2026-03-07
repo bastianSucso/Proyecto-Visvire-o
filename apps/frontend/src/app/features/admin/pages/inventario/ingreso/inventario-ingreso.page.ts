@@ -252,12 +252,12 @@ export class InventarioIngresoPage {
           unidadBase: producto.unidadBase ?? null,
           cantidad,
           costoIngreso,
-          aplicaCreditoFiscal: true,
+          aplicaCreditoFiscal: false,
         },
       ];
       this.editCantidad[producto.id] = cantidad;
       this.editCosto[producto.id] = costoIngreso;
-      this.editAplicaCredito[producto.id] = true;
+      this.editAplicaCredito[producto.id] = false;
     } else {
       existing.cantidad += cantidad;
       this.editCantidad[producto.id] = existing.cantidad;

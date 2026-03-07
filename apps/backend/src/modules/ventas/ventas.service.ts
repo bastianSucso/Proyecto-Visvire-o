@@ -21,6 +21,7 @@ import { VentaItemEntity } from './entities/venta-item.entity';
 import { AddItemVentaDto } from './dto/add-item-venta.dto';
 import { UpdateItemVentaDto } from './dto/update-item-venta.dto';
 import { ConfirmarVentaDto } from './dto/confirmar-venta.dto';
+import { FinanzasService } from '../finanzas/finanzas.service';
 
 @Injectable()
 export class VentasService {
@@ -33,6 +34,7 @@ export class VentasService {
     @InjectRepository(UbicacionEntity) private readonly ubicacionRepo: Repository<UbicacionEntity>,
     @InjectRepository(ProductoStockEntity) private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(AlteraEntity) private readonly alteraRepo: Repository<AlteraEntity>,
+    private readonly finanzasService: FinanzasService,
   ) {}
 
   private async getSesionAbiertaOrFail(userId: string) {
@@ -564,15 +566,27 @@ export class VentasService {
         await alteraRepoTx.save(mov);
       }
 
+      const fechaConfirmacion = new Date();
+
       await ventaRepoTx.update(
         { idVenta: venta.idVenta },
         {
           estado: VentaEstado.CONFIRMADA,
-          fechaConfirmacion: new Date(),
+          fechaConfirmacion,
           totalVenta: totals.totalVenta,
           cantidadTotal: totals.cantidadTotal,
           medioPago: dto.medioPago,
         },
+      );
+
+      await this.finanzasService.registrarIngresoVentaPos(
+        {
+          ventaId: venta.idVenta,
+          monto: Number(totals.totalVenta),
+          fechaConfirmacion,
+          medioPago: dto.medioPago,
+        },
+        manager,
       );
 
       const full = await ventaRepoTx.findOne({

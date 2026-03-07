@@ -20,6 +20,7 @@ import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto'
 import { ConvertirProductoDto } from './dto/convertir-producto.dto';
 import { CreateConversionFactorDto } from './dto/create-conversion-factor.dto';
 import { ProductoConversionEntity } from './entities/producto-conversion.entity';
+import { FinanzasService } from '../finanzas/finanzas.service';
 
 const IVA_TASA = 0.19;
 
@@ -38,6 +39,7 @@ export class InventarioService {
     @InjectRepository(ProductoConversionEntity)
     private readonly conversionRepo: Repository<ProductoConversionEntity>,
     private readonly recetasService: RecetasService,
+    private readonly finanzasService: FinanzasService,
   ) {}
 
   private async getProductoOrThrow(productoId: string) {
@@ -238,7 +240,7 @@ export class InventarioService {
         }
 
         const unidadMeta = this.getUnidadBaseMeta(producto);
-        await alteraRepoTx.save(
+        const movimientoIngreso = await alteraRepoTx.save(
           alteraRepoTx.create({
             tipo: 'INGRESO',
             cantidad: this.formatCantidad(cantidad),
@@ -257,6 +259,20 @@ export class InventarioService {
             usuario: { idUsuario: usuarioId } as UserEntity,
             documentoRef,
           }),
+        );
+
+        await this.finanzasService.registrarEgresoInventarioIngreso(
+          {
+            movimientoAlteraId: movimientoIngreso.id,
+            cantidad,
+            costoIngresoUnitarioTotal: costoIngreso,
+            fecha: movimientoIngreso.fecha,
+            aplicaCreditoFiscal,
+            documentoRef,
+            productoId: producto.id,
+            productoNombre: producto.name,
+          },
+          manager,
         );
       }
     });
@@ -453,7 +469,23 @@ export class InventarioService {
         usuario: { idUsuario: usuarioId } as UserEntity,
       });
 
-      return alteraRepoTx.save(mov);
+      const savedMov = await alteraRepoTx.save(mov);
+
+      await this.finanzasService.registrarEgresoInventarioIngreso(
+        {
+          movimientoAlteraId: savedMov.id,
+          cantidad,
+          costoIngresoUnitarioTotal: costoIngreso,
+          fecha: savedMov.fecha,
+          aplicaCreditoFiscal,
+          documentoRef: savedMov.documentoRef,
+          productoId: producto.id,
+          productoNombre: producto.name,
+        },
+        manager,
+      );
+
+      return savedMov;
     });
 
     if (insumoRecalcId) {

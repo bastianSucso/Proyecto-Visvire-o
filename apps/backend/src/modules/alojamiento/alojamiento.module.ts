@@ -14,6 +14,7 @@ import { SesionCajaEntity } from '../historial/entities/sesion-caja.entity';
 import { VentaAlojamientoEntity } from './entities/venta-alojamiento.entity';
 import { ReservaHabitacionEntity } from './entities/reserva-habitacion.entity';
 import { HabitacionEstadoCambioEntity } from './entities/habitacion-estado-cambio.entity';
+import { FinanzasModule } from '../finanzas/finanzas.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { HabitacionEstadoCambioEntity } from './entities/habitacion-estado-cambi
       SesionCajaEntity,
       VentaAlojamientoEntity,
     ]),
+    FinanzasModule,
   ],
   controllers: [AlojamientoController],
   providers: [AlojamientoService],

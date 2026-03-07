@@ -13,6 +13,7 @@ import { UbicacionesModule } from './modules/ubicaciones/ubicaciones.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
 import { AlojamientoModule } from './modules/alojamiento/alojamiento.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { FinanzasModule } from './modules/finanzas/finanzas.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     VentasModule,
     AlojamientoModule,
     DashboardModule,
+    FinanzasModule,
   ],
 })
 export class AppModule {}

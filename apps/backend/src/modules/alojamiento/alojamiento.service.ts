@@ -56,6 +56,7 @@ import {
   HabitacionEstadoCambioEntity,
   HabitacionEstadoTimeline,
 } from './entities/habitacion-estado-cambio.entity';
+import { FinanzasService } from '../finanzas/finanzas.service';
 
 type Rect = { posX: number; posY: number; ancho: number; alto: number };
 
@@ -109,6 +110,7 @@ export class AlojamientoService {
     private readonly sesionRepo: Repository<SesionCajaEntity>,
     @InjectRepository(VentaAlojamientoEntity)
     private readonly ventaAlojamientoRepo: Repository<VentaAlojamientoEntity>,
+    private readonly finanzasService: FinanzasService,
   ) {}
 
   // -------- Empresas --------
@@ -987,7 +989,18 @@ export class AlojamientoService {
           montoTotal,
           estado: VentaAlojamientoEstado.CONFIRMADA,
         });
-        await manager.getRepository(VentaAlojamientoEntity).save(venta);
+        const ventaGuardada = await manager.getRepository(VentaAlojamientoEntity).save(venta);
+
+        await this.finanzasService.registrarIngresoVentaAlojamiento(
+          {
+            ventaAlojamientoId: ventaGuardada.id,
+            monto: Number(ventaGuardada.montoTotal),
+            fechaConfirmacion: ventaGuardada.fechaConfirmacion,
+            medioPago: ventaGuardada.medioPago,
+            asignacionId: savedAsignacion.id,
+          },
+          manager,
+        );
       }
 
       return savedAsignacion;

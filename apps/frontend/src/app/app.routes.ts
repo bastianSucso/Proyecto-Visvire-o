@@ -49,6 +49,10 @@ export const routes: Routes = [
       {path: 'inventario/documentos', loadComponent: () => import('./features/admin/pages/inventario/documentos/inventario-documentos.page').then(m => m.InventarioDocumentosPage),},
       {path: 'inventario/movimientos/detalle/:tipo/:ref', loadComponent: () => import('./features/admin/pages/inventario/movimientos/detalle/inventario-movimiento-detalle.page').then(m => m.InventarioMovimientoDetallePage),},
       {path: 'inventario/movimientos', loadComponent: () => import('./features/admin/pages/inventario/movimientos/inventario-movimientos.page').then(m => m.InventarioMovimientosPage),},
+      {path: 'finanzas', pathMatch: 'full', redirectTo: 'finanzas/resumen'},
+      {path: 'finanzas/resumen', loadComponent: () => import('./features/admin/pages/finanzas/resumen/finanzas-resumen.page').then(m => m.FinanzasResumenPage),},
+      {path: 'finanzas/ingresos', loadComponent: () => import('./features/admin/pages/finanzas/ingresos/finanzas-ingresos.page').then(m => m.FinanzasIngresosPage),},
+      {path: 'finanzas/egresos', loadComponent: () => import('./features/admin/pages/finanzas/egresos/finanzas-egresos.page').then(m => m.FinanzasEgresosPage),},
     ],
   },
 

@@ -347,16 +347,46 @@
                     <div class="text-slate-500">Ingreso</div>
                     <div class="font-semibold text-slate-800">{{ datetimeLabel(ventaAlojDetalle.asignacion.fechaIngreso) }}</div>
                   </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                    <div class="text-slate-500">Salida estimada</div>
+                    <div class="font-semibold text-slate-800">{{ datetimeLabel(ventaAlojDetalle.asignacion.fechaSalidaEstimada) }}</div>
+                  </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                    <div class="text-slate-500">Salida real</div>
+                    <div class="font-semibold text-slate-800">{{ datetimeLabel(ventaAlojDetalle.asignacion.fechaSalidaReal) }}</div>
+                  </div>
                 </div>
               </div>
 
               <div class="rounded-lg border border-slate-200 bg-white p-3">
-                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Huesped y habitacion</div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Huesped</div>
                 <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                   <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 sm:col-span-2">
                     <div class="text-slate-500">Huesped</div>
                     <div class="font-semibold text-slate-800">{{ ventaAlojDetalle.huesped.nombreCompleto || '-' }}</div>
                   </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                    <div class="text-slate-500">RUT</div>
+                    <div class="font-semibold text-slate-800">{{ ventaAlojDetalle.huesped.rut || '-' }}</div>
+                  </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                    <div class="text-slate-500">Telefono</div>
+                    <div class="font-semibold text-slate-800">{{ ventaAlojDetalle.huesped.telefono || '-' }}</div>
+                  </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 sm:col-span-2">
+                    <div class="text-slate-500">Correo</div>
+                    <div class="font-semibold text-slate-800">{{ ventaAlojDetalle.huesped.correo || '-' }}</div>
+                  </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 sm:col-span-2">
+                    <div class="text-slate-500">Empresa</div>
+                    <div class="font-semibold text-slate-800">{{ ventaAlojDetalle.huesped.empresaNombre || 'Sin empresa' }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Habitacion</div>
+                <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                   <div class="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                     <div class="text-slate-500">Habitacion</div>
                     <div class="font-semibold text-slate-800">{{ ventaAlojDetalle.habitacion.identificador || '-' }}</div>

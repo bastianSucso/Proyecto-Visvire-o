@@ -24,4 +24,16 @@ export class VentaItemEntity {
 
   @Column({ type: 'numeric', precision: 12, scale: 2, name: 'subtotal' })
   subtotal!: string;
+
+  @Column({
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    name: 'costo_unitario_snapshot',
+    nullable: true,
+  })
+  costoUnitarioSnapshot!: string | null;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'cogs_snapshot', nullable: true })
+  cogsSnapshot!: string | null;
 }

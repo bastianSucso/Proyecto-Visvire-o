@@ -40,6 +40,18 @@ export class VentaAlojamientoEntity {
   @Column({ type: 'enum', enum: VentaAlojamientoEstado, default: VentaAlojamientoEstado.CONFIRMADA })
   estado: VentaAlojamientoEstado;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'cogs_total_snapshot', default: '0.00' })
+  cogsTotalSnapshot!: string;
+
+  @Column({
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    name: 'ganancia_bruta_snapshot',
+    nullable: true,
+  })
+  gananciaBrutaSnapshot!: string | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'fecha_confirmacion' })
   fechaConfirmacion: Date;
 }

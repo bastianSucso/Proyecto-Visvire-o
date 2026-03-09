@@ -53,6 +53,11 @@ export const routes: Routes = [
       {path: 'finanzas/resumen', loadComponent: () => import('./features/admin/pages/finanzas/resumen/finanzas-resumen.page').then(m => m.FinanzasResumenPage),},
       {path: 'finanzas/ingresos', loadComponent: () => import('./features/admin/pages/finanzas/ingresos/finanzas-ingresos.page').then(m => m.FinanzasIngresosPage),},
       {path: 'finanzas/egresos', loadComponent: () => import('./features/admin/pages/finanzas/egresos/finanzas-egresos.page').then(m => m.FinanzasEgresosPage),},
+      {path: 'finanzas/historico', loadComponent: () => import('./features/admin/pages/finanzas/historico/finanzas-historico.page').then(m => m.FinanzasHistoricoPage),},
+      {path: 'finanzas/historico/:fecha', loadComponent: () => import('./features/admin/pages/finanzas/historico-detalle/finanzas-historico-detalle.page').then(m => m.FinanzasHistoricoDetallePage),},
+      {path: 'rrhh', pathMatch: 'full', redirectTo: 'rrhh/personal'},
+      {path: 'rrhh/personal', loadComponent: () => import('./features/admin/pages/rrhh/personal/rrhh-personal.page').then(m => m.RrhhPersonalPage),},
+      {path: 'rrhh/pagos', loadComponent: () => import('./features/admin/pages/rrhh/pagos/rrhh-pagos.page').then(m => m.RrhhPagosPage),},
     ],
   },
 

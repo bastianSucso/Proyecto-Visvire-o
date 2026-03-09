@@ -1,5 +1,18 @@
 # Frontend
 
+## Project conventions
+
+- Angular pages/components must use `templateUrl` with a separate `*.html` file.
+- Inline templates (`template: \`...\``) are not allowed.
+- Keep standalone components and domain-oriented services.
+- Do not introduce a generic `ApiService` abstraction.
+- UI style follows Minimal Corporate UI:
+  - White backgrounds
+  - Institutional blue for primary actions
+  - Soft grays for text/borders
+  - Clean, centered, low-noise forms
+  - Professional administrative workflow focus
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.1.6.
 
 ## Development server

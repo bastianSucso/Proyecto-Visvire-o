@@ -82,6 +82,11 @@ export class VentasService {
     return value.toFixed(3);
   }
 
+  private normalizeMoney(value: unknown) {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }
+
   private getUnidadBaseMeta(producto: ProductoEntity) {
     if (!producto?.unidadBase) {
       return { unidad: null, factorABase: null };
@@ -179,6 +184,8 @@ export class VentasService {
       totalVenta: '0.00',
       cantidadTotal: '0.000',
       fechaConfirmacion: null,
+      cogsTotalSnapshot: null,
+      gananciaBrutaSnapshot: null,
     });
 
       const saved = await ventaRepoTx.save(venta);
@@ -355,6 +362,7 @@ export class VentasService {
 
     return this.dataSource.transaction(async (manager) => {
       const ventaRepoTx = manager.getRepository(VentaEntity);
+      const itemRepoTx = manager.getRepository(VentaItemEntity);
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const ubicacionRepoTx = manager.getRepository(UbicacionEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
@@ -408,8 +416,19 @@ export class VentasService {
       );
 
       const insumoRequired = new Map<string, { producto: ProductoEntity; cantidad: number }>();
+      const itemCogsSnapshot = new Map<number, { cogs: number; cantidad: number }>();
 
       for (const it of items) {
+        const itemCantidad = Number(it.cantidad ?? 0);
+        if (!Number.isFinite(itemCantidad) || itemCantidad <= 0) {
+          throw new BadRequestException('Cantidad inválida en la venta.');
+        }
+
+        const itemId = Number(it.idItem);
+        if (!Number.isFinite(itemId) || itemId <= 0) {
+          throw new BadRequestException('Ítem inválido en la venta.');
+        }
+
         const productoId = (it.producto as any)?.id as string | undefined;
         if (!productoId || !comidasSet.has(productoId)) continue;
 
@@ -424,10 +443,8 @@ export class VentasService {
           throw new ConflictException(`La preparación ${nombre} no tiene receta definida.`);
         }
 
-        const cantidadVenta = Number(it.cantidad ?? 0);
-        if (!Number.isFinite(cantidadVenta) || cantidadVenta <= 0) {
-          throw new BadRequestException('Cantidad inválida en la venta.');
-        }
+        const cantidadVenta = itemCantidad;
+        let cogsItem = 0;
 
         for (const r of recetas) {
           const insumo = this.resolveInsumoFromGrupo(r.grupo ?? null);
@@ -442,6 +459,9 @@ export class VentasService {
           }
 
           const cantidadConsumo = cantidadBase * cantidadVenta;
+          const costoUnitarioInsumo = this.normalizeMoney(insumo.precioCosto);
+          cogsItem += cantidadConsumo * costoUnitarioInsumo;
+
           const prev = insumoRequired.get(insumo.id);
           if (prev) {
             prev.cantidad += cantidadConsumo;
@@ -449,6 +469,29 @@ export class VentasService {
             insumoRequired.set(insumo.id, { producto: insumo, cantidad: cantidadConsumo });
           }
         }
+
+        itemCogsSnapshot.set(itemId, {
+          cantidad: cantidadVenta,
+          cogs: Number(cogsItem.toFixed(2)),
+        });
+      }
+
+      for (const it of items) {
+        const producto = it.producto as ProductoEntity | undefined;
+        const itemId = Number(it.idItem);
+        if (!producto || !Number.isFinite(itemId) || itemId <= 0) continue;
+        if (producto.tipo === ProductoTipoEnum.COMIDA) continue;
+
+        const cantidad = Number(it.cantidad ?? 0);
+        if (!Number.isFinite(cantidad) || cantidad <= 0) {
+          throw new BadRequestException('Cantidad inválida en la venta.');
+        }
+
+        const costoUnitario = this.normalizeMoney(producto.precioCosto);
+        itemCogsSnapshot.set(itemId, {
+          cantidad,
+          cogs: Number((cantidad * costoUnitario).toFixed(2)),
+        });
       }
 
       const insumoStockRows = new Map<string, ProductoStockEntity>();
@@ -567,6 +610,27 @@ export class VentasService {
       }
 
       const fechaConfirmacion = new Date();
+      let cogsTotalSnapshot = 0;
+
+      for (const it of items) {
+        const snapshot = itemCogsSnapshot.get(it.idItem);
+        const cantidad = Number(it.cantidad ?? 0);
+        const cogsItem = Number(snapshot?.cogs ?? 0);
+        const costoUnitario = cantidad > 0 ? cogsItem / cantidad : 0;
+
+        cogsTotalSnapshot += cogsItem;
+
+        await itemRepoTx.update(
+          { idItem: it.idItem },
+          {
+            cogsSnapshot: cogsItem.toFixed(2),
+            costoUnitarioSnapshot: costoUnitario.toFixed(2),
+          },
+        );
+      }
+
+      cogsTotalSnapshot = Number(cogsTotalSnapshot.toFixed(2));
+      const gananciaBrutaSnapshot = Number((Number(totals.totalVenta) - cogsTotalSnapshot).toFixed(2));
 
       await ventaRepoTx.update(
         { idVenta: venta.idVenta },
@@ -576,6 +640,8 @@ export class VentasService {
           totalVenta: totals.totalVenta,
           cantidadTotal: totals.cantidadTotal,
           medioPago: dto.medioPago,
+          cogsTotalSnapshot: cogsTotalSnapshot.toFixed(2),
+          gananciaBrutaSnapshot: gananciaBrutaSnapshot.toFixed(2),
         },
       );
 

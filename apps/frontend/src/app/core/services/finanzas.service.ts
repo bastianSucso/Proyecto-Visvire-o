@@ -89,6 +89,155 @@ export interface ResumenFinancieroResponse {
   iva: IvaPeriodoResponse;
 }
 
+export interface PagedResponse<T> {
+  items: T[];
+  meta: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+}
+
+export interface HistoricoDiarioItem {
+  fecha: string;
+  cantidadJornadas: number;
+  primeraApertura: string | null;
+  ultimoCierre: string | null;
+  totalEfectivo: number;
+  totalTarjeta: number;
+  totalVentas: number;
+  cantidadVentas: number;
+  gananciaBruta: number;
+}
+
+export interface ResponsableJornada {
+  idUsuario: string | null;
+  nombre: string | null;
+  email: string | null;
+}
+
+export interface JornadaHistoricoDetalleVenta {
+  ventaId: number;
+  tipo: 'VENTA_POS' | 'VENTA_ALOJAMIENTO';
+  fechaVenta: string;
+  medioPago: 'EFECTIVO' | 'TARJETA' | null;
+  detalle: string;
+  asignacionId: string | null;
+  montoTotal: number;
+}
+
+export interface JornadaHistoricoDetalle {
+  sesionCajaId: number;
+  fechaApertura: string;
+  fechaCierre: string | null;
+  montoInicial: number;
+  montoFinal: number;
+  totalEfectivo: number;
+  totalTarjeta: number;
+  responsableCierre: ResponsableJornada;
+  totalVentas: number;
+  cantidadVentas: number;
+  gananciaBruta: number;
+  ventas: JornadaHistoricoDetalleVenta[];
+}
+
+export interface HistoricoDiarioResumen {
+  cantidadJornadas: number;
+  totalVentas: number;
+  cantidadVentas: number;
+  gananciaBruta: number;
+  totalEfectivo: number;
+  totalTarjeta: number;
+}
+
+export interface HistoricoDiarioDetalleResponse {
+  fecha: string;
+  resumenDia: HistoricoDiarioResumen;
+  jornadas: JornadaHistoricoDetalle[];
+}
+
+export interface VentaPosDetalleAdminResponse {
+  tipo: 'VENTA_POS';
+  venta: {
+    idVenta: number;
+    estado: 'CONFIRMADA';
+    fechaCreacion: string;
+    fechaConfirmacion: string | null;
+    medioPago: 'EFECTIVO' | 'TARJETA' | null;
+    totalVenta: number;
+    cantidadTotal: number;
+    cogsTotalSnapshot: number;
+    gananciaBrutaSnapshot: number;
+  };
+  sesion: {
+    idSesionCaja: number | null;
+    fechaApertura: string | null;
+    fechaCierre: string | null;
+    cajaNumero: string | number | null;
+    responsable: {
+      idUsuario: string | null;
+      nombre: string | null;
+      email: string | null;
+    };
+  };
+  items: Array<{
+    idItem: number;
+    productoId: string | null;
+    nombreProducto: string | null;
+    cantidad: number;
+    precioUnitario: number;
+    subtotal: number;
+    costoUnitarioSnapshot: number;
+    cogsSnapshot: number;
+  }>;
+}
+
+export interface VentaAlojamientoDetalleAdminResponse {
+  tipo: 'VENTA_ALOJAMIENTO';
+  venta: {
+    idVentaAlojamiento: number;
+    fechaConfirmacion: string;
+    medioPago: 'EFECTIVO' | 'TARJETA' | null;
+    montoTotal: number;
+    cogsTotalSnapshot: number;
+    gananciaBrutaSnapshot: number;
+  };
+  sesion: {
+    idSesionCaja: number | null;
+    fechaApertura: string | null;
+    fechaCierre: string | null;
+    cajaNumero: string | number | null;
+    responsable: {
+      idUsuario: string | null;
+      nombre: string | null;
+      email: string | null;
+    };
+  };
+  asignacion: {
+    id: string | null;
+    estado: 'ACTIVA' | 'FINALIZADA' | null;
+    tipoCobro: 'DIRECTO' | 'EMPRESA_CONVENIO' | null;
+    noches: number;
+    fechaIngreso: string | null;
+    fechaSalidaEstimada: string | null;
+    fechaSalidaReal: string | null;
+  };
+  habitacion: {
+    id: string | null;
+    identificador: string | null;
+    pisoNombre: string | null;
+  };
+  huesped: {
+    id: string | null;
+    nombreCompleto: string | null;
+    rut: string | null;
+    correo: string | null;
+    telefono: string | null;
+    empresaNombre: string | null;
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class FinanzasService {
   private readonly http = inject(HttpClient);
@@ -156,5 +305,30 @@ export class FinanzasService {
       params = params.set('from', from).set('to', to);
     }
     return this.http.get<ResumenFinancieroResponse>('/api/finanzas/resumen', { params });
+  }
+
+  listarHistoricoDiario(filters?: { fecha?: string; page?: number; pageSize?: number }) {
+    let params = new HttpParams();
+    if (filters?.fecha) params = params.set('fecha', filters.fecha);
+    if (filters?.page) params = params.set('page', String(filters.page));
+    if (filters?.pageSize) params = params.set('pageSize', String(filters.pageSize));
+
+    return this.http.get<PagedResponse<HistoricoDiarioItem>>('/api/finanzas/historico-diario', {
+      params,
+    });
+  }
+
+  obtenerHistoricoDetalleDia(fecha: string) {
+    return this.http.get<HistoricoDiarioDetalleResponse>(`/api/finanzas/historico-diario/${fecha}/jornadas`);
+  }
+
+  obtenerDetalleVentaPos(ventaId: number) {
+    return this.http.get<VentaPosDetalleAdminResponse>(`/api/finanzas/operaciones/venta-pos/${ventaId}`);
+  }
+
+  obtenerDetalleVentaAlojamiento(ventaAlojamientoId: number) {
+    return this.http.get<VentaAlojamientoDetalleAdminResponse>(
+      `/api/finanzas/operaciones/venta-alojamiento/${ventaAlojamientoId}`,
+    );
   }
 }

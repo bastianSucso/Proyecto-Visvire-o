@@ -65,9 +65,9 @@
                 <th class="py-2 pr-3">Tipo</th>
                 <th class="py-2 pr-3">Unidad</th>
                 <th class="py-2 pr-3 w-32 text-center">Cantidad</th>
-                <th class="py-2 pr-3 w-32 text-right">Costo total u.</th>
-                <th class="py-2 pr-3 w-28 text-right">Neto u.</th>
-                <th class="py-2 pr-3 w-28 text-right">IVA u.</th>
+                <th class="py-2 pr-3 w-36 text-center">Costo total unitario</th>
+                <th class="py-2 pr-3 w-32 text-center">Neto unitario</th>
+                <th class="py-2 pr-3 w-32 text-center">IVA unitario</th>
                 <th class="py-2 pr-3 w-20 text-center">Tasa</th>
                 <th class="py-2 pr-3 w-28 text-center">Crédito</th>
               </tr>
@@ -86,14 +86,14 @@
               <td class="py-3 pr-3 text-slate-600">{{ it.producto?.tipo ?? '-' }}</td>
               <td class="py-3 pr-3 text-slate-600">{{ it.unidadBase ?? '-' }}</td>
               <td class="py-3 pr-3 text-center">{{ it.cantidad }}</td>
-              <td class="py-3 pr-3 text-right text-slate-700">
-                {{ it.costoIngresoUnitarioTotal !== null ? (it.costoIngresoUnitarioTotal | number:'1.2-2') : '-' }}
+              <td class="py-3 pr-3 text-center text-slate-700">
+                {{ it.costoIngresoUnitarioTotal !== null ? (it.costoIngresoUnitarioTotal | currency:'CLP':'symbol-narrow':'1.0-0') : '-' }}
               </td>
-              <td class="py-3 pr-3 text-right text-slate-700">
-                {{ it.netoUnitario !== null ? (it.netoUnitario | number:'1.2-2') : '-' }}
+              <td class="py-3 pr-3 text-center text-slate-700">
+                {{ it.netoUnitario !== null ? (it.netoUnitario | currency:'CLP':'symbol-narrow':'1.0-0') : '-'}}
               </td>
-              <td class="py-3 pr-3 text-right text-slate-700">
-                {{ it.ivaUnitario !== null ? (it.ivaUnitario | number:'1.2-2') : '-' }}
+              <td class="py-3 pr-3 text-center text-slate-700">
+                {{ it.ivaUnitario !== null ? (it.ivaUnitario | currency:'CLP':'symbol-narrow':'1.0-0') : '-'}}
               </td>
               <td class="py-3 pr-3 text-center text-slate-700">
                 {{ it.ivaTasa !== null ? ((it.ivaTasa * 100) | number:'1.0-2') + '%' : '-' }}

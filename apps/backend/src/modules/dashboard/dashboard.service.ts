@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { VentaEntity, VentaEstado } from '../ventas/entities/venta.entity';
-import { VentaItemEntity } from '../ventas/entities/venta-item.entity';
-import { ProductoEntity } from '../productos/entities/producto.entity';
 import {
   VentaAlojamientoEntity,
   VentaAlojamientoEstado,
@@ -24,8 +22,6 @@ export class DashboardService {
   constructor(
     @InjectRepository(VentaEntity)
     private readonly ventaRepo: Repository<VentaEntity>,
-    @InjectRepository(VentaItemEntity)
-    private readonly ventaItemRepo: Repository<VentaItemEntity>,
     @InjectRepository(VentaAlojamientoEntity)
     private readonly ventaAlojamientoRepo: Repository<VentaAlojamientoEntity>,
     @InjectRepository(SesionCajaEntity)
@@ -101,14 +97,9 @@ export class DashboardService {
       })
       .getRawOne<{ totalVentas: string; cantidadVentas: string }>();
 
-    const rowCogs = await this.ventaItemRepo
-      .createQueryBuilder('it')
-      .innerJoin(VentaEntity, 'v', 'v.id_venta = it.id_venta')
-      .innerJoin(ProductoEntity, 'p', 'p.id = it.id_producto')
-      .select(
-        'COALESCE(SUM((it.cantidad::numeric) * (COALESCE("p"."precioCosto", 0)::numeric)), 0)',
-        'cogsPos',
-      )
+    const rowCogs = await this.ventaRepo
+      .createQueryBuilder('v')
+      .select('COALESCE(SUM(COALESCE(v.cogs_total_snapshot::numeric, 0)), 0)', 'cogsPos')
       .where('v.estado = :estado', { estado: VentaEstado.CONFIRMADA })
       .andWhere(this.getBusinessDateFilter('v.fecha_confirmacion'), {
         tz: this.businessTimeZone,

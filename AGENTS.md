@@ -108,6 +108,8 @@
   - `singleQuote`: true
   - HTML uses the Angular parser
 - EditorConfig enforces single quotes for TS.
+- Strict rule: inline templates are forbidden in frontend code.
+- Always use `templateUrl` with a separate `*.html` file for pages/components.
 
 ## Imports and module structure
 ### Backend
@@ -122,6 +124,15 @@
 - Standalone components with `@Component({ standalone: true, ... })`.
 - Use feature/layout/core folder conventions.
 - Services in `core/services`, guards in `core/guards`, interceptors in `core/interceptors`.
+- Keep domain services (feature-oriented services) and avoid generic `ApiService` abstractions.
+
+## Frontend UI direction
+- Visual style: Minimal Corporate UI.
+- Use white backgrounds as base.
+- Use institutional blue for primary actions and key CTAs.
+- Use soft grays for text, dividers, and neutral surfaces.
+- Prefer clean, centered forms with low visual noise.
+- Build interfaces for professional administrative workflows.
 
 ## Naming conventions
 ### Backend

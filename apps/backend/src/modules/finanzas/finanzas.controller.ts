@@ -9,6 +9,7 @@ import { ListarMovimientosFinancierosDto } from './dto/listar-movimientos-financ
 import { ConsultarPeriodoFinancieroDto } from './dto/consultar-periodo-financiero.dto';
 import { UpdateMovimientoManualDto } from './dto/update-movimiento-manual.dto';
 import { AnularMovimientoFinancieroDto } from './dto/anular-movimiento-financiero.dto';
+import { ListarHistoricoDiarioDto } from './dto/listar-historico-diario.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -59,5 +60,25 @@ export class FinanzasController {
   @Get('resumen')
   obtenerResumen(@Query() query: ConsultarPeriodoFinancieroDto) {
     return this.finanzasService.obtenerResumen(query);
+  }
+
+  @Get('historico-diario')
+  listarHistoricoDiario(@Query() query: ListarHistoricoDiarioDto) {
+    return this.finanzasService.listarHistoricoDiario(query);
+  }
+
+  @Get('historico-diario/:fecha/jornadas')
+  obtenerDetalleHistorico(@Param('fecha') fecha: string) {
+    return this.finanzasService.obtenerDetalleHistoricoDia(fecha);
+  }
+
+  @Get('operaciones/venta-pos/:idVenta')
+  obtenerDetalleVentaPos(@Param('idVenta') idVenta: string) {
+    return this.finanzasService.obtenerDetalleVentaPosAdmin(Number(idVenta));
+  }
+
+  @Get('operaciones/venta-alojamiento/:idVentaAlojamiento')
+  obtenerDetalleVentaAlojamiento(@Param('idVentaAlojamiento') idVentaAlojamiento: string) {
+    return this.finanzasService.obtenerDetalleVentaAlojamientoAdmin(Number(idVentaAlojamiento));
   }
 }

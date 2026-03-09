@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { CreateIngresoExternoDto } from './dto/create-ingreso-externo.dto';
 import { CreateEgresoManualDto } from './dto/create-egreso-manual.dto';
 import { ListarMovimientosFinancierosDto } from './dto/listar-movimientos-financieros.dto';
+import { ListarHistoricoDiarioDto } from './dto/listar-historico-diario.dto';
 import { UpdateMovimientoManualDto } from './dto/update-movimiento-manual.dto';
 import {
   ConsultarPeriodoFinancieroDto,
@@ -16,6 +17,12 @@ import {
   MovimientoFinancieroOrigenTipo,
   MovimientoFinancieroTipo,
 } from './entities/movimiento-financiero.entity';
+import { VentaEntity, VentaEstado } from '../ventas/entities/venta.entity';
+import {
+  VentaAlojamientoEntity,
+  VentaAlojamientoEstado,
+} from '../alojamiento/entities/venta-alojamiento.entity';
+import { SesionCajaEntity, SesionCajaEstado } from '../historial/entities/sesion-caja.entity';
 
 type RegistroAutomaticoInput = {
   tipo: MovimientoFinancieroTipo;
@@ -31,6 +38,18 @@ type RegistroAutomaticoInput = {
   metadata?: Record<string, unknown> | null;
 };
 
+type UpsertPagoRrhhInput = {
+  pagoId: string;
+  monto: number;
+  fechaPago: Date;
+  concepto: string;
+  descripcion?: string | null;
+  metodoPago?: MovimientoFinancieroMetodoPago | null;
+  referencia?: string | null;
+  trabajadorId: string;
+  trabajadorNombre?: string | null;
+};
+
 @Injectable()
 export class FinanzasService {
   private readonly businessTimeZone = 'America/Santiago';
@@ -38,12 +57,61 @@ export class FinanzasService {
   constructor(
     @InjectRepository(MovimientoFinancieroEntity)
     private readonly movimientoRepo: Repository<MovimientoFinancieroEntity>,
+    @InjectRepository(VentaEntity)
+    private readonly ventaRepo: Repository<VentaEntity>,
+    @InjectRepository(VentaAlojamientoEntity)
+    private readonly ventaAlojamientoRepo: Repository<VentaAlojamientoEntity>,
+    @InjectRepository(SesionCajaEntity)
+    private readonly sesionRepo: Repository<SesionCajaEntity>,
   ) {}
 
   private getRepository(manager?: EntityManager) {
     return manager
       ? manager.getRepository(MovimientoFinancieroEntity)
       : this.movimientoRepo;
+  }
+
+  private normalizeMoney(value: unknown) {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  private formatItemCount(value: unknown) {
+    const amount = this.normalizeMoney(value);
+    if (Number.isInteger(amount)) {
+      return `${amount}`;
+    }
+    return amount.toFixed(3).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+  }
+
+  private normalizeDateKey(value: string) {
+    const dateKey = value.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+      throw new BadRequestException('fecha inválida. Usa formato YYYY-MM-DD');
+    }
+
+    const [year, month, day] = dateKey.split('-').map((it) => Number(it));
+    const test = new Date(Date.UTC(year, month - 1, day));
+    const valid =
+      test.getUTCFullYear() === year &&
+      test.getUTCMonth() + 1 === month &&
+      test.getUTCDate() === day;
+
+    if (!valid) {
+      throw new BadRequestException('fecha inválida. Usa formato YYYY-MM-DD');
+    }
+
+    return dateKey;
+  }
+
+  private normalizePage(page?: number) {
+    if (!Number.isFinite(page ?? 1)) return 1;
+    return Math.max(1, Number(page ?? 1));
+  }
+
+  private normalizePageSize(pageSize?: number) {
+    if (!Number.isFinite(pageSize ?? 20)) return 20;
+    return Math.min(100, Math.max(1, Number(pageSize ?? 20)));
   }
 
   private normalizeCategoria(categoria: string) {
@@ -520,6 +588,604 @@ export class FinanzasService {
     };
   }
 
+  async listarHistoricoDiario(dto: ListarHistoricoDiarioDto) {
+    const page = this.normalizePage(dto.page);
+    const pageSize = this.normalizePageSize(dto.pageSize);
+    const fecha = dto.fecha ? this.normalizeDateKey(dto.fecha) : null;
+    const offset = (page - 1) * pageSize;
+
+    const totalQb = this.sesionRepo
+      .createQueryBuilder('s')
+      .select('COUNT(DISTINCT TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\'))', 'totalItems')
+      .where('s.estado = :estado', { estado: SesionCajaEstado.CERRADA })
+      .setParameters({ tz: this.businessTimeZone });
+
+    if (fecha) {
+      totalQb.andWhere('DATE(s.fecha_apertura AT TIME ZONE :tz) = :fecha', { fecha });
+    }
+
+    const totalRow = await totalQb.getRawOne<{ totalItems: string }>();
+    const totalItems = Number(totalRow?.totalItems ?? 0);
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const fechaAperturaExpr = `TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, 'YYYY-MM-DD')`;
+
+    const fechasQb = this.sesionRepo
+      .createQueryBuilder('s')
+      .select(fechaAperturaExpr, 'fecha')
+      .where('s.estado = :estado', { estado: SesionCajaEstado.CERRADA })
+      .setParameters({ tz: this.businessTimeZone })
+      .groupBy(fechaAperturaExpr)
+      .orderBy('fecha', 'DESC')
+      .offset(offset)
+      .limit(pageSize);
+
+    if (fecha) {
+      fechasQb.andWhere('DATE(s.fecha_apertura AT TIME ZONE :tz) = :fecha', { fecha });
+    }
+
+    const fechasRows = await fechasQb.getRawMany<{ fecha: string }>();
+    const fechas = fechasRows.map((row) => row.fecha);
+
+    if (fechas.length === 0) {
+      return {
+        items: [],
+        meta: {
+          page,
+          pageSize,
+          totalItems,
+          totalPages,
+        },
+      };
+    }
+
+    const posRows = await this.sesionRepo
+      .createQueryBuilder('s')
+      .innerJoin(VentaEntity, 'v', 'v.id_sesioncaja = s.id_sesion_caja')
+      .select(fechaAperturaExpr, 'fecha')
+      .addSelect('COALESCE(SUM(v.total_venta::numeric), 0)', 'totalVentas')
+      .addSelect('COUNT(v.id_venta)', 'cantidadVentas')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(v.ganancia_bruta_snapshot::numeric, 0)), 0)',
+        'gananciaBruta',
+      )
+      .where('s.estado = :estadoSesion', { estadoSesion: SesionCajaEstado.CERRADA })
+      .andWhere('v.estado = :estadoVenta', { estadoVenta: VentaEstado.CONFIRMADA })
+      .andWhere('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
+        fechas,
+        tz: this.businessTimeZone,
+      })
+      .groupBy(fechaAperturaExpr)
+      .getRawMany<{
+        fecha: string;
+        totalVentas: string;
+        cantidadVentas: string;
+        gananciaBruta: string;
+      }>();
+
+    const alojamientoRows = await this.sesionRepo
+      .createQueryBuilder('s')
+      .innerJoin(VentaAlojamientoEntity, 'va', 'va.id_sesion_caja = s.id_sesion_caja')
+      .select(fechaAperturaExpr, 'fecha')
+      .addSelect('COALESCE(SUM(va.monto_total::numeric), 0)', 'totalVentas')
+      .addSelect('COUNT(va.id_venta_alojamiento)', 'cantidadVentas')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(va.ganancia_bruta_snapshot::numeric, 0)), 0)',
+        'gananciaBruta',
+      )
+      .where('s.estado = :estadoSesion', { estadoSesion: SesionCajaEstado.CERRADA })
+      .andWhere('va.estado = :estadoVenta', {
+        estadoVenta: VentaAlojamientoEstado.CONFIRMADA,
+      })
+      .andWhere('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
+        fechas,
+        tz: this.businessTimeZone,
+      })
+      .groupBy(fechaAperturaExpr)
+      .getRawMany<{
+        fecha: string;
+        totalVentas: string;
+        cantidadVentas: string;
+        gananciaBruta: string;
+      }>();
+
+    const jornadasRows = await this.sesionRepo
+      .createQueryBuilder('s')
+      .select(fechaAperturaExpr, 'fecha')
+      .addSelect('COUNT(s.id_sesion_caja)', 'cantidadJornadas')
+      .addSelect('COALESCE(SUM(s.total_efectivo::numeric), 0)', 'totalEfectivo')
+      .addSelect('COALESCE(SUM(s.total_tarjeta::numeric), 0)', 'totalTarjeta')
+      .addSelect('MIN(s.fecha_apertura)', 'primeraApertura')
+      .addSelect('MAX(s.fecha_cierre)', 'ultimoCierre')
+      .where('s.estado = :estadoSesion', { estadoSesion: SesionCajaEstado.CERRADA })
+      .andWhere('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
+        fechas,
+        tz: this.businessTimeZone,
+      })
+      .groupBy(fechaAperturaExpr)
+      .getRawMany<{
+        fecha: string;
+        cantidadJornadas: string;
+        totalEfectivo: string;
+        totalTarjeta: string;
+        primeraApertura: Date;
+        ultimoCierre: Date | null;
+      }>();
+
+    const acumulado = new Map<
+      string,
+      {
+        fecha: string;
+        totalVentas: number;
+        cantidadVentas: number;
+        gananciaBruta: number;
+        cantidadJornadas: number;
+        totalEfectivo: number;
+        totalTarjeta: number;
+        primeraApertura: Date | null;
+        ultimoCierre: Date | null;
+      }
+    >();
+    for (const fechaItem of fechas) {
+      acumulado.set(fechaItem, {
+        fecha: fechaItem,
+        totalVentas: 0,
+        cantidadVentas: 0,
+        gananciaBruta: 0,
+        cantidadJornadas: 0,
+        totalEfectivo: 0,
+        totalTarjeta: 0,
+        primeraApertura: null,
+        ultimoCierre: null,
+      });
+    }
+
+    for (const row of posRows) {
+      const current = acumulado.get(row.fecha);
+      if (!current) continue;
+      current.totalVentas += this.normalizeMoney(row.totalVentas);
+      current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
+    }
+
+    for (const row of alojamientoRows) {
+      const current = acumulado.get(row.fecha);
+      if (!current) continue;
+      current.totalVentas += this.normalizeMoney(row.totalVentas);
+      current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
+    }
+
+    for (const row of jornadasRows) {
+      const current = acumulado.get(row.fecha);
+      if (!current) continue;
+      current.cantidadJornadas = Number(row.cantidadJornadas ?? 0);
+      current.totalEfectivo = this.normalizeMoney(row.totalEfectivo);
+      current.totalTarjeta = this.normalizeMoney(row.totalTarjeta);
+      current.primeraApertura = row.primeraApertura ? new Date(row.primeraApertura) : null;
+      current.ultimoCierre = row.ultimoCierre ? new Date(row.ultimoCierre) : null;
+    }
+
+    const items = fechas.map((fechaItem) => {
+      const row = acumulado.get(fechaItem)!;
+      return {
+        fecha: row.fecha,
+        totalVentas: Number(row.totalVentas.toFixed(2)),
+        cantidadVentas: row.cantidadVentas,
+        gananciaBruta: Number(row.gananciaBruta.toFixed(2)),
+        cantidadJornadas: row.cantidadJornadas,
+        totalEfectivo: Number(row.totalEfectivo.toFixed(2)),
+        totalTarjeta: Number(row.totalTarjeta.toFixed(2)),
+        primeraApertura: row.primeraApertura,
+        ultimoCierre: row.ultimoCierre,
+      };
+    });
+
+    return {
+      items,
+      meta: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages,
+      },
+    };
+  }
+
+  async obtenerDetalleHistoricoDia(rawFecha: string) {
+    const fecha = this.normalizeDateKey(rawFecha);
+
+    const sesiones = await this.sesionRepo
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.usuario', 'u')
+      .where('s.estado = :estado', { estado: SesionCajaEstado.CERRADA })
+      .andWhere('DATE(s.fecha_apertura AT TIME ZONE :tz) = :fecha', {
+        tz: this.businessTimeZone,
+        fecha,
+      })
+      .orderBy('s.fecha_apertura', 'DESC')
+      .getMany();
+
+    if (sesiones.length === 0) {
+      return {
+        fecha,
+        resumenDia: {
+          cantidadJornadas: 0,
+          totalVentas: 0,
+          cantidadVentas: 0,
+          gananciaBruta: 0,
+          totalEfectivo: 0,
+          totalTarjeta: 0,
+        },
+        jornadas: [],
+      };
+    }
+
+    const sesionIds = sesiones.map((s) => s.id);
+
+    const posStats = await this.ventaRepo
+      .createQueryBuilder('v')
+      .select('v.id_sesioncaja', 'sesionId')
+      .addSelect('COALESCE(SUM(v.total_venta::numeric), 0)', 'totalVentas')
+      .addSelect('COUNT(v.id_venta)', 'cantidadVentas')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(v.ganancia_bruta_snapshot::numeric, 0)), 0)',
+        'gananciaBruta',
+      )
+      .where('v.estado = :estado', { estado: VentaEstado.CONFIRMADA })
+      .andWhere('v.id_sesioncaja IN (:...sesionIds)', { sesionIds })
+      .groupBy('v.id_sesioncaja')
+      .getRawMany<{
+        sesionId: string;
+        totalVentas: string;
+        cantidadVentas: string;
+        gananciaBruta: string;
+      }>();
+
+    const alojStats = await this.ventaAlojamientoRepo
+      .createQueryBuilder('va')
+      .select('va.id_sesion_caja', 'sesionId')
+      .addSelect('COALESCE(SUM(va.monto_total::numeric), 0)', 'totalVentas')
+      .addSelect('COUNT(va.id_venta_alojamiento)', 'cantidadVentas')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(va.ganancia_bruta_snapshot::numeric, 0)), 0)',
+        'gananciaBruta',
+      )
+      .where('va.estado = :estado', { estado: VentaAlojamientoEstado.CONFIRMADA })
+      .andWhere('va.id_sesion_caja IN (:...sesionIds)', { sesionIds })
+      .groupBy('va.id_sesion_caja')
+      .getRawMany<{
+        sesionId: string;
+        totalVentas: string;
+        cantidadVentas: string;
+        gananciaBruta: string;
+      }>();
+
+    const posVentas = await this.ventaRepo
+      .createQueryBuilder('v')
+      .select('v.id_sesioncaja', 'sesionId')
+      .addSelect('v.id_venta', 'ventaId')
+      .addSelect('v.fecha_confirmacion', 'fechaVenta')
+      .addSelect('v.medio_pago', 'medioPago')
+      .addSelect('v.total_venta::numeric', 'montoTotal')
+      .addSelect('COALESCE(SUM(vi.cantidad::numeric), 0)', 'cantidadItems')
+      .where('v.estado = :estado', { estado: VentaEstado.CONFIRMADA })
+      .leftJoin('venta_item', 'vi', 'vi.id_venta = v.id_venta')
+      .andWhere('v.id_sesioncaja IN (:...sesionIds)', { sesionIds })
+      .groupBy('v.id_sesioncaja')
+      .addGroupBy('v.id_venta')
+      .addGroupBy('v.fecha_confirmacion')
+      .addGroupBy('v.medio_pago')
+      .addGroupBy('v.total_venta')
+      .orderBy('v.fecha_confirmacion', 'DESC')
+      .getRawMany<{
+        sesionId: string;
+        ventaId: string;
+        fechaVenta: Date;
+        medioPago: 'EFECTIVO' | 'TARJETA' | null;
+        montoTotal: string;
+        cantidadItems: string;
+      }>();
+
+    const alojVentas = await this.ventaAlojamientoRepo
+      .createQueryBuilder('va')
+      .select('va.id_sesion_caja', 'sesionId')
+      .addSelect('va.id_venta_alojamiento', 'ventaId')
+      .addSelect('va.fecha_confirmacion', 'fechaVenta')
+      .addSelect('va.medio_pago', 'medioPago')
+      .addSelect('asig.id', 'asignacionId')
+      .addSelect('hab.identificador', 'habitacionIdentificador')
+      .addSelect('h.nombre_completo', 'huespedNombre')
+      .addSelect('va.monto_total::numeric', 'montoTotal')
+      .where('va.estado = :estado', { estado: VentaAlojamientoEstado.CONFIRMADA })
+      .leftJoin('va.asignacion', 'asig')
+      .leftJoin('asig.habitacion', 'hab')
+      .leftJoin('asig.huesped', 'h')
+      .andWhere('va.id_sesion_caja IN (:...sesionIds)', { sesionIds })
+      .orderBy('va.fecha_confirmacion', 'DESC')
+      .getRawMany<{
+        sesionId: string;
+        ventaId: string;
+        fechaVenta: Date;
+        medioPago: 'EFECTIVO' | 'TARJETA' | null;
+        asignacionId: string | null;
+        habitacionIdentificador: string | null;
+        huespedNombre: string | null;
+        montoTotal: string;
+      }>();
+
+    const statsBySesion = new Map<number, { totalVentas: number; cantidadVentas: number; gananciaBruta: number }>();
+    for (const id of sesionIds) {
+      statsBySesion.set(id, { totalVentas: 0, cantidadVentas: 0, gananciaBruta: 0 });
+    }
+
+    for (const row of posStats) {
+      const sesionId = Number(row.sesionId);
+      const current = statsBySesion.get(sesionId);
+      if (!current) continue;
+      current.totalVentas += this.normalizeMoney(row.totalVentas);
+      current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
+    }
+
+    for (const row of alojStats) {
+      const sesionId = Number(row.sesionId);
+      const current = statsBySesion.get(sesionId);
+      if (!current) continue;
+      current.totalVentas += this.normalizeMoney(row.totalVentas);
+      current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
+    }
+
+    const ventasBySesion = new Map<
+      number,
+      Array<{
+        ventaId: number;
+        tipo: 'VENTA_POS' | 'VENTA_ALOJAMIENTO';
+        fechaVenta: Date;
+        montoTotal: number;
+        medioPago: 'EFECTIVO' | 'TARJETA' | null;
+        detalle: string;
+        asignacionId: string | null;
+      }>
+    >();
+    for (const id of sesionIds) ventasBySesion.set(id, []);
+
+    for (const row of posVentas) {
+      const sesionId = Number(row.sesionId);
+      const list = ventasBySesion.get(sesionId);
+      if (!list) continue;
+      list.push({
+        ventaId: Number(row.ventaId),
+        tipo: 'VENTA_POS',
+        fechaVenta: row.fechaVenta,
+        montoTotal: this.normalizeMoney(row.montoTotal),
+        medioPago: row.medioPago,
+        detalle: `${this.formatItemCount(row.cantidadItems)} item(s)`,
+        asignacionId: null,
+      });
+    }
+
+    for (const row of alojVentas) {
+      const sesionId = Number(row.sesionId);
+      const list = ventasBySesion.get(sesionId);
+      if (!list) continue;
+      list.push({
+        ventaId: Number(row.ventaId),
+        tipo: 'VENTA_ALOJAMIENTO',
+        fechaVenta: row.fechaVenta,
+        montoTotal: this.normalizeMoney(row.montoTotal),
+        medioPago: row.medioPago,
+        detalle: `${row.habitacionIdentificador ?? '-'} · ${row.huespedNombre ?? 'Huesped'}`,
+        asignacionId: row.asignacionId,
+      });
+    }
+
+    let totalVentasDia = 0;
+    let cantidadVentasDia = 0;
+    let gananciaBrutaDia = 0;
+    let totalEfectivoDia = 0;
+    let totalTarjetaDia = 0;
+
+    const jornadas = sesiones.map((sesion) => {
+      const stats = statsBySesion.get(sesion.id) ?? {
+        totalVentas: 0,
+        cantidadVentas: 0,
+        gananciaBruta: 0,
+      };
+      const ventas = (ventasBySesion.get(sesion.id) ?? []).sort(
+        (a, b) => new Date(b.fechaVenta).getTime() - new Date(a.fechaVenta).getTime(),
+      );
+      const usuario = sesion.usuario;
+      const nombre = `${usuario?.nombre ?? ''} ${usuario?.apellido ?? ''}`.trim();
+      const montoInicial = this.normalizeMoney(sesion.montoInicial);
+      const montoFinal = this.normalizeMoney(sesion.montoFinal);
+      const totalEfectivo = this.normalizeMoney(sesion.totalEfectivo);
+      const totalTarjeta = this.normalizeMoney(sesion.totalTarjeta);
+
+      totalVentasDia += stats.totalVentas;
+      cantidadVentasDia += stats.cantidadVentas;
+      gananciaBrutaDia += stats.gananciaBruta;
+      totalEfectivoDia += totalEfectivo;
+      totalTarjetaDia += totalTarjeta;
+
+      return {
+        sesionCajaId: sesion.id,
+        fechaApertura: sesion.fechaApertura,
+        fechaCierre: sesion.fechaCierre,
+        montoInicial: Number(montoInicial.toFixed(2)),
+        montoFinal: Number(montoFinal.toFixed(2)),
+        totalEfectivo: Number(totalEfectivo.toFixed(2)),
+        totalTarjeta: Number(totalTarjeta.toFixed(2)),
+        responsableCierre: {
+          idUsuario: usuario?.idUsuario ?? null,
+          nombre: nombre || null,
+          email: usuario?.email ?? null,
+        },
+        totalVentas: Number(stats.totalVentas.toFixed(2)),
+        cantidadVentas: stats.cantidadVentas,
+        gananciaBruta: Number(stats.gananciaBruta.toFixed(2)),
+        ventas: ventas.map((venta) => ({
+          ventaId: venta.ventaId,
+          tipo: venta.tipo,
+          fechaVenta: venta.fechaVenta,
+          medioPago: venta.medioPago,
+          detalle: venta.detalle,
+          asignacionId: venta.asignacionId,
+          montoTotal: Number(venta.montoTotal.toFixed(2)),
+        })),
+      };
+    });
+
+    return {
+      fecha,
+      resumenDia: {
+        cantidadJornadas: jornadas.length,
+        totalVentas: Number(totalVentasDia.toFixed(2)),
+        cantidadVentas: cantidadVentasDia,
+        gananciaBruta: Number(gananciaBrutaDia.toFixed(2)),
+        totalEfectivo: Number(totalEfectivoDia.toFixed(2)),
+        totalTarjeta: Number(totalTarjetaDia.toFixed(2)),
+      },
+      jornadas,
+    };
+  }
+
+  async obtenerDetalleVentaPosAdmin(idVenta: number) {
+    if (!Number.isFinite(idVenta) || idVenta <= 0) {
+      throw new BadRequestException('idVenta inválido');
+    }
+
+    const venta = await this.ventaRepo.findOne({
+      where: { idVenta, estado: VentaEstado.CONFIRMADA },
+      relations: {
+        sesionCaja: { usuario: true, caja: true },
+        items: { producto: true },
+      },
+    });
+
+    if (!venta) {
+      throw new NotFoundException('Venta POS no encontrada');
+    }
+
+    const items = [...(venta.items ?? [])]
+      .sort((a, b) => a.idItem - b.idItem)
+      .map((it) => ({
+      idItem: it.idItem,
+      productoId: (it.producto as any)?.id ?? null,
+      nombreProducto: (it.producto as any)?.name ?? null,
+      cantidad: this.normalizeMoney(it.cantidad),
+      precioUnitario: this.normalizeMoney(it.precioUnitario),
+      subtotal: this.normalizeMoney(it.subtotal),
+      costoUnitarioSnapshot: this.normalizeMoney(it.costoUnitarioSnapshot),
+      cogsSnapshot: this.normalizeMoney(it.cogsSnapshot),
+      }));
+
+    const sesion = venta.sesionCaja;
+    const usuario = (sesion as any)?.usuario;
+
+    return {
+      tipo: 'VENTA_POS',
+      venta: {
+        idVenta: venta.idVenta,
+        estado: venta.estado,
+        fechaCreacion: venta.fechaCreacion,
+        fechaConfirmacion: venta.fechaConfirmacion,
+        medioPago: venta.medioPago,
+        totalVenta: this.normalizeMoney(venta.totalVenta),
+        cantidadTotal: this.normalizeMoney(venta.cantidadTotal),
+        cogsTotalSnapshot: this.normalizeMoney(venta.cogsTotalSnapshot),
+        gananciaBrutaSnapshot: this.normalizeMoney(venta.gananciaBrutaSnapshot),
+      },
+      sesion: {
+        idSesionCaja: sesion?.id ?? null,
+        fechaApertura: sesion?.fechaApertura ?? null,
+        fechaCierre: sesion?.fechaCierre ?? null,
+        cajaNumero: (sesion as any)?.caja?.numero ?? null,
+        responsable: {
+          idUsuario: usuario?.idUsuario ?? null,
+          nombre: `${usuario?.nombre ?? ''} ${usuario?.apellido ?? ''}`.trim() || null,
+          email: usuario?.email ?? null,
+        },
+      },
+      items,
+    };
+  }
+
+  async obtenerDetalleVentaAlojamientoAdmin(idVentaAlojamiento: number) {
+    if (!Number.isFinite(idVentaAlojamiento) || idVentaAlojamiento <= 0) {
+      throw new BadRequestException('idVentaAlojamiento inválido');
+    }
+
+    const venta = await this.ventaAlojamientoRepo.findOne({
+      where: {
+        id: idVentaAlojamiento,
+        estado: VentaAlojamientoEstado.CONFIRMADA,
+      },
+      relations: {
+        sesionCaja: { usuario: true, caja: true },
+        asignacion: {
+          habitacion: { pisoZona: true },
+          huesped: { empresaHostal: true },
+        },
+      },
+    });
+
+    if (!venta) {
+      throw new NotFoundException('Venta de alojamiento no encontrada');
+    }
+
+    const sesion = venta.sesionCaja;
+    const usuario = (sesion as any)?.usuario;
+    const asignacion = venta.asignacion;
+    const huesped = asignacion?.huesped as any;
+    const habitacion = asignacion?.habitacion as any;
+
+    return {
+      tipo: 'VENTA_ALOJAMIENTO',
+      venta: {
+        idVentaAlojamiento: venta.id,
+        fechaConfirmacion: venta.fechaConfirmacion,
+        medioPago: venta.medioPago,
+        montoTotal: this.normalizeMoney(venta.montoTotal),
+        cogsTotalSnapshot: this.normalizeMoney(venta.cogsTotalSnapshot),
+        gananciaBrutaSnapshot: this.normalizeMoney(venta.gananciaBrutaSnapshot),
+      },
+      sesion: {
+        idSesionCaja: sesion?.id ?? null,
+        fechaApertura: sesion?.fechaApertura ?? null,
+        fechaCierre: sesion?.fechaCierre ?? null,
+        cajaNumero: (sesion as any)?.caja?.numero ?? null,
+        responsable: {
+          idUsuario: usuario?.idUsuario ?? null,
+          nombre: `${usuario?.nombre ?? ''} ${usuario?.apellido ?? ''}`.trim() || null,
+          email: usuario?.email ?? null,
+        },
+      },
+      asignacion: {
+        id: asignacion?.id ?? null,
+        estado: asignacion?.estado ?? null,
+        tipoCobro: asignacion?.tipoCobro ?? null,
+        noches: asignacion?.noches ?? 0,
+        fechaIngreso: asignacion?.fechaIngreso ?? null,
+        fechaSalidaEstimada: asignacion?.fechaSalidaEstimada ?? null,
+        fechaSalidaReal: asignacion?.fechaSalidaReal ?? null,
+      },
+      habitacion: {
+        id: habitacion?.id ?? null,
+        identificador: habitacion?.identificador ?? null,
+        pisoNombre: habitacion?.pisoZona?.nombre ?? null,
+      },
+      huesped: {
+        id: huesped?.id ?? null,
+        nombreCompleto: huesped?.nombreCompleto ?? null,
+        rut: huesped?.rut ?? null,
+        correo: huesped?.correo ?? null,
+        telefono: huesped?.telefono ?? null,
+        empresaNombre: huesped?.empresaHostal?.nombreEmpresa ?? null,
+      },
+    };
+  }
+
   private async registrarAutomatico(args: RegistroAutomaticoInput, manager?: EntityManager) {
     this.assertMontoValido(args.monto);
     if (!args.origenId?.trim()) {
@@ -551,6 +1217,82 @@ export class FinanzasService {
       .values(payload as any)
       .orIgnore()
       .execute();
+  }
+
+  async upsertEgresoRrhhPago(data: UpsertPagoRrhhInput, manager?: EntityManager) {
+    this.assertMontoValido(data.monto);
+    const pagoId = data.pagoId?.trim();
+    if (!pagoId) {
+      throw new BadRequestException('pagoId es requerido para consolidar RRHH');
+    }
+
+    const repo = this.getRepository(manager);
+
+    const payload: Partial<MovimientoFinancieroEntity> = {
+      tipo: MovimientoFinancieroTipo.EGRESO,
+      origenTipo: MovimientoFinancieroOrigenTipo.RRHH_PAGO,
+      origenId: pagoId,
+      monto: data.monto.toFixed(2),
+      moneda: 'CLP',
+      categoria: 'RRHH_PAGO',
+      descripcion: data.descripcion?.trim() || `Pago RRHH (${data.concepto.trim().toUpperCase()})`,
+      metodoPago: data.metodoPago ?? null,
+      referencia: data.referencia?.trim() || `rrhh-pago:${pagoId}`,
+      fechaMovimiento: data.fechaPago,
+      aplicaCreditoFiscal: false,
+      ivaTasa: '0.1900',
+      metadata: {
+        pagoId,
+        concepto: data.concepto.trim().toUpperCase(),
+        trabajadorId: data.trabajadorId,
+        trabajadorNombre: data.trabajadorNombre ?? null,
+      },
+      estado: MovimientoFinancieroEstado.ACTIVO,
+    };
+
+    const existing = await repo.findOne({
+      where: {
+        origenTipo: MovimientoFinancieroOrigenTipo.RRHH_PAGO,
+        origenId: pagoId,
+      },
+    });
+
+    if (existing) {
+      Object.assign(existing, payload);
+      await repo.save(existing);
+      return;
+    }
+
+    const mov = repo.create(payload as MovimientoFinancieroEntity);
+    await repo.save(mov);
+  }
+
+  async anularMovimientoRrhhPago(
+    pagoId: string,
+    userId: string,
+    motivo?: string | null,
+    manager?: EntityManager,
+  ) {
+    const normalizedPagoId = pagoId?.trim();
+    if (!normalizedPagoId) return;
+
+    const repo = this.getRepository(manager);
+    const mov = await repo.findOne({
+      where: {
+        origenTipo: MovimientoFinancieroOrigenTipo.RRHH_PAGO,
+        origenId: normalizedPagoId,
+      },
+    });
+
+    if (!mov || mov.estado === MovimientoFinancieroEstado.ANULADO) {
+      return;
+    }
+
+    mov.estado = MovimientoFinancieroEstado.ANULADO;
+    mov.anuladoAt = new Date();
+    mov.anuladoBy = { idUsuario: userId } as any;
+    mov.anuladoMotivo = motivo?.trim() || null;
+    await repo.save(mov);
   }
 
   async registrarIngresoVentaPos(

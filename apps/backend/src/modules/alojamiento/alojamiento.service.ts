@@ -988,6 +988,8 @@ export class AlojamientoService {
           medioPago: dto.medioPago as MedioPago,
           montoTotal,
           estado: VentaAlojamientoEstado.CONFIRMADA,
+          cogsTotalSnapshot: '0.00',
+          gananciaBrutaSnapshot: montoTotal,
         });
         const ventaGuardada = await manager.getRepository(VentaAlojamientoEntity).save(venta);
 

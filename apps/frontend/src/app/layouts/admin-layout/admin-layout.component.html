@@ -128,6 +128,15 @@
       </a>
 
       <a
+        routerLink="/admin/rrhh/personal"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">🧾</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">RRHH</span>
+      </a>
+
+      <a
         routerLink="/admin/alojamiento-mapa"
         routerLinkActive="bg-blue-50 text-blue-700"
         class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
@@ -292,6 +301,15 @@
         (click)="closeMobile()"
       >
         Finanzas
+      </a>
+
+      <a
+        routerLink="/admin/rrhh/personal"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        RRHH
       </a>
     </nav>
   </aside>

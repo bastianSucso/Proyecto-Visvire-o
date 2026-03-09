@@ -44,6 +44,18 @@ export class VentaEntity {
   @Column({ type: 'enum', enum: MedioPago, name: 'medio_pago', nullable: true })
   medioPago!: MedioPago | null;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'cogs_total_snapshot', nullable: true })
+  cogsTotalSnapshot!: string | null;
+
+  @Column({
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    name: 'ganancia_bruta_snapshot',
+    nullable: true,
+  })
+  gananciaBrutaSnapshot!: string | null;
+
   @ManyToOne(() => SesionCajaEntity, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_sesioncaja' }) 
   sesionCaja!: SesionCajaEntity;

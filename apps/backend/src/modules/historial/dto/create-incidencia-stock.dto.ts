@@ -1,12 +1,39 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+} from 'class-validator';
+
+export type IncidenciaContextoDto = 'DURANTE_JORNADA' | 'FUERA_JORNADA';
 
 export class CreateIncidenciaStockDto {
-  @IsNotEmpty()
-  sesionCajaId!: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  sesionCajaId?: number;
 
   @IsNotEmpty()
+  @IsUUID()
   productoId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  ubicacionId?: string;
+
+  @IsOptional()
+  @IsIn(['DURANTE_JORNADA', 'FUERA_JORNADA'])
+  contexto?: IncidenciaContextoDto;
+
+  @IsOptional()
+  @IsDateString()
+  fechaHoraDeteccion?: string;
 
   @IsIn(['FALTANTE', 'EXCEDENTE', 'DANIO', 'VENCIDO', 'OTRO'])
   tipo!: 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';

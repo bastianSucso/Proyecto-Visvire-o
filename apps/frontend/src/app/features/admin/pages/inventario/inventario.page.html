@@ -4,7 +4,7 @@
       <div>
         <h1 class="text-xl font-semibold text-slate-900">Inventario</h1>
         <p class="mt-1 text-sm text-slate-500">
-          Control de ingresos, ajustes y stock por ubicación.
+          Control de ingresos y stock por ubicación.
         </p>
       </div>
 
@@ -24,13 +24,12 @@
           + Nuevo ingreso
         </a>
 
-        <button
-          type="button"
-          (click)="openAjusteModal()"
-          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        <a
+          routerLink="/admin/inventario/inconsistencias"
+          class="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
         >
-          Ajustar stock
-        </button>
+          Inconsistencias
+        </a>
 
         <a
           routerLink="/admin/inventario/conversion"
@@ -46,14 +45,6 @@
           Nuevo traspaso
         </a>
       </div>
-    </div>
-
-    <div *ngIf="stockMsg" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-      {{ stockMsg }}
-    </div>
-
-    <div *ngIf="errorMsg" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      {{ errorMsg }}
     </div>
 
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -210,143 +201,6 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
-
-<div *ngIf="ajusteModalOpen" class="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-  <div class="w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-xl">
-    <div class="p-5 border-b border-slate-200 flex items-center justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-slate-900">Registrar ajuste</h2>
-        <p class="text-sm text-slate-500">Corrige diferencias entre stock teórico y físico.</p>
-      </div>
-      <button class="text-slate-500 hover:text-slate-700" (click)="closeAjusteModal()">✕</button>
-    </div>
-
-    <div class="p-5">
-      <form class="grid gap-3" [formGroup]="ajusteForm" (ngSubmit)="registrarAjuste()">
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Buscar producto</label>
-          <div class="relative">
-            <input
-              type="text"
-              [ngModel]="ajusteSearch"
-              [ngModelOptions]="{ standalone: true }"
-              (ngModelChange)="onAjusteSearchChange($event)"
-              (keydown)="onAjusteKeydown($event)"
-              placeholder="Nombre / código / barcode"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              autocomplete="off"
-            />
-
-            <div
-              *ngIf="ajusteShowSug"
-              class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
-                    overflow-hidden max-h-60 overflow-auto"
-            >
-              <button
-                type="button"
-                *ngFor="let p of ajusteSugerencias; let i = index"
-                (mousedown)="$event.preventDefault()"
-                (mouseenter)="ajusteActiveIndex = i"
-                (click)="seleccionarAjuste(p)"
-                class="w-full px-3 py-2 text-left flex items-center justify-between
-                      transition focus:outline-none"
-                [ngClass]="
-                  i === ajusteActiveIndex
-                    ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
-                    : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
-                "
-              >
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-slate-900 truncate">
-                    {{ p.name }}
-                  </p>
-                  <p class="text-xs text-slate-500 truncate">
-                    {{ p.internalCode }}
-                    <span *ngIf="p.barcode">• {{ p.barcode }}</span>
-                    <span *ngIf="p.unidadBase" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                      {{ p.unidadBase }}
-                    </span>
-                      <span
-                        *ngIf="p.tipo"
-                        class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
-                        [ngClass]="getTipoBadgeClass(p)"
-                      >
-                        {{ p.tipo }}
-                      </span>
-                  </p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div *ngIf="selectedAjusteProducto" class="mt-2 text-xs text-slate-500">
-            Seleccionado: <span class="font-medium text-slate-700">{{ selectedAjusteProducto.name }}</span>
-            ·
-            <span
-              class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
-              [ngClass]="getTipoBadgeClass(selectedAjusteProducto)"
-            >
-              {{ selectedAjusteProducto.tipo }}
-            </span>
-            · Unidad: {{ selectedAjusteProducto.unidadBase ?? '-' }}
-          </div>
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Ubicación afectada</label>
-          <select
-            formControlName="ubicacionId"
-            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-          >
-            <option value="" disabled>Selecciona ubicación</option>
-            <option *ngFor="let u of ubicaciones" [value]="u.id">
-              {{ u.nombre }} ({{ u.tipo }})
-            </option>
-          </select>
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Cantidad (positiva o negativa)</label>
-          <input
-            type="number"
-            formControlName="cantidad"
-            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Motivo</label>
-          <input
-            type="text"
-            formControlName="motivo"
-            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-          />
-          <p *ngIf="cAjuste('motivo')?.touched && cAjuste('motivo')?.invalid" class="mt-1 text-xs text-red-600">
-            El motivo es obligatorio.
-          </p>
-        </div>
-
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button
-            type="button"
-            class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
-            (click)="closeAjusteModal()"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="submit"
-            [disabled]="loadingForm"
-            class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
-          >
-            {{ loadingForm ? 'Guardando...' : 'Registrar ajuste' }}
-          </button>
-        </div>
-      </form>
     </div>
   </div>
 </div>

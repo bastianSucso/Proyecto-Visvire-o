@@ -562,6 +562,34 @@ export class InventarioService {
     });
   }
 
+  async registrarAjusteDesdeInconsistencia(
+    dto: {
+      productoId: string;
+      ubicacionId: string;
+      cantidad: number;
+      motivo: string;
+      categoria: 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+    },
+    usuarioId: string,
+  ) {
+    if (!Number.isFinite(dto.cantidad) || dto.cantidad >= 0) {
+      throw new BadRequestException(
+        'El ajuste por inconsistencia debe ser negativo (descuento de stock).',
+      );
+    }
+
+    const motivo = `[INCONSISTENCIA:${dto.categoria}] ${dto.motivo}`.slice(0, 300);
+    return this.registrarAjuste(
+      {
+        productoId: dto.productoId,
+        ubicacionId: dto.ubicacionId,
+        cantidad: dto.cantidad,
+        motivo,
+      },
+      usuarioId,
+    );
+  }
+
   async registrarTraspaso(dto: CreateTraspasoDto, usuarioId: string) {
     const cantidad = Number(dto.cantidad);
     if (!Number.isFinite(cantidad) || cantidad <= 0) {

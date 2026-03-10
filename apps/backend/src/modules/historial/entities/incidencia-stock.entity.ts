@@ -1,21 +1,30 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  OneToOne,
 } from 'typeorm';
 import { SesionCajaEntity } from './sesion-caja.entity';
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 import { UbicacionEntity } from '../../ubicaciones/entities/ubicacion.entity';
+import { IncidenciaRevisionAdminEntity } from './incidencia-revision-admin.entity';
 
 export type IncidenciaTipo = 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+export type IncidenciaOrigen = 'VENDEDOR' | 'ADMIN';
+export type IncidenciaContexto = 'DURANTE_JORNADA' | 'FUERA_JORNADA';
 
 @Entity('incidencia_stock')
 export class IncidenciaStockEntity {
   @PrimaryGeneratedColumn('increment', { name: 'id_incidencia_stock' })
   id!: number;
 
-  @ManyToOne(() => SesionCajaEntity, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => SesionCajaEntity, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_sesion_caja' }) 
-  sesionCaja!: SesionCajaEntity;
+  sesionCaja!: SesionCajaEntity | null;
 
   @ManyToOne(() => ProductoEntity, { nullable: false })
   @JoinColumn({ name: 'id_producto' })
@@ -29,6 +38,15 @@ export class IncidenciaStockEntity {
   @JoinColumn({ name: 'id_usuario' })
   usuario!: UserEntity;
 
+  @Column({ type: 'varchar', length: 20, default: 'VENDEDOR' })
+  origen!: IncidenciaOrigen;
+
+  @Column({ type: 'varchar', length: 30, default: 'DURANTE_JORNADA' })
+  contexto!: IncidenciaContexto;
+
+  @Column({ type: 'timestamptz', name: 'fecha_hora_deteccion' })
+  fechaHoraDeteccion!: Date;
+
   @Column({ type: 'varchar', length: 20 })
   tipo!: IncidenciaTipo;
 
@@ -40,4 +58,7 @@ export class IncidenciaStockEntity {
 
   @CreateDateColumn({ type: 'timestamptz', name: 'fecha' })
   fecha!: Date;
+
+  @OneToOne(() => IncidenciaRevisionAdminEntity, (revision) => revision.incidencia)
+  revisionAdmin!: IncidenciaRevisionAdminEntity | null;
 }

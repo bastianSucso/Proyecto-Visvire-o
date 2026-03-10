@@ -134,6 +134,90 @@
 - Prefer clean, centered forms with low visual noise.
 - Build interfaces for professional administrative workflows.
 
+## Frontend UI baseline (obligatorio) - referencia alojamiento/caja
+- Referencias visuales base para nuevas interfaces:
+  - `apps/frontend/src/app/features/vendedor/pages/alojamiento-home/alojamiento-home.page.html`
+  - `apps/frontend/src/app/features/vendedor/pages/caja/caja.page.html`
+- Objetivo: mantener consistencia en tipografia, jerarquia, espaciados, bordes, colores y patrones de accion.
+
+### Layout y contenedores
+- Base de pagina: `min-h-[calc(100vh-64px)] bg-white`.
+- Contenedor principal por tipo de flujo:
+  - Administrativo/listados: `mx-auto w-full max-w-6xl px-4 py-6`.
+  - Operativo enfocado (tipo caja): `mx-auto w-full max-w-3xl px-4 py-6`.
+  - Mapa/canvas/plano: `mx-auto w-full px-4 py-6` (sin max-width fijo).
+- Ritmo vertical entre bloques: `space-y-4` o `space-y-6`.
+
+### Tipografia y jerarquia
+- Titulo de pagina: `text-xl font-semibold text-slate-900`.
+- Subtitulo descriptivo: `text-sm text-slate-500`.
+- Titulos de card/seccion: `text-sm font-semibold text-slate-900`.
+- Texto operativo general: `text-sm`.
+- Labels, metadata y texto de apoyo: `text-xs`.
+- Regla: priorizar `text-sm`; usar `text-xs` para informacion secundaria, estados compactos y captions.
+
+### Cards, superficies y bordes
+- Card principal: `rounded-2xl border border-slate-200 bg-white shadow-sm`.
+- Card secundaria/bloque interno: `rounded-xl border border-slate-200 bg-white`.
+- Superficie neutra: `bg-slate-50`.
+- Radios:
+  - `rounded-2xl` para contenedores grandes.
+  - `rounded-xl` para componentes principales.
+  - `rounded-lg` para controles compactos.
+
+### Botones
+- Primario institucional:
+  - `rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800`
+- Secundario neutral:
+  - `rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50`
+- Estados de accion (cuando aplique):
+  - Confirmacion/cierre: gama `emerald`.
+  - Advertencia: gama `amber`.
+  - Riesgo/eliminacion: borde/texto rojo suave.
+
+### Inputs, selects y formularios
+- Control estandar:
+  - `w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm`
+- Label estandar:
+  - `mb-1 block text-xs font-medium text-slate-600`
+- Evitar variantes innecesarias de padding/radio/borde dentro de una misma vista.
+
+### Tablas, badges y estados
+- Tabla:
+  - Wrapper `overflow-x-auto rounded-xl border border-slate-200`
+  - Tabla `w-full text-left text-sm`
+  - Header `bg-slate-50 text-slate-600`
+- Badges/pills:
+  - `rounded-full px-2.5 py-0.5 text-xs` (o `py-1` si se requiere mayor presencia)
+- Mantener mapeo de color por estado consistente entre modulos.
+
+### Alertas y feedback
+- Error: `rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700`
+- Exito: `rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700`
+- Advertencia: `rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800`
+
+### Modales
+- Overlay: `fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4`.
+- Panel: `w-full rounded-2xl border border-slate-200 bg-white shadow-xl` + `max-w-*` segun contenido.
+- Acciones explicitas en formularios: `Cancelar` y `Guardar/Registrar/Confirmar`.
+
+### Regla de adopcion para nuevas vistas
+- No crear una nueva linea grafica salvo requerimiento funcional explicito.
+- Si la vista pertenece a admin u operacion, heredar este baseline como default.
+- Antes de cerrar una UI nueva, contrastar con `alojamiento-home` y `caja` para validar coherencia visual.
+
+### Anti-patrones (evitar)
+- Mezclar escalas tipograficas sin criterio (`text-xs`/`text-sm`/`text-base`) en una misma seccion.
+- Cambiar color primario principal fuera del azul institucional sin justificacion de negocio.
+- Mezclar estilos de inputs o botones equivalentes en la misma pantalla.
+- Usar una jerarquia visual distinta a `text-xl` (titulo), `text-sm` (contenido), `text-xs` (soporte).
+
+## Frontend UX conventions (obligatorio)
+- Crear/editar registros desde modal (no formularios planos persistentes en la pagina), salvo que la pagina existente ya use otro patron.
+- Filtros de listas deben aplicar inmediatamente al cambiar valor (`ngModelChange`/eventos reactivos); evitar boton "Aplicar filtros".
+- Mantener consistencia con patrones ya implementados en el repo: cards, modales con overlay, acciones primarias en azul, acciones secundarias bordeadas.
+- Para formularios en modal, incluir acciones explicitas `Cancelar` y `Guardar/Registrar`.
+
 ## Naming conventions
 ### Backend
 - Classes: `PascalCase` (e.g., `UsersService`, `AuthController`).
@@ -165,6 +249,15 @@
 - Guard usage:
   - Backend: `JwtAuthGuard` + `RolesGuard` + `@Roles()`.
   - Frontend: `authGuard` + `roleGuard` with `data.roles`.
+
+## Fechas y zona horaria (obligatorio)
+- Persistir fechas en BD como instante absoluto UTC (`timestamptz`).
+- En frontend, renderizar fechas con Angular `date` pipe; evitar `toLocaleString` en vistas criticas.
+- Mostrar fechas del negocio en zona horaria `America/Santiago`.
+- Formato de fecha/hora para flujos operativos: `dd/MM/yyyy HH:mm` (24 horas, sin AM/PM).
+- Para inputs `datetime-local`, interpretar el valor como hora local de negocio (`America/Santiago`) antes de convertir y persistir en UTC.
+- Regla operativa: entrada local negocio -> persistencia UTC -> visualizacion local negocio.
+- Revisar referencia tecnica: `docs/tecnico/leccion-fechas-zona-horaria-alojamiento.md`.
 
 ## Files to check when adding features
 ### Backend

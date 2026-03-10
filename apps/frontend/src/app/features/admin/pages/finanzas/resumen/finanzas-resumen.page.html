@@ -8,6 +8,7 @@
         <a class="rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm text-white" routerLink="/admin/finanzas/resumen">Resumen</a>
         <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/ingresos">Ingresos</a>
         <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/egresos">Egresos</a>
+        <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/perdidas">Pérdidas</a>
         <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/historico">Historico</a>
       </div>
 
@@ -123,7 +124,7 @@
             </thead>
             <tbody>
               <tr *ngFor="let row of movimientos" class="border-b border-slate-100">
-                <td class="py-2 pr-4 text-slate-800">{{ row.fechaMovimiento | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="py-2 pr-4 text-slate-800">{{ row.fechaMovimiento | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}</td>
                 <td class="py-2 pr-4">
                   <span class="rounded-md px-2 py-1 text-xs" [class.bg-emerald-100]="row.tipo === 'INGRESO'" [class.text-emerald-700]="row.tipo === 'INGRESO'" [class.bg-rose-100]="row.tipo === 'EGRESO'" [class.text-rose-700]="row.tipo === 'EGRESO'">{{ row.tipo }}</span>
                 </td>

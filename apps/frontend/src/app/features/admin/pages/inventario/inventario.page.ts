@@ -1,22 +1,21 @@
-import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ProductosService, Producto } from '../../../../core/services/productos.service';
-import { UbicacionesService, Ubicacion } from '../../../../core/services/ubicaciones.service';
 import { InventarioService, InventarioStockItem } from '../../../../core/services/inventario.service';
+import { ProductosService, Producto } from '../../../../core/services/productos.service';
+import { Ubicacion, UbicacionesService } from '../../../../core/services/ubicaciones.service';
 
 @Component({
   selector: 'app-inventario-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: 'inventario.page.html',
 })
 export class InventarioPage {
-  private fb = inject(FormBuilder);
-  private productosService = inject(ProductosService);
-  private ubicacionesService = inject(UbicacionesService);
-  private inventarioService = inject(InventarioService);
+  private readonly productosService = inject(ProductosService);
+  private readonly ubicacionesService = inject(UbicacionesService);
+  private readonly inventarioService = inject(InventarioService);
 
   productos: Producto[] = [];
   ubicaciones: Ubicacion[] = [];
@@ -27,27 +26,8 @@ export class InventarioPage {
   readonly stockPageSizes = [10, 20, 50, 100];
 
   loadingStock = false;
-  loadingForm = false;
-
-  errorMsg = '';
-  stockMsg = '';
   stockError = '';
-
   qStock = '';
-
-  ajusteModalOpen = false;
-  ajusteSearch = '';
-  ajusteSugerencias: Producto[] = [];
-  ajusteShowSug = false;
-  ajusteActiveIndex = -1;
-
-  ajusteForm = this.fb.group({
-    productoId: ['', [Validators.required]],
-    ubicacionId: ['', [Validators.required]],
-    cantidad: [0, [Validators.required]],
-    motivo: ['', [Validators.required, Validators.maxLength(300)]],
-  });
-
 
   ngOnInit() {
     this.loadCatalogs();
@@ -116,183 +96,25 @@ export class InventarioPage {
     return Math.min(this.stockPage * this.stockPageSize, this.stockTotalItems);
   }
 
-  stockFirst() { this.stockPage = 1; }
-  stockPrev() { this.stockPage = Math.max(1, this.stockPage - 1); }
-  stockNext() { this.stockPage = Math.min(this.stockTotalPages, this.stockPage + 1); }
-  stockLast() { this.stockPage = this.stockTotalPages; }
-
-  private normalize(s: any) {
-    return String(s ?? '').toLowerCase().trim();
+  stockFirst() {
+    this.stockPage = 1;
   }
 
-  private isComida(producto: Producto) {
-    return producto.tipo === 'COMIDA';
+  stockPrev() {
+    this.stockPage = Math.max(1, this.stockPage - 1);
   }
 
-  getTipoBadgeClass(producto: Producto) {
-    const tipo = producto.tipo ?? '';
-    if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
-    if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-    if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';
-    return 'bg-slate-100 text-slate-700 ring-slate-200';
+  stockNext() {
+    this.stockPage = Math.min(this.stockTotalPages, this.stockPage + 1);
   }
 
-  openAjusteModal() {
-    this.ajusteModalOpen = true;
-    this.ajusteSearch = '';
-    this.ajusteSugerencias = [];
-    this.ajusteShowSug = false;
-    this.ajusteActiveIndex = -1;
-    this.ajusteForm.reset({
-      productoId: '',
-      ubicacionId: '',
-      cantidad: 0,
-      motivo: '',
-    });
+  stockLast() {
+    this.stockPage = this.stockTotalPages;
   }
-
-  closeAjusteModal() {
-    this.ajusteModalOpen = false;
-  }
-
-
-  onAjusteSearchChange(value: string) {
-    this.ajusteSearch = value;
-    const q = this.normalize(value);
-    if (!q) {
-      this.ajusteSugerencias = [];
-      this.ajusteShowSug = false;
-      this.ajusteActiveIndex = -1;
-      return;
-    }
-
-    const matches = this.productos
-      .filter((p) => {
-        if (this.isComida(p)) return false;
-        const name = this.normalize(p.name);
-        const code = this.normalize(p.internalCode);
-        const barcode = this.normalize(p.barcode || '');
-        return name.includes(q) || code.includes(q) || barcode.includes(q);
-      })
-      .slice(0, 8);
-
-    this.ajusteSugerencias = matches;
-    this.ajusteShowSug = matches.length > 0;
-    this.ajusteActiveIndex = this.ajusteShowSug ? 0 : -1;
-  }
-
-  onAjusteKeydown(ev: KeyboardEvent) {
-    if (!this.ajusteShowSug || this.ajusteSugerencias.length === 0) return;
-
-    if (ev.key === 'ArrowDown') {
-      ev.preventDefault();
-      this.ajusteActiveIndex = this.clampIndex(
-        this.ajusteActiveIndex + 1,
-        this.ajusteSugerencias.length,
-      );
-      return;
-    }
-
-    if (ev.key === 'ArrowUp') {
-      ev.preventDefault();
-      this.ajusteActiveIndex = this.clampIndex(
-        this.ajusteActiveIndex - 1,
-        this.ajusteSugerencias.length,
-      );
-      return;
-    }
-
-    if (ev.key === 'Enter') {
-      ev.preventDefault();
-      const idx = this.ajusteActiveIndex >= 0 ? this.ajusteActiveIndex : 0;
-      const p = this.ajusteSugerencias[idx];
-      if (p) this.seleccionarAjuste(p);
-      return;
-    }
-
-    if (ev.key === 'Escape') {
-      ev.preventDefault();
-      this.ajusteSugerencias = [];
-      this.ajusteShowSug = false;
-      this.ajusteActiveIndex = -1;
-    }
-  }
-
-  seleccionarAjuste(p: Producto) {
-    if (this.isComida(p)) {
-      this.errorMsg = 'No se permite ajustar productos COMIDA.';
-      return;
-    }
-    this.ajusteForm.patchValue({ productoId: p.id });
-    this.ajusteSearch = `${p.name} · ${p.internalCode}${p.barcode ? ' · ' + p.barcode : ''}`;
-    this.ajusteSugerencias = [];
-    this.ajusteShowSug = false;
-    this.ajusteActiveIndex = -1;
-  }
-
-  private clampIndex(i: number, len: number) {
-    if (len <= 0) return -1;
-    return Math.max(0, Math.min(i, len - 1));
-  }
-
-  get selectedAjusteProducto() {
-    const id = this.ajusteForm.get('productoId')?.value || '';
-    return this.productos.find((p) => p.id === id) || null;
-  }
-
-
-  registrarAjuste() {
-    this.stockMsg = '';
-    this.errorMsg = '';
-
-    if (this.ajusteForm.invalid) {
-      this.ajusteForm.markAllAsTouched();
-      return;
-    }
-
-    const v = this.ajusteForm.value;
-    const selected = this.selectedAjusteProducto;
-    if (selected && this.isComida(selected)) {
-      this.errorMsg = 'No se permite ajustar productos COMIDA.';
-      return;
-    }
-    const cantidad = Number(v.cantidad);
-
-    if (!Number.isInteger(cantidad) || cantidad === 0) {
-      this.errorMsg = 'La cantidad debe ser un entero distinto de 0.';
-      return;
-    }
-
-    const payload = {
-      productoId: String(v.productoId),
-      ubicacionId: String(v.ubicacionId),
-      cantidad,
-      motivo: String(v.motivo ?? '').trim(),
-    };
-
-    this.loadingForm = true;
-
-    this.inventarioService.registrarAjuste(payload).subscribe({
-      next: () => {
-        this.stockMsg = 'Ajuste registrado correctamente.';
-        this.closeAjusteModal();
-        this.loadStock();
-      },
-      error: (err) => {
-        this.errorMsg = this.mapError(err);
-      },
-      complete: () => (this.loadingForm = false),
-    });
-  }
-
 
   getStockFor(producto: InventarioStockItem, ubicacionId: string) {
     const row = producto.stocks.find((s) => s.ubicacion.id === ubicacionId);
     return row?.cantidad ?? 0;
-  }
-
-  cAjuste(name: string) {
-    return this.ajusteForm.get(name);
   }
 
   private mapError(err: any): string {

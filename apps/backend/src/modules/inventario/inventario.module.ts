@@ -24,5 +24,6 @@ import { FinanzasModule } from '../finanzas/finanzas.module';
   ],
   controllers: [InventarioController],
   providers: [InventarioService],
+  exports: [InventarioService],
 })
 export class InventarioModule {}

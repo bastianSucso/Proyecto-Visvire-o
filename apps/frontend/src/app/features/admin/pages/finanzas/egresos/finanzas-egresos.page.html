@@ -36,6 +36,7 @@
           <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/resumen">Resumen</a>
           <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/ingresos">Ingresos</a>
           <a class="rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm text-white" routerLink="/admin/finanzas/egresos">Egresos</a>
+          <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/perdidas">Pérdidas</a>
           <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/historico">Historico</a>
         </div>
 
@@ -55,30 +56,30 @@
 
             <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
               <label class="block lg:col-span-1">
-                <span class="text-sm text-slate-700">Desde</span>
+                <span class="mb-1 block text-xs font-medium text-slate-600">Desde</span>
                 <input
                   type="date"
                   [(ngModel)]="filters.from"
                   (ngModelChange)="onFiltersChange()"
-                  class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
               </label>
               <label class="block lg:col-span-1">
-                <span class="text-sm text-slate-700">Hasta</span>
+                <span class="mb-1 block text-xs font-medium text-slate-600">Hasta</span>
                 <input
                   type="date"
                   [(ngModel)]="filters.to"
                   (ngModelChange)="onFiltersChange()"
-                  class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
               </label>
               <label class="block lg:col-span-2">
-                <span class="text-sm text-slate-700">Categoria</span>
+                <span class="mb-1 block text-xs font-medium text-slate-600">Categoria</span>
                 <input
                   type="text"
                   [(ngModel)]="filters.categoria"
                   (ngModelChange)="onFiltersChange()"
-                  class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                   placeholder="OTROS"
                 />
               </label>

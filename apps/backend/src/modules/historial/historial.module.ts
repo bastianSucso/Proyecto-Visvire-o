@@ -7,11 +7,11 @@ import { ProductoEntity } from '../productos/entities/producto.entity';
 import { SesionCajaEntity } from './entities/sesion-caja.entity';
 import { SesionCajaController } from './historial.controller';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
-import { IncidenciaRevisionAdminEntity } from './entities/incidencia-revision-admin.entity';
-import { IncidenciaRevisionBitacoraEntity } from './entities/incidencia-revision-bitacora.entity';
 import { AlteraEntity } from '../inventario/entities/altera.entity';
 import { InventarioModule } from '../inventario/inventario.module';
 import { InconsistenciasAdminController } from './inconsistencias-admin.controller';
+import { IncidenciaResolucionAdminEntity } from './entities/incidencia-resolucion-admin.entity';
+import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 
 @Module({
   imports: [
@@ -19,9 +19,9 @@ import { InconsistenciasAdminController } from './inconsistencias-admin.controll
       SesionCajaEntity,
       StockSesionCajaEntity,
       IncidenciaStockEntity,
-      IncidenciaRevisionAdminEntity,
-      IncidenciaRevisionBitacoraEntity,
+      IncidenciaResolucionAdminEntity,
       ProductoEntity,
+      ProductoStockEntity,
       UbicacionEntity,
       AlteraEntity,
     ]),

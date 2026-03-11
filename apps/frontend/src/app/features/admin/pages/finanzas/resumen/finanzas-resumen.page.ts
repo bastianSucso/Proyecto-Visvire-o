@@ -24,6 +24,10 @@ export class FinanzasResumenPage implements OnInit {
   resumen: ResumenFinancieroResponse | null = null;
   movimientos: MovimientoFinanciero[] = [];
 
+  pageSize = 20;
+  page = 1;
+  readonly pageSizes = [10, 20, 50, 100];
+
   loading = false;
   movimientosLoading = false;
   errorMsg = '';
@@ -31,6 +35,37 @@ export class FinanzasResumenPage implements OnInit {
   ngOnInit(): void {
     this.load();
   }
+
+  get totalItems() {
+    return this.movimientos.length;
+  }
+
+  get totalPages() {
+    return Math.max(1, Math.ceil(this.totalItems / this.pageSize));
+  }
+
+  get pageItems(): MovimientoFinanciero[] {
+    const start = (this.page - 1) * this.pageSize;
+    return this.movimientos.slice(start, start + this.pageSize);
+  }
+
+  get fromItem() {
+    if (this.totalItems === 0) return 0;
+    return (this.page - 1) * this.pageSize + 1;
+  }
+
+  get toItem() {
+    return Math.min(this.page * this.pageSize, this.totalItems);
+  }
+
+  onPageSizeChange() {
+    this.page = 1;
+  }
+
+  first() { this.page = 1; }
+  prev() { this.page = Math.max(1, this.page - 1); }
+  next() { this.page = Math.min(this.totalPages, this.page + 1); }
+  last() { this.page = this.totalPages; }
 
   clearCustomRange() {
     this.from = '';
@@ -67,6 +102,7 @@ export class FinanzasResumenPage implements OnInit {
       .subscribe({
         next: (rows) => {
           this.movimientos = rows;
+          this.page = 1;
         },
         error: () => {
           this.movimientos = [];

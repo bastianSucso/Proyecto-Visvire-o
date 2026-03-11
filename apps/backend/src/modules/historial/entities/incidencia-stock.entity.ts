@@ -11,9 +11,9 @@ import { SesionCajaEntity } from './sesion-caja.entity';
 import { ProductoEntity } from '../../productos/entities/producto.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 import { UbicacionEntity } from '../../ubicaciones/entities/ubicacion.entity';
-import { IncidenciaRevisionAdminEntity } from './incidencia-revision-admin.entity';
+import { IncidenciaResolucionAdminEntity } from './incidencia-resolucion-admin.entity';
 
-export type IncidenciaTipo = 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+export type IncidenciaTipo = 'FALTANTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
 export type IncidenciaOrigen = 'VENDEDOR' | 'ADMIN';
 export type IncidenciaContexto = 'DURANTE_JORNADA' | 'FUERA_JORNADA';
 
@@ -59,6 +59,6 @@ export class IncidenciaStockEntity {
   @CreateDateColumn({ type: 'timestamptz', name: 'fecha' })
   fecha!: Date;
 
-  @OneToOne(() => IncidenciaRevisionAdminEntity, (revision) => revision.incidencia)
-  revisionAdmin!: IncidenciaRevisionAdminEntity | null;
+  @OneToOne(() => IncidenciaResolucionAdminEntity, (resolucion) => resolucion.incidencia)
+  resolucionAdmin!: IncidenciaResolucionAdminEntity | null;
 }

@@ -23,6 +23,7 @@
           <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/resumen">Resumen</a>
           <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/ingresos">Ingresos</a>
           <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/egresos">Egresos</a>
+          <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/finanzas/perdidas">Pérdidas</a>
           <a class="rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm text-white" routerLink="/admin/finanzas/historico">Historico</a>
         </div>
 
@@ -42,12 +43,12 @@
 
             <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <label class="block w-full sm:max-w-xs">
-                <span class="text-sm text-slate-700">Buscar fecha</span>
+                <span class="mb-1 block text-xs font-medium text-slate-600">Buscar fecha</span>
                 <input
                   type="date"
                   [(ngModel)]="fecha"
                   (ngModelChange)="onFechaChange()"
-                  class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
               </label>
 

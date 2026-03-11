@@ -1,18 +1,41 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional } from 'class-validator';
-import { CreateIncidenciaStockDto } from './create-incidencia-stock.dto';
+import {
+  IsDateString,
+  IsIn,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
-export class CreateInconsistenciaAdminDto extends CreateIncidenciaStockDto {
-  @Type(() => Number)
-  @IsNumber()
-  stockTeorico!: number;
+export class CreateInconsistenciaAdminDto {
+  @IsNotEmpty()
+  @IsUUID()
+  productoId!: string;
 
-  @Type(() => Number)
-  @IsNumber()
-  stockRealObservado!: number;
+  @IsNotEmpty()
+  @IsUUID()
+  ubicacionId!: string;
 
-  @Type(() => Number)
   @IsOptional()
+  @IsIn(['DURANTE_JORNADA', 'FUERA_JORNADA'])
+  contexto?: 'DURANTE_JORNADA' | 'FUERA_JORNADA';
+
+  @IsOptional()
+  @IsDateString()
+  fechaHoraDeteccion?: string;
+
+  @IsIn(['FALTANTE', 'DANIO', 'VENCIDO', 'OTRO'])
+  tipo!: 'FALTANTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+
+  @Type(() => Number)
   @IsNumber()
-  costoUnitarioSnapshot?: number;
+  @IsPositive()
+  cantidad!: number;
+
+  @IsOptional()
+  @IsString()
+  observacion?: string;
 }

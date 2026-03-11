@@ -4,7 +4,7 @@
       <div>
         <h1 class="text-xl font-semibold text-slate-900">Inventario · Inconsistencias</h1>
         <p class="mt-1 text-sm text-slate-500">
-          Control administrativo de diferencias entre stock teórico y stock real.
+          Bandeja unificada de incidencias reportadas por vendedores y administradores.
         </p>
       </div>
 
@@ -12,7 +12,7 @@
         <button
           type="button"
           (click)="openNuevaModal()"
-          class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
+          class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
         >
           + Nueva inconsistencia
         </button>
@@ -48,7 +48,6 @@
           >
             <option value="">Todos</option>
             <option value="PENDIENTE">PENDIENTE</option>
-            <option value="EN_REVISION">EN_REVISION</option>
             <option value="RESUELTA_CON_AJUSTE">RESUELTA_CON_AJUSTE</option>
             <option value="RESUELTA_SIN_AJUSTE">RESUELTA_SIN_AJUSTE</option>
           </select>
@@ -86,20 +85,19 @@
             }"
           >
             <div class="flex items-center justify-between gap-2">
-              <p class="text-sm font-semibold text-slate-900">{{ item.incidencia.producto.name }}</p>
+              <p class="text-sm font-semibold text-slate-900">{{ item.producto.name }}</p>
               <span
                 class="rounded-full px-2.5 py-0.5 text-xs"
                 [ngClass]="{
-                  'bg-amber-100 text-amber-800': item.estado === 'PENDIENTE',
-                  'bg-blue-100 text-blue-800': item.estado === 'EN_REVISION',
-                  'bg-emerald-100 text-emerald-800': item.estado === 'RESUELTA_CON_AJUSTE',
-                  'bg-slate-100 text-slate-700': item.estado === 'RESUELTA_SIN_AJUSTE'
+                  'bg-amber-100 text-amber-800': getEstado(item) === 'PENDIENTE',
+                  'bg-emerald-100 text-emerald-800': getEstado(item) === 'RESUELTA_CON_AJUSTE',
+                  'bg-slate-100 text-slate-700': getEstado(item) === 'RESUELTA_SIN_AJUSTE'
                 }"
-              >{{ item.estado }}</span>
+              >{{ getEstado(item) }}</span>
             </div>
             <p class="mt-1 text-xs text-slate-500">
-              {{ item.incidencia.tipo }} · Dif: {{ item.diferencia }} ·
-              {{ item.incidencia.fechaHoraDeteccion | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}
+              {{ item.origen }} · {{ item.tipo }} · {{ item.ubicacion.nombre }} ·
+              {{ item.fechaHoraDeteccion | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}
             </p>
           </button>
         </div>
@@ -110,91 +108,106 @@
 
         <div class="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
-            <p class="text-xs text-slate-500">Stock teórico</p>
-            <p class="font-semibold text-slate-900">{{ s.stockTeorico }}</p>
+            <p class="text-xs text-slate-500">Producto</p>
+            <p class="font-semibold text-slate-900">{{ s.producto.name }}</p>
+            <p class="text-xs text-slate-500">{{ s.producto.internalCode }}</p>
+            <p class="text-xs text-slate-500">Unidad: {{ s.producto.unidadBase ?? '-' }}</p>
           </div>
           <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
-            <p class="text-xs text-slate-500">Stock real</p>
-            <p class="font-semibold text-slate-900">{{ s.stockRealObservado }}</p>
+            <p class="text-xs text-slate-500">Reportado por</p>
+            <p class="font-semibold text-slate-900">{{ s.origen }}</p>
+            <p class="text-xs text-slate-500">{{ s.usuario.nombre || s.usuario.email || s.usuario.idUsuario }}</p>
           </div>
           <div class="rounded-xl border border-slate-100 bg-slate-50 p-3 sm:col-span-2">
-            <p class="text-xs text-slate-500">Diferencia (real - teórico)</p>
-            <p
-              class="font-semibold"
-              [class.text-rose-700]="(+s.diferencia) < 0"
-              [class.text-emerald-700]="(+s.diferencia) >= 0"
-            >{{ s.diferencia }}</p>
+            <p class="text-xs text-slate-500">Observación</p>
+            <p class="font-semibold text-slate-900">{{ s.observacion || 'Sin observación' }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <p class="text-xs text-slate-500">Categoría reportada</p>
+            <p class="font-semibold text-slate-900">{{ s.tipo }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <p class="text-xs text-slate-500">Cantidad reportada</p>
+            <p class="font-semibold text-slate-900">
+              {{ (+s.cantidad) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}
+            </p>
           </div>
         </div>
 
-        <div class="mt-4 rounded-xl border border-slate-200 p-4">
-          <h3 class="text-sm font-semibold text-slate-900">Acciones</h3>
-          <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <select [(ngModel)]="cambioEstado" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-              <option value="PENDIENTE">PENDIENTE</option>
-              <option value="EN_REVISION">EN_REVISION</option>
-              <option value="RESUELTA_SIN_AJUSTE">RESUELTA_SIN_AJUSTE</option>
-              <option value="RESUELTA_CON_AJUSTE">RESUELTA_CON_AJUSTE</option>
-            </select>
-            <button
-              type="button"
-              (click)="actualizarEstado()"
-              [disabled]="saving"
-              class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Actualizar estado
-            </button>
+        <div class="mt-4 rounded-xl border border-slate-200 p-4" *ngIf="!s.resolucionAdmin">
+          <h3 class="text-sm font-semibold text-slate-900">Resolver incidencia</h3>
+          <p class="mt-1 text-xs text-slate-500">
+            Si stock real es menor al teórico, se aplicará ajuste negativo. Si es igual, se cerrará sin ajuste.
+          </p>
+          <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+            <p>
+              <span class="text-xs text-slate-500">Stock teórico sistema:</span>
+              {{ (+s.stockTeoricoSistema) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}
+            </p>
+            <p>
+              <span class="text-xs text-slate-500">Ubicación usada:</span>
+              {{ s.ubicacionUsadaResolucion.nombre }} ({{ s.ubicacionUsadaResolucion.tipo }})
+            </p>
           </div>
-
-          <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <input
-              type="number"
-              [(ngModel)]="cantidadAjuste"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              placeholder="Cantidad ajuste"
-            />
-            <input
-              type="text"
-              [(ngModel)]="motivoAjuste"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2"
-              placeholder="Motivo del ajuste"
-            />
+          <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">Stock real observado</label>
+              <input
+                type="number"
+                [(ngModel)]="stockRealResolucion"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">Categoría de resolución</label>
+              <div class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900">
+                {{ s.tipo }}
+              </div>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="mb-1 block text-xs font-medium text-slate-600">Motivo de resolución</label>
+              <input
+                type="text"
+                [(ngModel)]="motivoResolucion"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              />
+            </div>
           </div>
           <button
             type="button"
-            (click)="resolverConAjuste()"
+            (click)="resolver()"
             [disabled]="saving"
-            class="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
+            class="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
           >
-            Resolver y ajustar stock
+            Resolver incidencia
           </button>
         </div>
 
-        <div class="mt-4 rounded-xl border border-slate-200 p-4">
-          <h3 class="text-sm font-semibold text-slate-900">Bitácora</h3>
-          <div class="mt-3 max-h-52 space-y-2 overflow-auto">
-            <div *ngFor="let b of s.bitacora" class="rounded-xl border border-slate-100 bg-slate-50 p-2">
-              <p class="text-xs text-slate-500">
-                {{ b.createdAt | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }} · {{ b.accion }}
-              </p>
-              <p class="text-sm text-slate-800">{{ b.descripcion }}</p>
-            </div>
-          </div>
-          <div class="mt-3 flex gap-2">
-            <input
-              type="text"
-              [(ngModel)]="bitacoraTexto"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              placeholder="Nueva observación"
-            />
-            <button
-              type="button"
-              (click)="guardarBitacora()"
-              [disabled]="saving"
-              class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Guardar
-            </button>
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4" *ngIf="s.resolucionAdmin as r">
+          <h3 class="text-sm font-semibold text-slate-900">Resolución aplicada</h3>
+          <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <p><span class="text-xs text-slate-500">Estado:</span> {{ r.estadoFinal }}</p>
+            <p><span class="text-xs text-slate-500">Categoría:</span> {{ r.categoria }}</p>
+            <p><span class="text-xs text-slate-500">Stock teórico:</span> {{ (+r.stockTeorico) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}</p>
+            <p><span class="text-xs text-slate-500">Stock real:</span> {{ (+r.stockRealObservado) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}</p>
+            <p>
+              <span class="text-xs text-slate-500">Cantidad reportada:</span>
+              {{ (+s.cantidad) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}
+            </p>
+            <p class="sm:col-span-2">
+              <span class="text-xs text-slate-500">Ubicación usada:</span>
+              {{ s.ubicacionUsadaResolucion.nombre }} ({{ s.ubicacionUsadaResolucion.tipo }})
+            </p>
+            <p><span class="text-xs text-slate-500">Diferencia:</span> {{ (+r.diferencia) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}</p>
+            <p><span class="text-xs text-slate-500">Resuelto por:</span> {{ r.adminResuelve.nombre || r.adminResuelve.email }}</p>
+            <p class="sm:col-span-2"><span class="text-xs text-slate-500">Motivo:</span> {{ r.motivoResolucion }}</p>
+            <p class="sm:col-span-2" *ngIf="r.ajusteAplicado?.documentoRef">
+              <span class="text-xs text-slate-500">Documento ajuste:</span>
+              <a
+                [routerLink]="['/admin/inventario/documentos', r.ajusteAplicado?.documentoRef]"
+                class="text-blue-700 hover:underline"
+              >{{ r.ajusteAplicado?.documentoRef }}</a>
+            </p>
           </div>
         </div>
       </div>
@@ -206,7 +219,7 @@
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
           <h2 class="text-sm font-semibold text-slate-900">Registrar inconsistencia</h2>
-          <p class="mt-1 text-xs text-slate-500">Registro administrativo para investigación y seguimiento.</p>
+          <p class="mt-1 text-xs text-slate-500">Registro administrativo para seguimiento.</p>
         </div>
         <button
           type="button"
@@ -219,34 +232,26 @@
 
       <div class="space-y-4 p-5">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Contexto</label>
-            <select
-              [(ngModel)]="contextoNuevo"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            >
-              <option value="DURANTE_JORNADA">DURANTE_JORNADA</option>
-              <option value="FUERA_JORNADA">FUERA_JORNADA</option>
-            </select>
-          </div>
-
-          <div *ngIf="contextoNuevo === 'DURANTE_JORNADA'">
-            <label class="mb-1 block text-xs font-medium text-slate-600">ID sesión caja</label>
-            <input
-              type="number"
-              [(ngModel)]="sesionCajaNueva"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            />
+          <div class="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="text-xs text-slate-500">Contexto (solo lectura)</p>
+            <p class="text-sm font-semibold text-slate-900">{{ contextoNuevo }}</p>
+            <p class="mt-1 text-xs text-slate-600" *ngIf="sesionActivaModal as sesion">
+              Sesion activa: #{{ sesion.sesionCajaId }} · Vendedor: {{ sesion.vendedor?.nombre || sesion.vendedor?.email || sesion.vendedor?.idUsuario }}
+            </p>
+            <p class="mt-1 text-xs text-slate-600" *ngIf="!sesionActivaModal">
+              No hay sesion de caja activa. El registro se crea fuera de jornada.
+            </p>
           </div>
 
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Producto</label>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Ubicación</label>
             <select
-              [(ngModel)]="productoNuevo"
+              [(ngModel)]="ubicacionNueva"
+              (ngModelChange)="onUbicacionNuevaChange()"
               class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
             >
-              <option value="" disabled>Selecciona producto</option>
-              <option *ngFor="let p of productos" [value]="p.id">{{ p.name }} · {{ p.internalCode }}</option>
+              <option value="">Selecciona ubicación</option>
+              <option *ngFor="let u of ubicaciones" [value]="u.id">{{ u.nombre }} ({{ u.tipo }})</option>
             </select>
           </div>
 
@@ -254,38 +259,99 @@
             <label class="mb-1 block text-xs font-medium text-slate-600">Categoría</label>
             <select [(ngModel)]="tipoNuevo" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
               <option value="FALTANTE">FALTANTE</option>
-              <option value="EXCEDENTE">EXCEDENTE</option>
               <option value="DANIO">DANIO</option>
               <option value="VENCIDO">VENCIDO</option>
               <option value="OTRO">OTRO</option>
             </select>
           </div>
 
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-medium text-slate-600">Buscar producto</label>
+            <div class="relative">
+              <input
+                type="text"
+                [ngModel]="scan"
+                (ngModelChange)="onScanChange($event)"
+                (keydown)="onScanKeydown($event)"
+                (keyup.enter)="onScanEnter()"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                placeholder="Nombre / código / barcode"
+                autocomplete="off"
+              />
+              <div
+                *ngIf="showSug"
+                class="absolute z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-sm
+                      overflow-hidden max-h-60 overflow-auto"
+              >
+                <button
+                  type="button"
+                  *ngFor="let p of sugerencias; let i = index"
+                  (mousedown)="$event.preventDefault()"
+                  (mouseenter)="activeSugIndex = i"
+                  (click)="seleccionarSug(p)"
+                  class="w-full px-3 py-2 text-left flex items-center justify-between transition focus:outline-none"
+                  [ngClass]="
+                    i === activeSugIndex
+                      ? 'bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200'
+                      : 'bg-white hover:bg-slate-50 border-l-4 border-transparent'
+                  "
+                >
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900 truncate">
+                      {{ p.name }}
+                    </p>
+                    <p class="text-xs text-slate-500 truncate">
+                      {{ p.internalCode }}
+                      <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                      <span *ngIf="p.unidadBase" class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {{ p.unidadBase }}
+                      </span>
+                      <span
+                        *ngIf="p.tipo"
+                        class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
+                        [ngClass]="getTipoBadgeClass(p)"
+                      >
+                        {{ p.tipo }}
+                      </span>
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="productoNuevo" class="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs text-slate-500">Producto seleccionado</p>
+              <p class="text-sm font-semibold text-slate-900">{{ productoNuevo.name }}</p>
+              <p class="mt-1 text-xs text-slate-600">
+                {{ productoNuevo.internalCode }}
+                <span *ngIf="productoNuevo.tipo">• {{ productoNuevo.tipo }}</span>
+                <span *ngIf="productoNuevo.unidadBase">• {{ productoNuevo.unidadBase }}</span>
+              </p>
+              <p class="mt-1 text-xs text-slate-600" *ngIf="!ubicacionNueva">
+                Selecciona una ubicación para ver stock teórico.
+              </p>
+              <p class="mt-1 text-xs text-slate-600" *ngIf="loadingStockTeorico && ubicacionNueva">
+                Cargando stock teórico...
+              </p>
+              <p class="mt-1 text-xs text-slate-700" *ngIf="!loadingStockTeorico && ubicacionNueva && stockTeoricoProductoSeleccionado !== null">
+                Stock teórico (ubicación seleccionada):
+                {{ stockTeoricoProductoSeleccionado | number:'1.0-3' }} {{ productoNuevo.unidadBase ?? '' }}
+              </p>
+            </div>
+          </div>
+
           <div>
             <label class="mb-1 block text-xs font-medium text-slate-600">Cantidad incidencia</label>
-            <input
-              type="number"
-              [(ngModel)]="cantidadNueva"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Stock teórico</label>
-            <input
-              type="number"
-              [(ngModel)]="stockTeoricoNuevo"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Stock real observado</label>
-            <input
-              type="number"
-              [(ngModel)]="stockRealNuevo"
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            />
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                [(ngModel)]="cantidadNueva"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              />
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                {{ productoNuevo?.unidadBase ?? '-' }}
+              </span>
+            </div>
           </div>
 
           <div class="sm:col-span-2">
@@ -296,6 +362,10 @@
               class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
             />
           </div>
+        </div>
+
+        <div *ngIf="errorMsg" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {{ errorMsg }}
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-2">

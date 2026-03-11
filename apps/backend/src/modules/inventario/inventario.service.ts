@@ -579,7 +579,7 @@ export class InventarioService {
     }
 
     const motivo = `[INCONSISTENCIA:${dto.categoria}] ${dto.motivo}`.slice(0, 300);
-    return this.registrarAjuste(
+    const mov = await this.registrarAjuste(
       {
         productoId: dto.productoId,
         ubicacionId: dto.ubicacionId,
@@ -588,6 +588,13 @@ export class InventarioService {
       },
       usuarioId,
     );
+
+    if (!mov.documentoRef) {
+      mov.documentoRef = randomUUID();
+      return this.alteraRepo.save(mov);
+    }
+
+    return mov;
   }
 
   async registrarTraspaso(dto: CreateTraspasoDto, usuarioId: string) {
@@ -1108,7 +1115,7 @@ export class InventarioService {
       .select('a.documentoRef', 'documentoRef')
       .addSelect('MAX(a.fecha)', 'fecha')
       .where('a.documentoRef IS NOT NULL')
-      .andWhere('a.tipo IN (:...tipos)', { tipos: ['INGRESO', 'TRASPASO'] })
+      .andWhere('a.tipo IN (:...tipos)', { tipos: ['INGRESO', 'TRASPASO', 'AJUSTE'] })
       .groupBy('a.documentoRef')
       .orderBy('MAX(a.fecha)', 'DESC')
       .limit(take)
@@ -1118,7 +1125,7 @@ export class InventarioService {
     if (refs.length === 0) return [];
 
     const items = await this.alteraRepo.find({
-      where: { documentoRef: In(refs), tipo: In(['INGRESO', 'TRASPASO']) } as any,
+      where: { documentoRef: In(refs), tipo: In(['INGRESO', 'TRASPASO', 'AJUSTE']) } as any,
       relations: { producto: true, ubicacion: true, origen: true, destino: true, usuario: true },
       order: { fecha: 'DESC' },
     });

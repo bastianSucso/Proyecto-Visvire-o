@@ -11,22 +11,16 @@ import { SesionCajaEntity } from './entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import {
   CreateIncidenciaStockDto,
-  IncidenciaContextoDto,
 } from './dto/create-incidencia-stock.dto';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
+import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
 import {
-  IncidenciaRevisionAdminEntity,
-  IncidenciaRevisionEstado,
-} from './entities/incidencia-revision-admin.entity';
-import {
-  IncidenciaRevisionAccion,
-  IncidenciaRevisionBitacoraEntity,
-} from './entities/incidencia-revision-bitacora.entity';
+  IncidenciaResolucionAdminEntity,
+  IncidenciaResolucionEstadoFinal,
+} from './entities/incidencia-resolucion-admin.entity';
 import { CreateInconsistenciaAdminDto } from './dto/create-inconsistencia-admin.dto';
 import { InventarioService } from '../inventario/inventario.service';
-import { CreateIncidenciaBitacoraDto } from './dto/create-incidencia-bitacora.dto';
-import { CambiarEstadoIncidenciaDto } from './dto/cambiar-estado-incidencia.dto';
-import { ResolverInconsistenciaConAjusteDto } from './dto/resolver-inconsistencia-con-ajuste.dto';
+import { ResolverInconsistenciaDto } from './dto/resolver-inconsistencia.dto';
 
 @Injectable()
 export class HistorialService {
@@ -43,11 +37,11 @@ export class HistorialService {
     @InjectRepository(UbicacionEntity)
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
 
-    @InjectRepository(IncidenciaRevisionAdminEntity)
-    private readonly revisionRepo: Repository<IncidenciaRevisionAdminEntity>,
+    @InjectRepository(ProductoStockEntity)
+    private readonly productoStockRepo: Repository<ProductoStockEntity>,
 
-    @InjectRepository(IncidenciaRevisionBitacoraEntity)
-    private readonly bitacoraRepo: Repository<IncidenciaRevisionBitacoraEntity>,
+    @InjectRepository(IncidenciaResolucionAdminEntity)
+    private readonly resolucionRepo: Repository<IncidenciaResolucionAdminEntity>,
 
     private readonly inventarioService: InventarioService,
   ) {}
@@ -61,51 +55,47 @@ export class HistorialService {
     return sala;
   }
 
-  private async getSesionOrThrow(sesionCajaId: number) {
-    const sesion = await this.sesionRepo.findOne({ where: { id: sesionCajaId }, relations: { caja: true } });
-    if (!sesion) throw new BadRequestException('Sesión de caja no existe');
-    return sesion;
-  }
-
-  private normalizeContexto(contexto?: IncidenciaContextoDto): IncidenciaContexto {
-    return (contexto ?? 'DURANTE_JORNADA') as IncidenciaContexto;
-  }
-
-  private async resolveSesionByContexto(
-    contexto: IncidenciaContexto,
-    sesionCajaId: number | undefined,
-  ): Promise<SesionCajaEntity | null> {
-    if (contexto === 'DURANTE_JORNADA') {
-      if (!sesionCajaId) {
-        throw new BadRequestException(
-          'sesionCajaId es requerido cuando contexto es DURANTE_JORNADA',
-        );
-      }
-      return this.getSesionOrThrow(sesionCajaId);
-    }
-
-    return null;
-  }
-
-  private async addBitacora(
-    revision: IncidenciaRevisionAdminEntity,
-    adminId: string,
-    payload: {
-      accion: IncidenciaRevisionAccion;
-      descripcion: string;
-      estadoResultante?: IncidenciaRevisionEstado | null;
-      metadata?: Record<string, unknown> | null;
-    },
-  ) {
-    const row = this.bitacoraRepo.create({
-      revision,
-      accion: payload.accion,
-      descripcion: payload.descripcion,
-      estadoResultante: payload.estadoResultante ?? null,
-      metadata: payload.metadata ?? null,
-      adminAutor: { idUsuario: adminId } as any,
+  private async getSesionActivaGlobal() {
+    return this.sesionRepo.findOne({
+      where: { fechaCierre: IsNull() },
+      relations: { usuario: true, caja: true },
+      order: { fechaApertura: 'DESC' },
     });
-    return this.bitacoraRepo.save(row);
+  }
+
+  async obtenerSesionActivaAdmin() {
+    const sesion = await this.getSesionActivaGlobal();
+    if (!sesion) return null;
+
+    return {
+      sesionCajaId: sesion.id,
+      fechaApertura: sesion.fechaApertura,
+      caja: sesion.caja
+        ? {
+            idCaja: sesion.caja.idCaja,
+            numero: sesion.caja.numero,
+          }
+        : null,
+      vendedor: sesion.usuario
+        ? {
+            idUsuario: sesion.usuario.idUsuario,
+            nombre: sesion.usuario.nombre ?? null,
+            apellido: sesion.usuario.apellido ?? null,
+            email: sesion.usuario.email ?? null,
+          }
+        : null,
+    };
+  }
+
+  private async getStockTeoricoSistema(productoId: string, ubicacionId: string) {
+    const stock = await this.productoStockRepo.findOne({
+      where: {
+        producto: { id: productoId },
+        ubicacion: { id: ubicacionId },
+      } as any,
+    });
+
+    return Number(stock?.cantidad ?? 0);
   }
 
   async crearIncidencia(dto: CreateIncidenciaStockDto, usuarioId: string) {
@@ -182,8 +172,9 @@ export class HistorialService {
   }
 
   async crearInconsistenciaAdmin(dto: CreateInconsistenciaAdminDto, adminId: string) {
-    const contexto = this.normalizeContexto(dto.contexto);
-    const sesionCaja = await this.resolveSesionByContexto(contexto, dto.sesionCajaId);
+    const sesionActiva = await this.getSesionActivaGlobal();
+    const contexto: IncidenciaContexto = sesionActiva ? 'DURANTE_JORNADA' : 'FUERA_JORNADA';
+    const sesionCaja = sesionActiva ?? null;
 
     if (contexto === 'FUERA_JORNADA' && !dto.observacion?.trim()) {
       throw new BadRequestException('observacion es obligatoria para incidencias fuera de jornada');
@@ -192,9 +183,7 @@ export class HistorialService {
     const producto = await this.productoRepo.findOne({ where: { id: dto.productoId } });
     if (!producto) throw new BadRequestException('Producto no existe');
 
-    const ubicacion = dto.ubicacionId
-      ? await this.ubicacionRepo.findOne({ where: { id: dto.ubicacionId } })
-      : await this.getSalaVentaActivaOrThrow();
+    const ubicacion = await this.ubicacionRepo.findOne({ where: { id: dto.ubicacionId } });
     if (!ubicacion) throw new BadRequestException('Ubicación no existe');
 
     const incidencia = await this.incidenciaRepo.save(
@@ -212,57 +201,33 @@ export class HistorialService {
       }),
     );
 
-    const stockTeorico = Number(dto.stockTeorico);
-    const stockRealObservado = Number(dto.stockRealObservado);
-    const costoUnitarioSnapshot = Number(dto.costoUnitarioSnapshot ?? producto.precioCosto ?? 0);
-
-    const revision = await this.revisionRepo.save(
-      this.revisionRepo.create({
-        incidencia,
-        stockTeorico: stockTeorico.toFixed(3),
-        stockRealObservado: stockRealObservado.toFixed(3),
-        diferencia: (stockRealObservado - stockTeorico).toFixed(3),
-        costoUnitarioSnapshot: costoUnitarioSnapshot.toFixed(2),
-        estado: 'PENDIENTE',
-        ajusteAplicado: null,
-        adminAutor: { idUsuario: adminId } as any,
-        adminResuelve: null,
-        resolvedAt: null,
-      }),
-    );
-
-    await this.addBitacora(revision, adminId, {
-      accion: 'OBSERVACION',
-      descripcion: dto.observacion?.trim() || 'Inconsistencia registrada por administrador',
-      estadoResultante: 'PENDIENTE',
-      metadata: {
-        stockTeorico,
-        stockRealObservado,
-        diferencia: stockRealObservado - stockTeorico,
-      },
-    });
-
-    return this.obtenerDetalleInconsistencia(revision.id);
+    return this.obtenerDetalleInconsistencia(incidencia.id);
   }
 
   async listarInconsistenciasAdmin(filters: {
-    estado?: IncidenciaRevisionEstado;
+    estado?: 'PENDIENTE' | 'EN_REVISION' | IncidenciaResolucionEstadoFinal;
     tipo?: IncidenciaTipo;
     contexto?: IncidenciaContexto;
     productoId?: string;
     sesionCajaId?: number;
     fecha?: string;
   }) {
-    const qb = this.revisionRepo
-      .createQueryBuilder('r')
-      .leftJoinAndSelect('r.incidencia', 'i')
+    const qb = this.incidenciaRepo
+      .createQueryBuilder('i')
       .leftJoinAndSelect('i.producto', 'producto')
       .leftJoinAndSelect('i.ubicacion', 'ubicacion')
       .leftJoinAndSelect('i.sesionCaja', 'sesion')
       .leftJoinAndSelect('i.usuario', 'usuario')
-      .orderBy('r.createdAt', 'DESC');
+      .leftJoinAndSelect('i.resolucionAdmin', 'r')
+      .leftJoinAndSelect('r.adminResuelve', 'adminResuelve')
+      .leftJoinAndSelect('r.ajusteAplicado', 'ajusteAplicado')
+      .orderBy('i.fechaHoraDeteccion', 'DESC');
 
-    if (filters.estado) qb.andWhere('r.estado = :estado', { estado: filters.estado });
+    if (filters.estado === 'PENDIENTE' || filters.estado === 'EN_REVISION') {
+      qb.andWhere('r.id IS NULL');
+    } else if (filters.estado) {
+      qb.andWhere('r.estadoFinal = :estado', { estado: filters.estado });
+    }
     if (filters.tipo) qb.andWhere('i.tipo = :tipo', { tipo: filters.tipo });
     if (filters.contexto) qb.andWhere('i.contexto = :contexto', { contexto: filters.contexto });
     if (filters.productoId) qb.andWhere('producto.id = :productoId', { productoId: filters.productoId });
@@ -277,29 +242,18 @@ export class HistorialService {
   }
 
   async obtenerDetalleInconsistencia(id: number) {
-    const revision = await this.revisionRepo.findOne({
+    const incidencia = await this.incidenciaRepo.findOne({
       where: { id },
       relations: {
-        incidencia: {
-          producto: true,
-          ubicacion: true,
-          sesionCaja: true,
-          usuario: true,
-        },
-        ajusteAplicado: true,
-        adminAutor: true,
-        adminResuelve: true,
+        producto: true,
+        ubicacion: true,
+        sesionCaja: true,
+        usuario: true,
+        resolucionAdmin: { adminResuelve: true, ajusteAplicado: true },
       },
     });
-    if (!revision) throw new NotFoundException('Inconsistencia no encontrada');
+    if (!incidencia) throw new NotFoundException('Inconsistencia no encontrada');
 
-    const bitacora = await this.bitacoraRepo.find({
-      where: { revision: { id: revision.id } as any },
-      relations: { adminAutor: true },
-      order: { createdAt: 'ASC' },
-    });
-
-    const incidencia = revision.incidencia;
     const constanciasVendedor = incidencia.sesionCaja
       ? await this.incidenciaRepo.find({
           where: {
@@ -313,9 +267,16 @@ export class HistorialService {
         })
       : [];
 
+    const stockTeoricoSistema = await this.getStockTeoricoSistema(
+      incidencia.producto.id,
+      incidencia.ubicacion.id,
+    );
+
     return {
-      ...revision,
-      bitacora,
+      ...incidencia,
+      estado:
+        incidencia.resolucionAdmin?.estadoFinal ??
+        ('PENDIENTE' as 'PENDIENTE' | IncidenciaResolucionEstadoFinal),
       contextoJornada: incidencia.sesionCaja
         ? {
             sesionCajaId: incidencia.sesionCaja.id,
@@ -327,116 +288,114 @@ export class HistorialService {
             totalTarjeta: incidencia.sesionCaja.totalTarjeta,
           }
         : null,
+      stockTeoricoSistema: Number(stockTeoricoSistema.toFixed(3)),
+      ubicacionUsadaResolucion: {
+        id: incidencia.ubicacion.id,
+        nombre: incidencia.ubicacion.nombre,
+        tipo: incidencia.ubicacion.tipo,
+      },
       constanciasVendedor,
     };
   }
 
-  async agregarBitacora(id: number, dto: CreateIncidenciaBitacoraDto, adminId: string) {
-    const revision = await this.revisionRepo.findOne({ where: { id } });
-    if (!revision) throw new NotFoundException('Inconsistencia no encontrada');
-
-    const bit = await this.addBitacora(revision, adminId, {
-      accion: dto.accion ?? 'OBSERVACION',
-      descripcion: dto.descripcion,
-      estadoResultante: dto.estadoResultante ?? null,
-    });
-
-    return bit;
-  }
-
-  async cambiarEstado(id: number, dto: CambiarEstadoIncidenciaDto, adminId: string) {
-    const revision = await this.revisionRepo.findOne({ where: { id } });
-    if (!revision) throw new NotFoundException('Inconsistencia no encontrada');
-
-    if (dto.estado === 'RESUELTA_CON_AJUSTE' && !revision.ajusteAplicado) {
-      throw new BadRequestException('No se puede cerrar con ajuste sin registrar un ajuste aplicado');
-    }
-
-    revision.estado = dto.estado;
-    if (dto.estado === 'RESUELTA_CON_AJUSTE' || dto.estado === 'RESUELTA_SIN_AJUSTE') {
-      revision.resolvedAt = new Date();
-      revision.adminResuelve = { idUsuario: adminId } as any;
-    }
-
-    await this.revisionRepo.save(revision);
-    await this.addBitacora(revision, adminId, {
-      accion: 'CAMBIO_ESTADO',
-      descripcion: dto.descripcion?.trim() || `Estado actualizado a ${dto.estado}`,
-      estadoResultante: dto.estado,
-    });
-
-    return this.obtenerDetalleInconsistencia(id);
-  }
-
-  async resolverConAjuste(id: number, dto: ResolverInconsistenciaConAjusteDto, adminId: string) {
-    const revision = await this.revisionRepo.findOne({
+  async resolverInconsistencia(id: number, dto: ResolverInconsistenciaDto, adminId: string) {
+    const incidencia = await this.incidenciaRepo.findOne({
       where: { id },
-      relations: { incidencia: { producto: true, ubicacion: true } },
+      relations: {
+        producto: true,
+        ubicacion: true,
+        resolucionAdmin: true,
+      },
     });
-    if (!revision) throw new NotFoundException('Inconsistencia no encontrada');
-
-    if (dto.cantidadAjuste >= 0) {
-      throw new BadRequestException('cantidadAjuste debe ser negativa para descuento de stock');
+    if (!incidencia) throw new NotFoundException('Inconsistencia no encontrada');
+    if (incidencia.resolucionAdmin) {
+      throw new BadRequestException('La inconsistencia ya fue resuelta');
     }
 
-    const incidencia = revision.incidencia;
-    const ajuste = await this.inventarioService.registrarAjusteDesdeInconsistencia(
-      {
-        productoId: incidencia.producto.id,
-        ubicacionId: dto.ubicacionId ?? incidencia.ubicacion.id,
-        cantidad: dto.cantidadAjuste,
-        motivo: dto.motivo,
-        categoria: dto.categoria ?? incidencia.tipo,
-      },
-      adminId,
+    const ubicacionUsadaId = incidencia.ubicacion.id;
+    const stockTeorico = await this.getStockTeoricoSistema(incidencia.producto.id, ubicacionUsadaId);
+    const stockRealObservado = Number(dto.stockRealObservado);
+    if (!Number.isFinite(stockRealObservado)) {
+      throw new BadRequestException('stockRealObservado debe ser numérico');
+    }
+    if (stockRealObservado < 0) {
+      throw new BadRequestException('stockRealObservado no puede ser negativo');
+    }
+
+    const motivoResolucion = dto.motivoResolucion?.trim();
+    if (!motivoResolucion) {
+      throw new BadRequestException('motivoResolucion es obligatorio');
+    }
+
+    if (stockRealObservado > stockTeorico) {
+      throw new BadRequestException(
+        'No puedes ajustar por inconsistencia cuando stock real supera al teórico. Registra el excedente por ingreso de producto.',
+      );
+    }
+
+    const diferencia = stockRealObservado - stockTeorico;
+    const estadoFinal: IncidenciaResolucionEstadoFinal =
+      diferencia < 0 ? 'RESUELTA_CON_AJUSTE' : 'RESUELTA_SIN_AJUSTE';
+
+    let ajusteId: number | null = null;
+    if (estadoFinal === 'RESUELTA_CON_AJUSTE') {
+      const ajuste = await this.inventarioService.registrarAjusteDesdeInconsistencia(
+        {
+          productoId: incidencia.producto.id,
+          ubicacionId: ubicacionUsadaId,
+          cantidad: diferencia,
+          motivo: motivoResolucion,
+          categoria: incidencia.tipo,
+        },
+        adminId,
+      );
+      ajusteId = ajuste.id;
+    }
+
+    await this.resolucionRepo.save(
+      this.resolucionRepo.create({
+        incidencia: { id: incidencia.id } as IncidenciaStockEntity,
+        estadoFinal,
+        stockTeorico: stockTeorico.toFixed(3),
+        stockRealObservado: stockRealObservado.toFixed(3),
+        diferencia: diferencia.toFixed(3),
+        categoria: incidencia.tipo,
+        motivoResolucion,
+        adminResuelve: { idUsuario: adminId } as any,
+        ajusteAplicado: ajusteId ? ({ id: ajusteId } as any) : null,
+        resolvedAt: new Date(),
+      }),
     );
 
-    revision.ajusteAplicado = { id: ajuste.id } as any;
-    revision.estado = 'RESUELTA_CON_AJUSTE';
-    revision.adminResuelve = { idUsuario: adminId } as any;
-    revision.resolvedAt = new Date();
-    await this.revisionRepo.save(revision);
-
-    await this.addBitacora(revision, adminId, {
-      accion: 'AJUSTE_STOCK',
-      descripcion: dto.descripcion?.trim() || dto.motivo,
-      estadoResultante: 'RESUELTA_CON_AJUSTE',
-      metadata: {
-        ajusteId: ajuste.id,
-        cantidadAjuste: dto.cantidadAjuste,
-        categoria: dto.categoria ?? incidencia.tipo,
-      },
-    });
-
-    return this.obtenerDetalleInconsistencia(id);
+    return this.obtenerDetalleInconsistencia(incidencia.id);
   }
 
   async obtenerResumenPerdidas(params: { from?: string; to?: string }) {
     const from = params.from ? `${params.from}T00:00:00.000Z` : undefined;
     const to = params.to ? `${params.to}T23:59:59.999Z` : undefined;
 
-    const qb = this.revisionRepo
+    const qb = this.resolucionRepo
       .createQueryBuilder('r')
       .leftJoin('r.incidencia', 'i')
       .leftJoin('i.producto', 'p')
-      .where('r.estado = :estado', { estado: 'RESUELTA_CON_AJUSTE' })
-      .andWhere('i.tipo IN (:...tipos)', { tipos: ['FALTANTE', 'DANIO', 'VENCIDO', 'OTRO'] });
+      .where('r.estadoFinal = :estado', { estado: 'RESUELTA_CON_AJUSTE' })
+      .andWhere('r.categoria IN (:...tipos)', { tipos: ['FALTANTE', 'DANIO', 'VENCIDO', 'OTRO'] });
 
-    if (from) qb.andWhere('r.updated_at >= :from', { from });
-    if (to) qb.andWhere('r.updated_at <= :to', { to });
+    if (from) qb.andWhere('r.resolvedAt >= :from', { from });
+    if (to) qb.andWhere('r.resolvedAt <= :to', { to });
 
     const rows = await qb
       .select('p.id', 'productoId')
       .addSelect('p.name', 'productoNombre')
-      .addSelect('i.tipo', 'categoria')
+      .addSelect('r.categoria', 'categoria')
       .addSelect('SUM(ABS(COALESCE(r.diferencia::numeric, 0)))', 'cantidadPerdida')
       .addSelect(
-        'SUM(ABS(COALESCE(r.diferencia::numeric, 0)) * COALESCE(r.costo_unitario_snapshot::numeric, 0))',
+        'SUM(ABS(COALESCE(r.diferencia::numeric, 0)) * COALESCE(p.precioCosto::numeric, 0))',
         'montoPerdida',
       )
       .groupBy('p.id')
       .addGroupBy('p.name')
-      .addGroupBy('i.tipo')
+      .addGroupBy('r.categoria')
       .orderBy('montoPerdida', 'DESC')
       .getRawMany<{
         productoId: string;

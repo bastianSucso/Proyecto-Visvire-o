@@ -218,6 +218,23 @@
 - Mantener consistencia con patrones ya implementados en el repo: cards, modales con overlay, acciones primarias en azul, acciones secundarias bordeadas.
 - Para formularios en modal, incluir acciones explicitas `Cancelar` y `Guardar/Registrar`.
 
+### Buscadores de productos (obligatorio)
+- Para seleccionar productos en formularios/modales, no usar dropdown masivo; usar buscador con input + sugerencias.
+- Referencia visual/UX: buscador del modulo conversion (`Nombre / código / barcode` + dropdown con estados activos en azul).
+- Estructura minima por sugerencia:
+  - Nombre (`text-sm font-semibold`).
+  - Metadata (`text-xs`): `internalCode`, `barcode` (si existe), `unidadBase` (pill), `tipo` (badge).
+- Clases recomendadas del item activo:
+  - `bg-blue-50 border-l-4 border-blue-600 ring-2 ring-blue-200`.
+  - Inactivo: `bg-white hover:bg-slate-50 border-l-4 border-transparent`.
+- Interaccion obligatoria:
+  - Navegacion por teclado (`ArrowUp`, `ArrowDown`, `Enter`, `Escape`).
+  - Maximo sugerencias visibles: 8.
+  - Cierre de sugerencias con `Escape` y al seleccionar.
+- Regla de negocio para inconsistencias:
+  - Mostrar siempre `tipo` y `unidadBase`.
+  - No permitir seleccionar productos `COMIDA`; solo `INSUMO` y `REVENTA`.
+
 ## Naming conventions
 ### Backend
 - Classes: `PascalCase` (e.g., `UsersService`, `AuthController`).

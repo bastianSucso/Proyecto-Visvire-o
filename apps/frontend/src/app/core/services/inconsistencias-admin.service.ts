@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 
-export type InconsistenciaCategoria = 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+export type InconsistenciaCategoria = 'FALTANTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
 export type InconsistenciaContexto = 'DURANTE_JORNADA' | 'FUERA_JORNADA';
 export type InconsistenciaEstado =
   | 'PENDIENTE'
@@ -9,33 +9,38 @@ export type InconsistenciaEstado =
   | 'RESUELTA_CON_AJUSTE'
   | 'RESUELTA_SIN_AJUSTE';
 
-export interface InconsistenciaListItem {
+export interface InconsistenciaResolucion {
   id: number;
-  estado: InconsistenciaEstado;
+  estadoFinal: 'RESUELTA_CON_AJUSTE' | 'RESUELTA_SIN_AJUSTE';
   stockTeorico: string;
   stockRealObservado: string;
   diferencia: string;
-  createdAt: string;
-  incidencia: {
-    id: number;
-    contexto: InconsistenciaContexto;
-    tipo: InconsistenciaCategoria;
-    fechaHoraDeteccion: string;
-    observacion: string | null;
-    producto: { id: string; name: string; internalCode: string };
-    sesionCaja: { id: number; fechaApertura: string; fechaCierre: string | null } | null;
-  };
+  categoria: InconsistenciaCategoria;
+  motivoResolucion: string;
+  resolvedAt: string;
+  adminResuelve: { idUsuario: string; email: string | null; nombre: string | null };
+  ajusteAplicado: { id: number; documentoRef: string | null } | null;
+}
+
+export interface InconsistenciaListItem {
+  id: number;
+  origen: 'VENDEDOR' | 'ADMIN';
+  contexto: InconsistenciaContexto;
+  fechaHoraDeteccion: string;
+  tipo: InconsistenciaCategoria;
+  cantidad: string;
+  observacion: string | null;
+  producto: { id: string; name: string; internalCode: string; unidadBase: string | null };
+  ubicacion: { id: string; nombre: string; tipo: string };
+  usuario: { idUsuario: string; email: string | null; nombre: string | null };
+  sesionCaja: { id: number; fechaApertura: string; fechaCierre: string | null } | null;
+  resolucionAdmin: InconsistenciaResolucion | null;
 }
 
 export interface InconsistenciaDetalle extends InconsistenciaListItem {
-  bitacora: Array<{
-    id: number;
-    accion: 'OBSERVACION' | 'CAMBIO_ESTADO' | 'AJUSTE_STOCK' | 'CIERRE';
-    descripcion: string;
-    estadoResultante: InconsistenciaEstado | null;
-    createdAt: string;
-    adminAutor: { idUsuario: string; email: string | null; nombre: string | null };
-  }>;
+  estado: 'PENDIENTE' | 'RESUELTA_CON_AJUSTE' | 'RESUELTA_SIN_AJUSTE';
+  stockTeoricoSistema: number;
+  ubicacionUsadaResolucion: { id: string; nombre: string; tipo: string };
   contextoJornada: {
     sesionCajaId: number;
     fechaApertura: string;
@@ -56,17 +61,30 @@ export interface InconsistenciaDetalle extends InconsistenciaListItem {
 }
 
 export interface CreateInconsistenciaAdminDto {
-  sesionCajaId?: number;
   productoId: string;
-  ubicacionId?: string;
+  ubicacionId: string;
   contexto: InconsistenciaContexto;
   fechaHoraDeteccion?: string;
   tipo: InconsistenciaCategoria;
   cantidad: number;
   observacion: string;
-  stockTeorico: number;
+}
+
+export interface InconsistenciaSesionActiva {
+  sesionCajaId: number;
+  fechaApertura: string;
+  caja: { idCaja: number; numero: string } | null;
+  vendedor: {
+    idUsuario: string;
+    nombre: string | null;
+    apellido: string | null;
+    email: string | null;
+  } | null;
+}
+
+export interface ResolverInconsistenciaDto {
   stockRealObservado: number;
-  costoUnitarioSnapshot?: number;
+  motivoResolucion: string;
 }
 
 export interface PerdidasResumenResponse {
@@ -103,29 +121,16 @@ export class InconsistenciasAdminService {
     return this.http.post<InconsistenciaDetalle>('/api/admin/inconsistencias', dto);
   }
 
+  sesionActiva() {
+    return this.http.get<InconsistenciaSesionActiva | null>('/api/admin/inconsistencias/sesion-activa');
+  }
+
   detalle(id: number) {
     return this.http.get<InconsistenciaDetalle>(`/api/admin/inconsistencias/${id}`);
   }
 
-  agregarBitacora(
-    id: number,
-    dto: { descripcion: string; accion?: 'OBSERVACION' | 'CAMBIO_ESTADO' | 'AJUSTE_STOCK' | 'CIERRE' },
-  ) {
-    return this.http.post(`/api/admin/inconsistencias/${id}/bitacora`, dto);
-  }
-
-  cambiarEstado(id: number, dto: { estado: InconsistenciaEstado; descripcion?: string }) {
-    return this.http.patch<InconsistenciaDetalle>(`/api/admin/inconsistencias/${id}/estado`, dto);
-  }
-
-  resolverConAjuste(
-    id: number,
-    dto: { cantidadAjuste: number; motivo: string; categoria?: InconsistenciaCategoria; descripcion?: string },
-  ) {
-    return this.http.post<InconsistenciaDetalle>(
-      `/api/admin/inconsistencias/${id}/resolver-con-ajuste`,
-      dto,
-    );
+  resolver(id: number, dto: ResolverInconsistenciaDto) {
+    return this.http.post<InconsistenciaDetalle>(`/api/admin/inconsistencias/${id}/resolver`, dto);
   }
 
   resumenPerdidas(from?: string, to?: string) {

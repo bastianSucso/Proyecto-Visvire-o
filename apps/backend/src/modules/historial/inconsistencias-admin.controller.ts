@@ -4,7 +4,6 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  Patch,
   Post,
   Query,
   Req,
@@ -15,9 +14,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { HistorialService } from './historial.service';
 import { CreateInconsistenciaAdminDto } from './dto/create-inconsistencia-admin.dto';
-import { CreateIncidenciaBitacoraDto } from './dto/create-incidencia-bitacora.dto';
-import { CambiarEstadoIncidenciaDto } from './dto/cambiar-estado-incidencia.dto';
-import { ResolverInconsistenciaConAjusteDto } from './dto/resolver-inconsistencia-con-ajuste.dto';
+import { ResolverInconsistenciaDto } from './dto/resolver-inconsistencia.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -54,35 +51,22 @@ export class InconsistenciasAdminController {
     return this.historialService.obtenerResumenPerdidas({ from, to });
   }
 
+  @Get('sesion-activa')
+  sesionActiva() {
+    return this.historialService.obtenerSesionActivaAdmin();
+  }
+
   @Get(':id')
   detalle(@Param('id', ParseIntPipe) id: number) {
     return this.historialService.obtenerDetalleInconsistencia(id);
   }
 
-  @Post(':id/bitacora')
-  crearBitacora(
+  @Post(':id/resolver')
+  resolver(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: CreateIncidenciaBitacoraDto,
+    @Body() dto: ResolverInconsistenciaDto,
     @Req() req: any,
   ) {
-    return this.historialService.agregarBitacora(id, dto, req.user.idUsuario);
-  }
-
-  @Patch(':id/estado')
-  cambiarEstado(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: CambiarEstadoIncidenciaDto,
-    @Req() req: any,
-  ) {
-    return this.historialService.cambiarEstado(id, dto, req.user.idUsuario);
-  }
-
-  @Post(':id/resolver-con-ajuste')
-  resolverConAjuste(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ResolverInconsistenciaConAjusteDto,
-    @Req() req: any,
-  ) {
-    return this.historialService.resolverConAjuste(id, dto, req.user.idUsuario);
+    return this.historialService.resolverInconsistencia(id, dto, req.user.idUsuario);
   }
 }

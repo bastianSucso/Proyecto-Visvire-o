@@ -35,8 +35,8 @@ export class CreateIncidenciaStockDto {
   @IsDateString()
   fechaHoraDeteccion?: string;
 
-  @IsIn(['FALTANTE', 'EXCEDENTE', 'DANIO', 'VENCIDO', 'OTRO'])
-  tipo!: 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+  @IsIn(['FALTANTE', 'DANIO', 'VENCIDO', 'OTRO'])
+  tipo!: 'FALTANTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
 
   @Type(() => Number)
   @IsNumber()

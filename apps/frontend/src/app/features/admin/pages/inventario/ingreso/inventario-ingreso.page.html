@@ -47,8 +47,8 @@
               <thead class="text-xs text-slate-500">
                 <tr class="border-b border-slate-100">
                   <th class="py-2 pr-3">Producto</th>
-                  <th class="py-2 pr-3">Unidad base</th>
                   <th class="py-2 pr-3 w-32 text-center">Cant.</th>
+                  <th class="py-2 pr-3">Unidad base</th>
                   <th class="py-2 pr-3 w-44 text-center">Costo unitario total
                     <p class="mt-1 text-center text-[11px] text-slate-500">(IVA incluido)</p>
                   </th>
@@ -69,10 +69,6 @@
                     </div>
                   </td>
 
-                  <td class="py-3 pr-3 text-slate-600">
-                    {{ it.unidadBase ?? '-' }}
-                  </td>
-
                   <td class="py-3 pr-4">
                     <div class="flex items-center justify-center">
                       <input
@@ -86,6 +82,10 @@
                         (blur)="guardarCantidad(it.id)"
                       />
                     </div>
+                  </td>
+
+                  <td class="py-3 pr-3 text-slate-600">
+                    {{ it.unidadBase ?? '-' }}
                   </td>
 
                   <td class="py-3 pr-4">

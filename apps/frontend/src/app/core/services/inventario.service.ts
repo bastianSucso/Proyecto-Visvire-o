@@ -40,7 +40,7 @@ export interface InventarioDocumentoItem {
 
 export interface InventarioDocumento {
   documentoRef: string;
-  tipo: 'INGRESO' | 'TRASPASO';
+  tipo: 'INGRESO' | 'TRASPASO' | 'AJUSTE';
   origen: { id: string; nombre: string; tipo: string } | null;
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;
@@ -50,7 +50,7 @@ export interface InventarioDocumento {
 
 export interface InventarioDocumentoResumen {
   documentoRef: string;
-  tipo: 'INGRESO' | 'TRASPASO';
+  tipo: 'INGRESO' | 'TRASPASO' | 'AJUSTE';
   origen: { id: string; nombre: string; tipo: string } | null;
   destino: { id: string; nombre: string; tipo: string } | null;
   usuario: { id: string; email: string } | null;

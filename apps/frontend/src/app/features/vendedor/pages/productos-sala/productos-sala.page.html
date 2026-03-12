@@ -272,16 +272,13 @@
 
           <form [formGroup]="incidenciaForm" (ngSubmit)="registrarIncidencia()" class="grid gap-3 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-700">Tipo</label>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Categoría</label>
               <select
-                formControlName="tipo"
+                formControlName="categoriaId"
                 class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
               >
-                <option value="FALTANTE">Faltante</option>
-                <option value="EXCEDENTE">Excedente</option>
-                <option value="DANIO">Daño</option>
-                <option value="VENCIDO">Vencido</option>
-                <option value="OTRO">Otro</option>
+                <option value="" disabled>Selecciona categoría</option>
+                <option *ngFor="let c of categorias" [value]="c.id">{{ c.codigo }} · {{ c.nombre }}</option>
               </select>
             </div>
 

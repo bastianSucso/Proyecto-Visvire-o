@@ -132,6 +132,11 @@ export class ProductosService {
     this.assertTipoValid(dto.tipo);
     const internalCode = dto.internalCode.trim();
     const barcode = dto.barcode?.trim() || null;
+    const unidadBase = dto.unidadBase?.trim();
+
+    if (!unidadBase) {
+      throw new BadRequestException('unidadBase es requerida');
+    }
 
     const dupInternal = await this.repo.findOne({ where: { internalCode } });
     if (dupInternal) {
@@ -151,7 +156,7 @@ export class ProductosService {
       name: dto.name.trim(),
       internalCode,
       barcode,
-      unidadBase: dto.unidadBase?.trim() || null,
+      unidadBase,
       precioCosto: isComida ? '0.00' : dto.precioCosto.toFixed(2),
       precioVenta: isInsumo ? '0.00' : dto.precioVenta.toFixed(2),
       rendimiento: dto.rendimiento !== undefined ? dto.rendimiento.toFixed(3) : null,
@@ -188,7 +193,6 @@ export class ProductosService {
     const existing = await this.repo.findOne({ where: { id } });
     if (!existing) throw new NotFoundException('Producto no encontrado');
 
-    const prevPrecioCosto = Number(existing.precioCosto ?? 0);
     const prevRendimiento = Number(existing.rendimiento ?? 0);
     const tipoActual = existing.tipo;
     const tipoFinal = dto.tipo ?? tipoActual;
@@ -221,11 +225,7 @@ export class ProductosService {
     }
 
     if (dto.name !== undefined) existing.name = dto.name.trim();
-    if (dto.unidadBase !== undefined) existing.unidadBase = dto.unidadBase?.trim() || null;
 
-    if (!isComida && dto.precioCosto !== undefined) {
-      existing.precioCosto = dto.precioCosto.toFixed(2);
-    }
     if (!isInsumo && dto.precioVenta !== undefined) {
       existing.precioVenta = dto.precioVenta.toFixed(2);
     }
@@ -246,14 +246,6 @@ export class ProductosService {
     if (dto.isActive !== undefined) existing.isActive = dto.isActive;
 
     const saved = await this.repo.save(existing);
-    const precioCostoChanged =
-      !isComida && dto.precioCosto !== undefined && Number(dto.precioCosto ?? 0) !== prevPrecioCosto;
-    if (precioCostoChanged) {
-      if (saved.tipo === ProductoTipoEnum.INSUMO) {
-        await this.recetasService.recalculateCostosByInsumo(saved.id);
-      }
-    }
-
     const rendimientoChanged =
       isComida && dto.rendimiento !== undefined && Number(dto.rendimiento ?? 0) !== prevRendimiento;
     if (rendimientoChanged) {

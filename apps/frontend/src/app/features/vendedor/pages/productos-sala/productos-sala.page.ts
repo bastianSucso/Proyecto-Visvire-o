@@ -6,8 +6,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { RecetasService } from '../../../../core/services/recetas.service';
 import { CajaService, CajaActualResponse } from '../../../../core/services/caja.service';
-import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
+import { IncidenciasService } from '../../../../core/services/incidencias.service';
 import { catchError, forkJoin, of } from 'rxjs';
+import {
+  InconsistenciaCategoria,
+  InconsistenciasCategoriasService,
+} from '../../../../core/services/inconsistencias-categorias.service';
 
 @Component({
   selector: 'app-productos-sala-page',
@@ -24,6 +28,7 @@ export class ProductosSalaPage implements OnInit {
   private recetasService = inject(RecetasService);
   private cajaService = inject(CajaService);
   private incidenciaService = inject(IncidenciasService);
+  private categoriasService = inject(InconsistenciasCategoriasService);
 
   // contexto de sesión caja (turno)
   sesionCajaId: number | null = null;
@@ -50,9 +55,10 @@ export class ProductosSalaPage implements OnInit {
   incidenciaLoading = false;
   incidenciaMsg = '';
   incidenciaError = '';
+  categorias: InconsistenciaCategoria[] = [];
 
   incidenciaForm = this.fb.group({
-    tipo: ['FALTANTE' as IncidenciaTipo, [Validators.required]],
+    categoriaId: ['', [Validators.required]],
     cantidad: [1, [Validators.required, Validators.min(1)]],
     observacion: [''],
   });
@@ -68,6 +74,20 @@ export class ProductosSalaPage implements OnInit {
     });
 
     this.cargarProductos();
+    this.cargarCategorias();
+  }
+
+  cargarCategorias() {
+    this.categoriasService.listActivas().subscribe({
+      next: (rows) => {
+        this.categorias = rows ?? [];
+        const first = this.categorias[0]?.id ?? '';
+        this.incidenciaForm.patchValue({ categoriaId: first });
+      },
+      error: () => {
+        this.categorias = [];
+      },
+    });
   }
 
   volverCaja() {
@@ -162,7 +182,7 @@ export class ProductosSalaPage implements OnInit {
     this.incidenciaMsg = '';
     this.incidenciaError = '';
     this.incidenciaForm.reset({
-      tipo: 'FALTANTE',
+      categoriaId: this.categorias[0]?.id ?? '',
       cantidad: 1,
       observacion: '',
     });
@@ -197,7 +217,7 @@ export class ProductosSalaPage implements OnInit {
     const payload = {
       sesionCajaId: this.sesionCajaId,
       productoId: this.selectedProducto.id,
-      tipo: v.tipo as IncidenciaTipo,
+      categoriaId: String(v.categoriaId),
       cantidad: Number(v.cantidad),
       observacion: (v.observacion ?? '').trim() || undefined,
     };

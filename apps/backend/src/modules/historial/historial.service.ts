@@ -1,11 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import {
   IncidenciaContexto,
   IncidenciaOrigen,
   IncidenciaStockEntity,
-  IncidenciaTipo,
 } from './entities/incidencia-stock.entity';
 import { SesionCajaEntity } from './entities/sesion-caja.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
@@ -21,9 +20,14 @@ import {
 import { CreateInconsistenciaAdminDto } from './dto/create-inconsistencia-admin.dto';
 import { InventarioService } from '../inventario/inventario.service';
 import { ResolverInconsistenciaDto } from './dto/resolver-inconsistencia.dto';
+import { InconsistenciaCategoriaEntity } from './entities/inconsistencia-categoria.entity';
+import { InconsistenciasCategoriasService } from './inconsistencias-categorias.service';
+import { ConsultarPerdidasDto, ListarPerdidasProductosDto } from './dto/consultar-perdidas.dto';
 
 @Injectable()
 export class HistorialService {
+  private readonly businessTimeZone = 'America/Santiago';
+
   constructor(
     @InjectRepository(SesionCajaEntity)
     private readonly sesionRepo: Repository<SesionCajaEntity>,
@@ -44,7 +48,70 @@ export class HistorialService {
     private readonly resolucionRepo: Repository<IncidenciaResolucionAdminEntity>,
 
     private readonly inventarioService: InventarioService,
+    private readonly inconsistenciasCategoriasService: InconsistenciasCategoriasService,
   ) {}
+
+  private normalizeDateKey(value: string) {
+    const dateKey = value.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+      throw new BadRequestException('fecha inválida. Usa formato YYYY-MM-DD');
+    }
+
+    const [year, month, day] = dateKey.split('-').map((it) => Number(it));
+    const test = new Date(Date.UTC(year, month - 1, day));
+    const valid =
+      test.getUTCFullYear() === year &&
+      test.getUTCMonth() + 1 === month &&
+      test.getUTCDate() === day;
+
+    if (!valid) {
+      throw new BadRequestException('fecha inválida. Usa formato YYYY-MM-DD');
+    }
+
+    return dateKey;
+  }
+
+  private normalizePage(page?: number) {
+    if (!Number.isFinite(page ?? 1)) return 1;
+    return Math.max(1, Number(page ?? 1));
+  }
+
+  private normalizePageSize(pageSize?: number) {
+    if (!Number.isFinite(pageSize ?? 20)) return 20;
+    return Math.min(100, Math.max(1, Number(pageSize ?? 20)));
+  }
+
+  private applyPerdidasFilters(
+    qb: SelectQueryBuilder<IncidenciaResolucionAdminEntity>,
+    params: ConsultarPerdidasDto,
+  ) {
+    const from = params.from ? this.normalizeDateKey(params.from) : null;
+    const to = params.to ? this.normalizeDateKey(params.to) : null;
+
+    if (from && to && from > to) {
+      throw new BadRequestException('from no puede ser mayor a to');
+    }
+
+    if (from) {
+      qb.andWhere('DATE(r.resolved_at AT TIME ZONE :tz) >= :from', {
+        tz: this.businessTimeZone,
+        from,
+      });
+    }
+
+    if (to) {
+      qb.andWhere('DATE(r.resolved_at AT TIME ZONE :tz) <= :to', {
+        tz: this.businessTimeZone,
+        to,
+      });
+    }
+
+    if (params.categoriaId?.trim()) {
+      qb.andWhere('c.id_inconsistencia_categoria = :categoriaId', {
+        categoriaId: params.categoriaId.trim(),
+      });
+    }
+  }
 
   private async getSalaVentaActivaOrThrow() {
     const sala = await this.ubicacionRepo.findOne({
@@ -121,6 +188,8 @@ export class HistorialService {
       : await this.getSalaVentaActivaOrThrow();
     if (!sala) throw new BadRequestException('Ubicación no existe');
 
+    const categoria = await this.inconsistenciasCategoriasService.findActiveOrThrow(dto.categoriaId);
+
     const inc = this.incidenciaRepo.create({
       sesionCaja,
       producto,
@@ -129,7 +198,7 @@ export class HistorialService {
       origen: 'VENDEDOR' as IncidenciaOrigen,
       contexto: 'DURANTE_JORNADA',
       fechaHoraDeteccion: dto.fechaHoraDeteccion ? new Date(dto.fechaHoraDeteccion) : new Date(),
-      tipo: dto.tipo,
+      categoria,
       cantidad: Number(dto.cantidad).toFixed(3),
       observacion: dto.observacion ?? null,
     });
@@ -144,6 +213,8 @@ export class HistorialService {
         producto: true,
         ubicacion: true,
         sesionCaja: true,
+        categoria: true,
+        usuario: true,
       },
       order: {
         fecha: 'DESC',
@@ -166,7 +237,13 @@ export class HistorialService {
       where: {
         sesionCaja: { id: sesionActiva.id },
       },
-      relations: { producto: true, ubicacion: true, sesionCaja: true },
+      relations: {
+        producto: true,
+        ubicacion: true,
+        sesionCaja: true,
+        categoria: true,
+        usuario: true,
+      },
       order: { fecha: 'DESC' },
     });
   }
@@ -186,6 +263,8 @@ export class HistorialService {
     const ubicacion = await this.ubicacionRepo.findOne({ where: { id: dto.ubicacionId } });
     if (!ubicacion) throw new BadRequestException('Ubicación no existe');
 
+    const categoria = await this.inconsistenciasCategoriasService.findActiveOrThrow(dto.categoriaId);
+
     const incidencia = await this.incidenciaRepo.save(
       this.incidenciaRepo.create({
         sesionCaja,
@@ -195,7 +274,7 @@ export class HistorialService {
         origen: 'ADMIN',
         contexto,
         fechaHoraDeteccion: dto.fechaHoraDeteccion ? new Date(dto.fechaHoraDeteccion) : new Date(),
-        tipo: dto.tipo as IncidenciaTipo,
+        categoria,
         cantidad: Number(dto.cantidad).toFixed(3),
         observacion: dto.observacion?.trim() || null,
       }),
@@ -206,7 +285,7 @@ export class HistorialService {
 
   async listarInconsistenciasAdmin(filters: {
     estado?: 'PENDIENTE' | 'EN_REVISION' | IncidenciaResolucionEstadoFinal;
-    tipo?: IncidenciaTipo;
+    categoriaId?: string;
     contexto?: IncidenciaContexto;
     productoId?: string;
     sesionCajaId?: number;
@@ -218,7 +297,9 @@ export class HistorialService {
       .leftJoinAndSelect('i.ubicacion', 'ubicacion')
       .leftJoinAndSelect('i.sesionCaja', 'sesion')
       .leftJoinAndSelect('i.usuario', 'usuario')
+      .leftJoinAndSelect('i.categoria', 'categoria')
       .leftJoinAndSelect('i.resolucionAdmin', 'r')
+      .leftJoinAndSelect('r.categoria', 'categoriaResolucion')
       .leftJoinAndSelect('r.adminResuelve', 'adminResuelve')
       .leftJoinAndSelect('r.ajusteAplicado', 'ajusteAplicado')
       .orderBy('i.fechaHoraDeteccion', 'DESC');
@@ -228,7 +309,9 @@ export class HistorialService {
     } else if (filters.estado) {
       qb.andWhere('r.estadoFinal = :estado', { estado: filters.estado });
     }
-    if (filters.tipo) qb.andWhere('i.tipo = :tipo', { tipo: filters.tipo });
+    if (filters.categoriaId) {
+      qb.andWhere('categoria.id = :categoriaId', { categoriaId: filters.categoriaId });
+    }
     if (filters.contexto) qb.andWhere('i.contexto = :contexto', { contexto: filters.contexto });
     if (filters.productoId) qb.andWhere('producto.id = :productoId', { productoId: filters.productoId });
     if (filters.sesionCajaId) qb.andWhere('sesion.id = :sesionCajaId', { sesionCajaId: filters.sesionCajaId });
@@ -247,9 +330,10 @@ export class HistorialService {
       relations: {
         producto: true,
         ubicacion: true,
+        categoria: true,
         sesionCaja: true,
         usuario: true,
-        resolucionAdmin: { adminResuelve: true, ajusteAplicado: true },
+        resolucionAdmin: { adminResuelve: true, ajusteAplicado: true, categoria: true },
       },
     });
     if (!incidencia) throw new NotFoundException('Inconsistencia no encontrada');
@@ -261,7 +345,7 @@ export class HistorialService {
             producto: { id: incidencia.producto.id },
             origen: 'VENDEDOR',
           } as any,
-          relations: { usuario: true },
+          relations: { usuario: true, categoria: true },
           order: { fecha: 'DESC' },
           take: 20,
         })
@@ -304,6 +388,7 @@ export class HistorialService {
       relations: {
         producto: true,
         ubicacion: true,
+        categoria: true,
         resolucionAdmin: true,
       },
     });
@@ -336,6 +421,9 @@ export class HistorialService {
     const diferencia = stockRealObservado - stockTeorico;
     const estadoFinal: IncidenciaResolucionEstadoFinal =
       diferencia < 0 ? 'RESUELTA_CON_AJUSTE' : 'RESUELTA_SIN_AJUSTE';
+    const precioCostoSnapshot = Number(incidencia.producto.precioCosto ?? 0);
+    const cantidadPerdida = estadoFinal === 'RESUELTA_CON_AJUSTE' ? Math.abs(diferencia) : 0;
+    const montoPerdidaSnapshot = Number((cantidadPerdida * precioCostoSnapshot).toFixed(2));
 
     let ajusteId: number | null = null;
     if (estadoFinal === 'RESUELTA_CON_AJUSTE') {
@@ -345,7 +433,7 @@ export class HistorialService {
           ubicacionId: ubicacionUsadaId,
           cantidad: diferencia,
           motivo: motivoResolucion,
-          categoria: incidencia.tipo,
+          categoria: incidencia.categoria.codigo,
         },
         adminId,
       );
@@ -359,7 +447,10 @@ export class HistorialService {
         stockTeorico: stockTeorico.toFixed(3),
         stockRealObservado: stockRealObservado.toFixed(3),
         diferencia: diferencia.toFixed(3),
-        categoria: incidencia.tipo,
+        precioCostoSnapshot: precioCostoSnapshot.toFixed(2),
+        montoPerdidaSnapshot: montoPerdidaSnapshot.toFixed(2),
+        moneda: 'CLP',
+        categoria: { id: incidencia.categoria.id } as InconsistenciaCategoriaEntity,
         motivoResolucion,
         adminResuelve: { idUsuario: adminId } as any,
         ajusteAplicado: ajusteId ? ({ id: ajusteId } as any) : null,
@@ -370,76 +461,131 @@ export class HistorialService {
     return this.obtenerDetalleInconsistencia(incidencia.id);
   }
 
-  async obtenerResumenPerdidas(params: { from?: string; to?: string }) {
-    const from = params.from ? `${params.from}T00:00:00.000Z` : undefined;
-    const to = params.to ? `${params.to}T23:59:59.999Z` : undefined;
-
+  async obtenerResumenPerdidas(params: ConsultarPerdidasDto) {
     const qb = this.resolucionRepo
       .createQueryBuilder('r')
       .leftJoin('r.incidencia', 'i')
       .leftJoin('i.producto', 'p')
-      .where('r.estadoFinal = :estado', { estado: 'RESUELTA_CON_AJUSTE' })
-      .andWhere('r.categoria IN (:...tipos)', { tipos: ['FALTANTE', 'DANIO', 'VENCIDO', 'OTRO'] });
+      .leftJoin('r.categoria', 'c')
+      .where('r.estado_final = :estado', { estado: 'RESUELTA_CON_AJUSTE' });
 
-    if (from) qb.andWhere('r.resolvedAt >= :from', { from });
-    if (to) qb.andWhere('r.resolvedAt <= :to', { to });
+    this.applyPerdidasFilters(qb, params);
 
     const rows = await qb
-      .select('p.id', 'productoId')
-      .addSelect('p.name', 'productoNombre')
-      .addSelect('r.categoria', 'categoria')
-      .addSelect('SUM(ABS(COALESCE(r.diferencia::numeric, 0)))', 'cantidadPerdida')
-      .addSelect(
-        'SUM(ABS(COALESCE(r.diferencia::numeric, 0)) * COALESCE(p.precioCosto::numeric, 0))',
-        'montoPerdida',
-      )
-      .groupBy('p.id')
-      .addGroupBy('p.name')
-      .addGroupBy('r.categoria')
-      .orderBy('montoPerdida', 'DESC')
+      .select('c.id_inconsistencia_categoria', 'categoriaId')
+      .addSelect('c.codigo', 'categoria')
+      .addSelect('c.nombre', 'categoriaNombre')
+      .addSelect('COALESCE(SUM(r.monto_perdida_snapshot::numeric), 0)', 'montoPerdida')
+      .addSelect('COALESCE(SUM(ABS(r.diferencia::numeric)), 0)', 'cantidadPerdida')
+      .groupBy('c.id_inconsistencia_categoria')
+      .addGroupBy('c.codigo')
+      .addGroupBy('c.nombre')
+      .orderBy('COALESCE(SUM(r.monto_perdida_snapshot::numeric), 0)', 'DESC')
       .getRawMany<{
-        productoId: string;
-        productoNombre: string;
+        categoriaId: string;
         categoria: string;
+        categoriaNombre: string;
         cantidadPerdida: string;
         montoPerdida: string;
       }>();
 
-    const totalMonto = rows.reduce((acc, it) => acc + Number(it.montoPerdida ?? 0), 0);
-    const totalCantidad = rows.reduce((acc, it) => acc + Number(it.cantidadPerdida ?? 0), 0);
+    const totalsRow = await qb
+      .clone()
+      .select('COALESCE(SUM(r.monto_perdida_snapshot::numeric), 0)', 'totalMontoPerdida')
+      .addSelect('COALESCE(SUM(ABS(r.diferencia::numeric)), 0)', 'totalCantidadPerdida')
+      .addSelect('COUNT(DISTINCT p.id)', 'totalProductosAfectados')
+      .getRawOne<{ totalMontoPerdida: string; totalCantidadPerdida: string; totalProductosAfectados: string }>();
 
-    const topProductosMap = new Map<
-      string,
-      { productoId: string; productoNombre: string; cantidadPerdida: number; montoPerdida: number }
-    >();
-    for (const row of rows) {
-      const key = row.productoId;
-      const current = topProductosMap.get(key) ?? {
-        productoId: row.productoId,
-        productoNombre: row.productoNombre,
-        cantidadPerdida: 0,
-        montoPerdida: 0,
-      };
-      current.cantidadPerdida += Number(row.cantidadPerdida ?? 0);
-      current.montoPerdida += Number(row.montoPerdida ?? 0);
-      topProductosMap.set(key, current);
-    }
+    const totalMonto = Number(totalsRow?.totalMontoPerdida ?? 0);
+    const totalCantidad = Number(totalsRow?.totalCantidadPerdida ?? 0);
+    const totalProductosAfectados = Number(totalsRow?.totalProductosAfectados ?? 0);
+
+    const categorias = rows
+      .map((row) => {
+        const montoPerdida = Number(row.montoPerdida ?? 0);
+        return {
+          categoriaId: row.categoriaId,
+          codigo: row.categoria,
+          nombre: row.categoriaNombre,
+          montoPerdida: Number(montoPerdida.toFixed(2)),
+          cantidadPerdida: Number(Number(row.cantidadPerdida ?? 0).toFixed(3)),
+          porcentajeMonto: totalMonto > 0 ? Number(((montoPerdida / totalMonto) * 100).toFixed(2)) : 0,
+        };
+      })
+      .sort((a, b) => b.montoPerdida - a.montoPerdida);
 
     return {
       totalMontoPerdida: Number(totalMonto.toFixed(2)),
       totalCantidadPerdida: Number(totalCantidad.toFixed(3)),
-      topProductos: Array.from(topProductosMap.values())
-        .sort((a, b) => b.montoPerdida - a.montoPerdida)
-        .slice(0, 10),
-      distribucionCategoria: rows
-        .reduce(
-          (acc, row) => {
-            const key = row.categoria;
-            acc[key] = Number((acc[key] ?? 0) + Number(row.montoPerdida ?? 0));
-            return acc;
-          },
-          {} as Record<string, number>,
-        ),
+      totalProductosAfectados,
+      totalCategoriasAfectadas: categorias.length,
+      categorias,
+    };
+  }
+
+  async listarPerdidasProductos(params: ListarPerdidasProductosDto) {
+    const page = this.normalizePage(params.page);
+    const pageSize = this.normalizePageSize(params.pageSize);
+    const sortBy = params.sortBy === 'cantidadPerdida' ? 'cantidadPerdida' : 'montoPerdida';
+    const sortDir = params.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const offset = (page - 1) * pageSize;
+
+    const baseQb = this.resolucionRepo
+      .createQueryBuilder('r')
+      .leftJoin('r.incidencia', 'i')
+      .leftJoin('i.producto', 'p')
+      .leftJoin('r.categoria', 'c')
+      .where('r.estado_final = :estado', { estado: 'RESUELTA_CON_AJUSTE' });
+
+    this.applyPerdidasFilters(baseQb, params);
+
+    const totalRow = await baseQb
+      .clone()
+      .select('COUNT(DISTINCT p.id)', 'totalItems')
+      .getRawOne<{ totalItems: string }>();
+
+    const totalItems = Number(totalRow?.totalItems ?? 0);
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const montoExpr = 'COALESCE(SUM(r.monto_perdida_snapshot::numeric), 0)';
+    const cantidadExpr = 'COALESCE(SUM(ABS(r.diferencia::numeric)), 0)';
+    const orderExpr = sortBy === 'cantidadPerdida' ? cantidadExpr : montoExpr;
+
+    const rows = await baseQb
+      .clone()
+      .select('p.id', 'productoId')
+      .addSelect('p.name', 'productoNombre')
+      .addSelect(cantidadExpr, 'cantidadPerdida')
+      .addSelect(montoExpr, 'montoPerdida')
+      .addSelect('MAX(r.resolved_at)', 'ultimaResolucionAt')
+      .groupBy('p.id')
+      .addGroupBy('p.name')
+      .orderBy(orderExpr, sortDir)
+      .addOrderBy('MAX(r.resolved_at)', 'DESC')
+      .offset(offset)
+      .limit(pageSize)
+      .getRawMany<{
+        productoId: string;
+        productoNombre: string;
+        cantidadPerdida: string;
+        montoPerdida: string;
+        ultimaResolucionAt: Date;
+      }>();
+
+    return {
+      items: rows.map((row) => ({
+        productoId: row.productoId,
+        productoNombre: row.productoNombre,
+        cantidadPerdida: Number(Number(row.cantidadPerdida ?? 0).toFixed(3)),
+        montoPerdida: Number(Number(row.montoPerdida ?? 0).toFixed(2)),
+        ultimaResolucionAt: row.ultimaResolucionAt,
+      })),
+      meta: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages,
+      },
     };
   }
 }

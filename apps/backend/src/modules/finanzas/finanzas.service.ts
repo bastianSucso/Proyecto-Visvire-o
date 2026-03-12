@@ -17,7 +17,7 @@ import {
   MovimientoFinancieroOrigenTipo,
   MovimientoFinancieroTipo,
 } from './entities/movimiento-financiero.entity';
-import { VentaEntity, VentaEstado } from '../ventas/entities/venta.entity';
+import { MedioPago, VentaEntity, VentaEstado } from '../ventas/entities/venta.entity';
 import {
   VentaAlojamientoEntity,
   VentaAlojamientoEstado,
@@ -597,7 +597,6 @@ export class FinanzasService {
     const totalQb = this.sesionRepo
       .createQueryBuilder('s')
       .select('COUNT(DISTINCT TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\'))', 'totalItems')
-      .where('s.estado = :estado', { estado: SesionCajaEstado.CERRADA })
       .setParameters({ tz: this.businessTimeZone });
 
     if (fecha) {
@@ -612,7 +611,6 @@ export class FinanzasService {
     const fechasQb = this.sesionRepo
       .createQueryBuilder('s')
       .select(fechaAperturaExpr, 'fecha')
-      .where('s.estado = :estado', { estado: SesionCajaEstado.CERRADA })
       .setParameters({ tz: this.businessTimeZone })
       .groupBy(fechaAperturaExpr)
       .orderBy('fecha', 'DESC')
@@ -645,20 +643,31 @@ export class FinanzasService {
       .addSelect('COALESCE(SUM(v.total_venta::numeric), 0)', 'totalVentas')
       .addSelect('COUNT(v.id_venta)', 'cantidadVentas')
       .addSelect(
+        'COALESCE(SUM(CASE WHEN v.medio_pago = :efectivo THEN v.total_venta::numeric ELSE 0 END), 0)',
+        'totalEfectivo',
+      )
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN v.medio_pago = :tarjeta THEN v.total_venta::numeric ELSE 0 END), 0)',
+        'totalTarjeta',
+      )
+      .addSelect(
         'COALESCE(SUM(COALESCE(v.ganancia_bruta_snapshot::numeric, 0)), 0)',
         'gananciaBruta',
       )
-      .where('s.estado = :estadoSesion', { estadoSesion: SesionCajaEstado.CERRADA })
-      .andWhere('v.estado = :estadoVenta', { estadoVenta: VentaEstado.CONFIRMADA })
+      .where('v.estado = :estadoVenta', { estadoVenta: VentaEstado.CONFIRMADA })
       .andWhere('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
         fechas,
         tz: this.businessTimeZone,
+        efectivo: MedioPago.EFECTIVO,
+        tarjeta: MedioPago.TARJETA,
       })
       .groupBy(fechaAperturaExpr)
       .getRawMany<{
         fecha: string;
         totalVentas: string;
         cantidadVentas: string;
+        totalEfectivo: string;
+        totalTarjeta: string;
         gananciaBruta: string;
       }>();
 
@@ -669,22 +678,33 @@ export class FinanzasService {
       .addSelect('COALESCE(SUM(va.monto_total::numeric), 0)', 'totalVentas')
       .addSelect('COUNT(va.id_venta_alojamiento)', 'cantidadVentas')
       .addSelect(
+        'COALESCE(SUM(CASE WHEN va.medio_pago = :efectivo THEN va.monto_total::numeric ELSE 0 END), 0)',
+        'totalEfectivo',
+      )
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN va.medio_pago = :tarjeta THEN va.monto_total::numeric ELSE 0 END), 0)',
+        'totalTarjeta',
+      )
+      .addSelect(
         'COALESCE(SUM(COALESCE(va.ganancia_bruta_snapshot::numeric, 0)), 0)',
         'gananciaBruta',
       )
-      .where('s.estado = :estadoSesion', { estadoSesion: SesionCajaEstado.CERRADA })
-      .andWhere('va.estado = :estadoVenta', {
+      .where('va.estado = :estadoVenta', {
         estadoVenta: VentaAlojamientoEstado.CONFIRMADA,
       })
       .andWhere('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
         fechas,
         tz: this.businessTimeZone,
+        efectivo: MedioPago.EFECTIVO,
+        tarjeta: MedioPago.TARJETA,
       })
       .groupBy(fechaAperturaExpr)
       .getRawMany<{
         fecha: string;
         totalVentas: string;
         cantidadVentas: string;
+        totalEfectivo: string;
+        totalTarjeta: string;
         gananciaBruta: string;
       }>();
 
@@ -692,12 +712,9 @@ export class FinanzasService {
       .createQueryBuilder('s')
       .select(fechaAperturaExpr, 'fecha')
       .addSelect('COUNT(s.id_sesion_caja)', 'cantidadJornadas')
-      .addSelect('COALESCE(SUM(s.total_efectivo::numeric), 0)', 'totalEfectivo')
-      .addSelect('COALESCE(SUM(s.total_tarjeta::numeric), 0)', 'totalTarjeta')
       .addSelect('MIN(s.fecha_apertura)', 'primeraApertura')
       .addSelect('MAX(s.fecha_cierre)', 'ultimoCierre')
-      .where('s.estado = :estadoSesion', { estadoSesion: SesionCajaEstado.CERRADA })
-      .andWhere('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
+      .where('TO_CHAR(s.fecha_apertura AT TIME ZONE :tz, \'YYYY-MM-DD\') IN (:...fechas)', {
         fechas,
         tz: this.businessTimeZone,
       })
@@ -705,8 +722,6 @@ export class FinanzasService {
       .getRawMany<{
         fecha: string;
         cantidadJornadas: string;
-        totalEfectivo: string;
-        totalTarjeta: string;
         primeraApertura: Date;
         ultimoCierre: Date | null;
       }>();
@@ -744,6 +759,8 @@ export class FinanzasService {
       if (!current) continue;
       current.totalVentas += this.normalizeMoney(row.totalVentas);
       current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.totalEfectivo += this.normalizeMoney(row.totalEfectivo);
+      current.totalTarjeta += this.normalizeMoney(row.totalTarjeta);
       current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
     }
 
@@ -752,6 +769,8 @@ export class FinanzasService {
       if (!current) continue;
       current.totalVentas += this.normalizeMoney(row.totalVentas);
       current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.totalEfectivo += this.normalizeMoney(row.totalEfectivo);
+      current.totalTarjeta += this.normalizeMoney(row.totalTarjeta);
       current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
     }
 
@@ -759,8 +778,6 @@ export class FinanzasService {
       const current = acumulado.get(row.fecha);
       if (!current) continue;
       current.cantidadJornadas = Number(row.cantidadJornadas ?? 0);
-      current.totalEfectivo = this.normalizeMoney(row.totalEfectivo);
-      current.totalTarjeta = this.normalizeMoney(row.totalTarjeta);
       current.primeraApertura = row.primeraApertura ? new Date(row.primeraApertura) : null;
       current.ultimoCierre = row.ultimoCierre ? new Date(row.ultimoCierre) : null;
     }
@@ -797,8 +814,7 @@ export class FinanzasService {
     const sesiones = await this.sesionRepo
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.usuario', 'u')
-      .where('s.estado = :estado', { estado: SesionCajaEstado.CERRADA })
-      .andWhere('DATE(s.fecha_apertura AT TIME ZONE :tz) = :fecha', {
+      .where('DATE(s.fecha_apertura AT TIME ZONE :tz) = :fecha', {
         tz: this.businessTimeZone,
         fecha,
       })
@@ -828,16 +844,27 @@ export class FinanzasService {
       .addSelect('COALESCE(SUM(v.total_venta::numeric), 0)', 'totalVentas')
       .addSelect('COUNT(v.id_venta)', 'cantidadVentas')
       .addSelect(
+        'COALESCE(SUM(CASE WHEN v.medio_pago = :efectivo THEN v.total_venta::numeric ELSE 0 END), 0)',
+        'totalEfectivo',
+      )
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN v.medio_pago = :tarjeta THEN v.total_venta::numeric ELSE 0 END), 0)',
+        'totalTarjeta',
+      )
+      .addSelect(
         'COALESCE(SUM(COALESCE(v.ganancia_bruta_snapshot::numeric, 0)), 0)',
         'gananciaBruta',
       )
       .where('v.estado = :estado', { estado: VentaEstado.CONFIRMADA })
       .andWhere('v.id_sesioncaja IN (:...sesionIds)', { sesionIds })
+      .setParameters({ efectivo: MedioPago.EFECTIVO, tarjeta: MedioPago.TARJETA })
       .groupBy('v.id_sesioncaja')
       .getRawMany<{
         sesionId: string;
         totalVentas: string;
         cantidadVentas: string;
+        totalEfectivo: string;
+        totalTarjeta: string;
         gananciaBruta: string;
       }>();
 
@@ -847,16 +874,27 @@ export class FinanzasService {
       .addSelect('COALESCE(SUM(va.monto_total::numeric), 0)', 'totalVentas')
       .addSelect('COUNT(va.id_venta_alojamiento)', 'cantidadVentas')
       .addSelect(
+        'COALESCE(SUM(CASE WHEN va.medio_pago = :efectivo THEN va.monto_total::numeric ELSE 0 END), 0)',
+        'totalEfectivo',
+      )
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN va.medio_pago = :tarjeta THEN va.monto_total::numeric ELSE 0 END), 0)',
+        'totalTarjeta',
+      )
+      .addSelect(
         'COALESCE(SUM(COALESCE(va.ganancia_bruta_snapshot::numeric, 0)), 0)',
         'gananciaBruta',
       )
       .where('va.estado = :estado', { estado: VentaAlojamientoEstado.CONFIRMADA })
       .andWhere('va.id_sesion_caja IN (:...sesionIds)', { sesionIds })
+      .setParameters({ efectivo: MedioPago.EFECTIVO, tarjeta: MedioPago.TARJETA })
       .groupBy('va.id_sesion_caja')
       .getRawMany<{
         sesionId: string;
         totalVentas: string;
         cantidadVentas: string;
+        totalEfectivo: string;
+        totalTarjeta: string;
         gananciaBruta: string;
       }>();
 
@@ -913,9 +951,24 @@ export class FinanzasService {
         montoTotal: string;
       }>();
 
-    const statsBySesion = new Map<number, { totalVentas: number; cantidadVentas: number; gananciaBruta: number }>();
+    const statsBySesion = new Map<
+      number,
+      {
+        totalVentas: number;
+        cantidadVentas: number;
+        totalEfectivo: number;
+        totalTarjeta: number;
+        gananciaBruta: number;
+      }
+    >();
     for (const id of sesionIds) {
-      statsBySesion.set(id, { totalVentas: 0, cantidadVentas: 0, gananciaBruta: 0 });
+      statsBySesion.set(id, {
+        totalVentas: 0,
+        cantidadVentas: 0,
+        totalEfectivo: 0,
+        totalTarjeta: 0,
+        gananciaBruta: 0,
+      });
     }
 
     for (const row of posStats) {
@@ -924,6 +977,8 @@ export class FinanzasService {
       if (!current) continue;
       current.totalVentas += this.normalizeMoney(row.totalVentas);
       current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.totalEfectivo += this.normalizeMoney(row.totalEfectivo);
+      current.totalTarjeta += this.normalizeMoney(row.totalTarjeta);
       current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
     }
 
@@ -933,6 +988,8 @@ export class FinanzasService {
       if (!current) continue;
       current.totalVentas += this.normalizeMoney(row.totalVentas);
       current.cantidadVentas += Number(row.cantidadVentas ?? 0);
+      current.totalEfectivo += this.normalizeMoney(row.totalEfectivo);
+      current.totalTarjeta += this.normalizeMoney(row.totalTarjeta);
       current.gananciaBruta += this.normalizeMoney(row.gananciaBruta);
     }
 
@@ -990,6 +1047,8 @@ export class FinanzasService {
       const stats = statsBySesion.get(sesion.id) ?? {
         totalVentas: 0,
         cantidadVentas: 0,
+        totalEfectivo: 0,
+        totalTarjeta: 0,
         gananciaBruta: 0,
       };
       const ventas = (ventasBySesion.get(sesion.id) ?? []).sort(
@@ -998,9 +1057,10 @@ export class FinanzasService {
       const usuario = sesion.usuario;
       const nombre = `${usuario?.nombre ?? ''} ${usuario?.apellido ?? ''}`.trim();
       const montoInicial = this.normalizeMoney(sesion.montoInicial);
-      const montoFinal = this.normalizeMoney(sesion.montoFinal);
-      const totalEfectivo = this.normalizeMoney(sesion.totalEfectivo);
-      const totalTarjeta = this.normalizeMoney(sesion.totalTarjeta);
+      const totalEfectivo = stats.totalEfectivo;
+      const totalTarjeta = stats.totalTarjeta;
+      const montoFinal =
+        sesion.montoFinal === null ? montoInicial + totalEfectivo : this.normalizeMoney(sesion.montoFinal);
 
       totalVentasDia += stats.totalVentas;
       cantidadVentasDia += stats.cantidadVentas;
@@ -1010,6 +1070,7 @@ export class FinanzasService {
 
       return {
         sesionCajaId: sesion.id,
+        estado: sesion.estado,
         fechaApertura: sesion.fechaApertura,
         fechaCierre: sesion.fechaCierre,
         montoInicial: Number(montoInicial.toFixed(2)),
@@ -1073,6 +1134,7 @@ export class FinanzasService {
       idItem: it.idItem,
       productoId: (it.producto as any)?.id ?? null,
       nombreProducto: (it.producto as any)?.name ?? null,
+      unidadProducto: (it.producto as any)?.unidadBase ?? null,
       cantidad: this.normalizeMoney(it.cantidad),
       precioUnitario: this.normalizeMoney(it.precioUnitario),
       subtotal: this.normalizeMoney(it.subtotal),

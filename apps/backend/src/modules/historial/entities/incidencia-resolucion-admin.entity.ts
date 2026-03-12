@@ -11,6 +11,7 @@ import {
 import { IncidenciaStockEntity } from './incidencia-stock.entity';
 import { UserEntity } from '../../users/entities/user.entity';
 import { AlteraEntity } from '../../inventario/entities/altera.entity';
+import { InconsistenciaCategoriaEntity } from './inconsistencia-categoria.entity';
 
 export type IncidenciaResolucionEstadoFinal = 'RESUELTA_CON_AJUSTE' | 'RESUELTA_SIN_AJUSTE';
 
@@ -38,8 +39,18 @@ export class IncidenciaResolucionAdminEntity {
   @Column({ type: 'numeric', precision: 14, scale: 3, name: 'diferencia' })
   diferencia!: string;
 
-  @Column({ type: 'varchar', length: 20 })
-  categoria!: 'FALTANTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+  @Column({ type: 'numeric', precision: 12, scale: 2, name: 'precio_costo_snapshot', default: '0.00' })
+  precioCostoSnapshot!: string;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, name: 'monto_perdida_snapshot', default: '0.00' })
+  montoPerdidaSnapshot!: string;
+
+  @Column({ type: 'varchar', length: 3, default: 'CLP' })
+  moneda!: string;
+
+  @ManyToOne(() => InconsistenciaCategoriaEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_inconsistencia_categoria' })
+  categoria!: InconsistenciaCategoriaEntity;
 
   @Column({ type: 'varchar', length: 500, name: 'motivo_resolucion' })
   motivoResolucion!: string;

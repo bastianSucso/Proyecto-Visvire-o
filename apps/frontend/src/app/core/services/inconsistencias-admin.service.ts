@@ -1,7 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 
-export type InconsistenciaCategoria = 'FALTANTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
 export type InconsistenciaContexto = 'DURANTE_JORNADA' | 'FUERA_JORNADA';
 export type InconsistenciaEstado =
   | 'PENDIENTE'
@@ -9,13 +8,20 @@ export type InconsistenciaEstado =
   | 'RESUELTA_CON_AJUSTE'
   | 'RESUELTA_SIN_AJUSTE';
 
+export interface InconsistenciaCategoriaRef {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activa: boolean;
+}
+
 export interface InconsistenciaResolucion {
   id: number;
   estadoFinal: 'RESUELTA_CON_AJUSTE' | 'RESUELTA_SIN_AJUSTE';
   stockTeorico: string;
   stockRealObservado: string;
   diferencia: string;
-  categoria: InconsistenciaCategoria;
+  categoria: InconsistenciaCategoriaRef;
   motivoResolucion: string;
   resolvedAt: string;
   adminResuelve: { idUsuario: string; email: string | null; nombre: string | null };
@@ -27,7 +33,7 @@ export interface InconsistenciaListItem {
   origen: 'VENDEDOR' | 'ADMIN';
   contexto: InconsistenciaContexto;
   fechaHoraDeteccion: string;
-  tipo: InconsistenciaCategoria;
+  categoria: InconsistenciaCategoriaRef;
   cantidad: string;
   observacion: string | null;
   producto: { id: string; name: string; internalCode: string; unidadBase: string | null };
@@ -52,7 +58,7 @@ export interface InconsistenciaDetalle extends InconsistenciaListItem {
   } | null;
   constanciasVendedor: Array<{
     id: number;
-    tipo: InconsistenciaCategoria;
+    categoria: InconsistenciaCategoriaRef;
     cantidad: string;
     observacion: string | null;
     fecha: string;
@@ -65,7 +71,7 @@ export interface CreateInconsistenciaAdminDto {
   ubicacionId: string;
   contexto: InconsistenciaContexto;
   fechaHoraDeteccion?: string;
-  tipo: InconsistenciaCategoria;
+  categoriaId: string;
   cantidad: number;
   observacion: string;
 }
@@ -87,16 +93,39 @@ export interface ResolverInconsistenciaDto {
   motivoResolucion: string;
 }
 
+export interface PerdidasResumenCategoria {
+  categoriaId: string;
+  codigo: string;
+  nombre: string;
+  montoPerdida: number;
+  cantidadPerdida: number;
+  porcentajeMonto: number;
+}
+
 export interface PerdidasResumenResponse {
   totalMontoPerdida: number;
   totalCantidadPerdida: number;
-  topProductos: Array<{
-    productoId: string;
-    productoNombre: string;
-    cantidadPerdida: number;
-    montoPerdida: number;
-  }>;
-  distribucionCategoria: Record<string, number>;
+  totalProductosAfectados: number;
+  totalCategoriasAfectadas: number;
+  categorias: PerdidasResumenCategoria[];
+}
+
+export interface PerdidasProductoItem {
+  productoId: string;
+  productoNombre: string;
+  cantidadPerdida: number;
+  montoPerdida: number;
+  ultimaResolucionAt: string;
+}
+
+export interface PagedResponse<T> {
+  items: T[];
+  meta: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -105,13 +134,13 @@ export class InconsistenciasAdminService {
 
   listar(filters?: {
     estado?: InconsistenciaEstado;
-    tipo?: InconsistenciaCategoria;
+    categoriaId?: string;
     contexto?: InconsistenciaContexto;
     fecha?: string;
   }) {
     let params = new HttpParams();
     if (filters?.estado) params = params.set('estado', filters.estado);
-    if (filters?.tipo) params = params.set('tipo', filters.tipo);
+    if (filters?.categoriaId) params = params.set('categoriaId', filters.categoriaId);
     if (filters?.contexto) params = params.set('contexto', filters.contexto);
     if (filters?.fecha) params = params.set('fecha', filters.fecha);
     return this.http.get<InconsistenciaListItem[]>('/api/admin/inconsistencias', { params });
@@ -133,12 +162,39 @@ export class InconsistenciasAdminService {
     return this.http.post<InconsistenciaDetalle>(`/api/admin/inconsistencias/${id}/resolver`, dto);
   }
 
-  resumenPerdidas(from?: string, to?: string) {
+  resumenPerdidas(from?: string, to?: string, categoriaId?: string) {
     let params = new HttpParams();
     if (from) params = params.set('from', from);
     if (to) params = params.set('to', to);
+    if (categoriaId) params = params.set('categoriaId', categoriaId);
     return this.http.get<PerdidasResumenResponse>('/api/admin/inconsistencias/perdidas/resumen', {
       params,
     });
+  }
+
+  listarPerdidasProductos(filters?: {
+    from?: string;
+    to?: string;
+    categoriaId?: string;
+    page?: number;
+    pageSize?: number;
+    sortBy?: 'montoPerdida' | 'cantidadPerdida';
+    sortDir?: 'asc' | 'desc';
+  }) {
+    let params = new HttpParams();
+    if (filters?.from) params = params.set('from', filters.from);
+    if (filters?.to) params = params.set('to', filters.to);
+    if (filters?.categoriaId) params = params.set('categoriaId', filters.categoriaId);
+    if (filters?.page) params = params.set('page', String(filters.page));
+    if (filters?.pageSize) params = params.set('pageSize', String(filters.pageSize));
+    if (filters?.sortBy) params = params.set('sortBy', filters.sortBy);
+    if (filters?.sortDir) params = params.set('sortDir', filters.sortDir);
+
+    return this.http.get<PagedResponse<PerdidasProductoItem>>(
+      '/api/admin/inconsistencias/perdidas/productos',
+      {
+        params,
+      },
+    );
   }
 }

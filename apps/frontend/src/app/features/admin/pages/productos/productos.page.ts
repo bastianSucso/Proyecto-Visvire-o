@@ -24,6 +24,8 @@ export class ProductosPage {
   page = 1;
   readonly pageSizes = [10, 20, 50, 100];
   tipoFilter: 'ALL' | 'INSUMO' | 'REVENTA' = 'ALL';
+  sortBy: 'precioCosto' | 'precioVenta' | 'ganancia' | null = null;
+  sortDir: 'asc' | 'desc' = 'desc';
 
   isModalOpen = false;
   editing: Producto | null = null;
@@ -35,7 +37,7 @@ export class ProductosPage {
     name: ['', [Validators.required, Validators.maxLength(120)]],
     internalCode: ['', [Validators.required, Validators.maxLength(60)]],
     barcode: [''],
-    unidadBase: [''],
+    unidadBase: ['', [Validators.required]],
     precioCosto: [0, [Validators.required, Validators.min(0)]],
     precioVenta: [0, [Validators.required, Validators.min(0)]],
     tipo: ['', [Validators.required]],
@@ -73,6 +75,21 @@ export class ProductosPage {
     this.page = 1;
   }
 
+  toggleSort(column: 'precioCosto' | 'precioVenta' | 'ganancia') {
+    if (this.sortBy === column) {
+      this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      this.sortBy = column;
+      this.sortDir = 'desc';
+    }
+    this.page = 1;
+  }
+
+  sortIcon(column: 'precioCosto' | 'precioVenta' | 'ganancia') {
+    if (this.sortBy !== column) return '';
+    return this.sortDir === 'desc' ? '▼' : '▲';
+  }
+
   private normalize(s: any) {
     return String(s ?? '').toLowerCase().trim();
   }
@@ -85,17 +102,44 @@ export class ProductosPage {
       items = items.filter((p) => p.tipo === this.tipoFilter);
     }
 
-    if (!term) return items;
+    if (term) {
+      items = items.filter((p) => {
+        const hay = [
+          p.name,
+          p.internalCode,
+          p.barcode,
+          p.unidadBase,
+        ].map((x) => this.normalize(x)).join(' | ');
 
-    return items.filter((p) => {
-      const hay = [
-        p.name,
-        p.internalCode,
-        p.barcode,
-        p.unidadBase,
-      ].map((x) => this.normalize(x)).join(' | ');
+        return hay.includes(term);
+      });
+    }
 
-      return hay.includes(term);
+    if (!this.sortBy) return items;
+
+    return [...items].sort((a, b) => {
+      const costoA = Number(a.precioCosto ?? 0);
+      const costoB = Number(b.precioCosto ?? 0);
+      const ventaA = Number(a.precioVenta ?? 0);
+      const ventaB = Number(b.precioVenta ?? 0);
+
+      let valueA = 0;
+      let valueB = 0;
+
+      if (this.sortBy === 'precioCosto') {
+        valueA = costoA;
+        valueB = costoB;
+      } else if (this.sortBy === 'precioVenta') {
+        valueA = ventaA;
+        valueB = ventaB;
+      } else {
+        valueA = a.tipo === 'INSUMO' ? 0 : ventaA - costoA;
+        valueB = b.tipo === 'INSUMO' ? 0 : ventaB - costoB;
+      }
+
+      if (valueA === valueB) return 0;
+      const result = valueA < valueB ? -1 : 1;
+      return this.sortDir === 'asc' ? result : -result;
     });
   }
 
@@ -144,6 +188,7 @@ export class ProductosPage {
 
     this.form.enable();
     this.applyTipoRules();
+    this.form.get('unidadBase')?.enable({ emitEvent: false });
 
     this.productosService.suggestInternalCode().subscribe({
       next: (res) => {
@@ -170,6 +215,8 @@ export class ProductosPage {
     });
     this.form.enable();
     this.applyTipoRules();
+    this.form.get('precioCosto')?.disable({ emitEvent: false });
+    this.form.get('unidadBase')?.disable({ emitEvent: false });
   }
 
   closeModal() {
@@ -191,22 +238,32 @@ export class ProductosPage {
       return;
     }
 
-    const payload = {
+    const createPayload = {
       name: (v.name ?? '').trim(),
       internalCode: (v.internalCode ?? '').trim(),
       barcode: (v.barcode ?? '').trim() || undefined,
-      unidadBase: (v.unidadBase ?? '').trim() || undefined,
-      precioCosto: Number(v.precioCosto ?? 0),
+      unidadBase: (v.unidadBase ?? '').trim(),
       precioVenta: tipo === 'INSUMO' ? 0 : Number(v.precioVenta ?? 0),
       tipo,
+    };
+
+    const updatePayload = {
+      name: createPayload.name,
+      internalCode: createPayload.internalCode,
+      barcode: createPayload.barcode,
+      precioVenta: createPayload.precioVenta,
+      tipo: createPayload.tipo,
     };
 
     this.loading = true;
     this.errorMsg = '';
 
     const req$ = this.editing
-      ? this.productosService.update(this.editing.id, payload)
-      : this.productosService.create(payload);
+      ? this.productosService.update(this.editing.id, updatePayload)
+      : this.productosService.create({
+          ...createPayload,
+          precioCosto: Number(v.precioCosto ?? 0),
+        });
 
     req$.subscribe({
       next: () => {

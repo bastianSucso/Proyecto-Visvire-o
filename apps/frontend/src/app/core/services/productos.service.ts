@@ -25,7 +25,7 @@ export interface CreateProductoDto {
   name: string;
   internalCode: string;
   barcode?: string;
-  unidadBase?: string;
+  unidadBase: string;
   precioCosto: number;
   precioVenta: number;
   tipo: ProductoTipo;
@@ -36,8 +36,6 @@ export interface UpdateProductoDto {
   name?: string;
   internalCode?: string;
   barcode?: string | null;
-  unidadBase?: string | null;
-  precioCosto?: number;
   precioVenta?: number;
   tipo?: ProductoTipo;
   rendimiento?: number | null;

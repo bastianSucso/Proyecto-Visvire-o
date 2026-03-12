@@ -4,20 +4,20 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import {
   FinanzasService,
-  HistoricoDiarioItem,
   PagedResponse,
-} from '../../../../../core/services/finanzas.service';
+  ReporteVentasDiarioItem,
+} from '../../../../core/services/finanzas.service';
 
 @Component({
-  selector: 'app-finanzas-historico-page',
+  selector: 'app-reporte-ventas-page',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
-  templateUrl: './finanzas-historico.page.html',
+  templateUrl: './reporte-ventas.page.html',
 })
-export class FinanzasHistoricoPage implements OnInit {
+export class ReporteVentasPage implements OnInit {
   private readonly finanzasService = inject(FinanzasService);
 
-  items: HistoricoDiarioItem[] = [];
+  items: ReporteVentasDiarioItem[] = [];
   loading = false;
   errorMsg = '';
 
@@ -37,13 +37,13 @@ export class FinanzasHistoricoPage implements OnInit {
     this.errorMsg = '';
 
     this.finanzasService
-      .listarHistoricoDiario({
+      .listarReporteVentasDiario({
         fecha: this.fecha || undefined,
         page: this.page,
         pageSize: this.pageSize,
       })
       .subscribe({
-        next: (res: PagedResponse<HistoricoDiarioItem>) => {
+        next: (res: PagedResponse<ReporteVentasDiarioItem>) => {
           this.items = res.items ?? [];
           this.totalItems = res.meta?.totalItems ?? 0;
           this.totalPages = Math.max(1, res.meta?.totalPages ?? 1);
@@ -53,7 +53,7 @@ export class FinanzasHistoricoPage implements OnInit {
           const msg = err?.error?.message;
           this.errorMsg = Array.isArray(msg)
             ? msg.join(' | ')
-            : (msg ?? 'No se pudo cargar el historico financiero.');
+            : (msg ?? 'No se pudo cargar el reporte de ventas.');
         },
         complete: () => {
           this.loading = false;

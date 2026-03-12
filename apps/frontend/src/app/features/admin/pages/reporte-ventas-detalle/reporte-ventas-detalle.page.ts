@@ -3,27 +3,27 @@ import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   FinanzasService,
-  HistoricoDiarioDetalleResponse,
-  HistoricoDiarioResumen,
-  JornadaHistoricoDetalle,
-  JornadaHistoricoDetalleVenta,
+  JornadaReporteVentasDetalle,
+  JornadaReporteVentasDetalleVenta,
+  ReporteVentasDiarioDetalleResponse,
+  ReporteVentasDiarioResumen,
   VentaAlojamientoDetalleAdminResponse,
   VentaPosDetalleAdminResponse,
-} from '../../../../../core/services/finanzas.service';
+} from '../../../../core/services/finanzas.service';
 
 @Component({
-  selector: 'app-finanzas-historico-detalle-page',
+  selector: 'app-reporte-ventas-detalle-page',
   standalone: true,
   imports: [CommonModule, RouterModule],
-  templateUrl: './finanzas-historico-detalle.page.html',
+  templateUrl: './reporte-ventas-detalle.page.html',
 })
-export class FinanzasHistoricoDetallePage implements OnInit {
+export class ReporteVentasDetallePage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly finanzasService = inject(FinanzasService);
 
   fecha = '';
-  jornadas: JornadaHistoricoDetalle[] = [];
-  resumen: HistoricoDiarioResumen = {
+  jornadas: JornadaReporteVentasDetalle[] = [];
+  resumen: ReporteVentasDiarioResumen = {
     cantidadJornadas: 0,
     totalVentas: 0,
     cantidadVentas: 0,
@@ -57,8 +57,8 @@ export class FinanzasHistoricoDetallePage implements OnInit {
     this.errorMsg = '';
     this.expandedJornadas.clear();
 
-    this.finanzasService.obtenerHistoricoDetalleDia(this.fecha).subscribe({
-      next: (res: HistoricoDiarioDetalleResponse) => {
+    this.finanzasService.obtenerReporteVentasDetalleDia(this.fecha).subscribe({
+      next: (res: ReporteVentasDiarioDetalleResponse) => {
         this.jornadas = res.jornadas ?? [];
         this.resumen = res.resumenDia ?? {
           cantidadJornadas: 0,
@@ -117,7 +117,7 @@ export class FinanzasHistoricoDetallePage implements OnInit {
     }).format(new Date(value));
   }
 
-  responsableLabel(jornada: JornadaHistoricoDetalle) {
+  responsableLabel(jornada: JornadaReporteVentasDetalle) {
     const nombre = jornada.responsableCierre?.nombre?.trim();
     if (nombre) return nombre;
     return jornada.responsableCierre?.email ?? 'No informado';
@@ -133,7 +133,7 @@ export class FinanzasHistoricoDetallePage implements OnInit {
     return 'Tarjeta';
   }
 
-  verOperacion(venta: JornadaHistoricoDetalleVenta) {
+  verOperacion(venta: JornadaReporteVentasDetalleVenta) {
     if (venta.tipo === 'VENTA_POS') {
       this.openVentaPosModal(venta.ventaId);
       return;

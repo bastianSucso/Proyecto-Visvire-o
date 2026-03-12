@@ -568,7 +568,7 @@ export class InventarioService {
       ubicacionId: string;
       cantidad: number;
       motivo: string;
-      categoria: 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+      categoria: string;
     },
     usuarioId: string,
   ) {

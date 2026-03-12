@@ -99,7 +99,7 @@ export interface PagedResponse<T> {
   };
 }
 
-export interface HistoricoDiarioItem {
+export interface ReporteVentasDiarioItem {
   fecha: string;
   cantidadJornadas: number;
   primeraApertura: string | null;
@@ -117,7 +117,7 @@ export interface ResponsableJornada {
   email: string | null;
 }
 
-export interface JornadaHistoricoDetalleVenta {
+export interface JornadaReporteVentasDetalleVenta {
   ventaId: number;
   tipo: 'VENTA_POS' | 'VENTA_ALOJAMIENTO';
   fechaVenta: string;
@@ -127,8 +127,9 @@ export interface JornadaHistoricoDetalleVenta {
   montoTotal: number;
 }
 
-export interface JornadaHistoricoDetalle {
+export interface JornadaReporteVentasDetalle {
   sesionCajaId: number;
+  estado: 'ABIERTA' | 'CERRADA';
   fechaApertura: string;
   fechaCierre: string | null;
   montoInicial: number;
@@ -139,10 +140,10 @@ export interface JornadaHistoricoDetalle {
   totalVentas: number;
   cantidadVentas: number;
   gananciaBruta: number;
-  ventas: JornadaHistoricoDetalleVenta[];
+  ventas: JornadaReporteVentasDetalleVenta[];
 }
 
-export interface HistoricoDiarioResumen {
+export interface ReporteVentasDiarioResumen {
   cantidadJornadas: number;
   totalVentas: number;
   cantidadVentas: number;
@@ -151,10 +152,10 @@ export interface HistoricoDiarioResumen {
   totalTarjeta: number;
 }
 
-export interface HistoricoDiarioDetalleResponse {
+export interface ReporteVentasDiarioDetalleResponse {
   fecha: string;
-  resumenDia: HistoricoDiarioResumen;
-  jornadas: JornadaHistoricoDetalle[];
+  resumenDia: ReporteVentasDiarioResumen;
+  jornadas: JornadaReporteVentasDetalle[];
 }
 
 export interface VentaPosDetalleAdminResponse {
@@ -185,6 +186,7 @@ export interface VentaPosDetalleAdminResponse {
     idItem: number;
     productoId: string | null;
     nombreProducto: string | null;
+    unidadProducto: string | null;
     cantidad: number;
     precioUnitario: number;
     subtotal: number;
@@ -307,19 +309,19 @@ export class FinanzasService {
     return this.http.get<ResumenFinancieroResponse>('/api/finanzas/resumen', { params });
   }
 
-  listarHistoricoDiario(filters?: { fecha?: string; page?: number; pageSize?: number }) {
+  listarReporteVentasDiario(filters?: { fecha?: string; page?: number; pageSize?: number }) {
     let params = new HttpParams();
     if (filters?.fecha) params = params.set('fecha', filters.fecha);
     if (filters?.page) params = params.set('page', String(filters.page));
     if (filters?.pageSize) params = params.set('pageSize', String(filters.pageSize));
 
-    return this.http.get<PagedResponse<HistoricoDiarioItem>>('/api/finanzas/historico-diario', {
+    return this.http.get<PagedResponse<ReporteVentasDiarioItem>>('/api/finanzas/historico-diario', {
       params,
     });
   }
 
-  obtenerHistoricoDetalleDia(fecha: string) {
-    return this.http.get<HistoricoDiarioDetalleResponse>(`/api/finanzas/historico-diario/${fecha}/jornadas`);
+  obtenerReporteVentasDetalleDia(fecha: string) {
+    return this.http.get<ReporteVentasDiarioDetalleResponse>(`/api/finanzas/historico-diario/${fecha}/jornadas`);
   }
 
   obtenerDetalleVentaPos(ventaId: number) {

@@ -2,15 +2,32 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-export type IncidenciaTipo = 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+export interface IncidenciaCategoriaRef {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activa: boolean;
+}
 
 export interface IncidenciaDto {
   id: number;
   fecha: string;
-  tipo: 'FALTANTE' | 'EXCEDENTE' | 'DANIO' | 'VENCIDO' | 'OTRO';
+  origen?: 'VENDEDOR' | 'ADMIN';
+  categoria: IncidenciaCategoriaRef;
   cantidad: number;
   observacion: string | null;
-  producto: { id: string; name: string; internalCode: string; barcode?: string | null };
+  usuario?: {
+    idUsuario?: string;
+    nombre?: string | null;
+    apellido?: string | null;
+  };
+  producto: {
+    id: string;
+    name: string;
+    internalCode: string;
+    unidadBase?: string | null;
+    barcode?: string | null;
+  };
   ubicacion?: { id: string; nombre: string; tipo: string };
   sesionCaja: { id: number; fechaApertura: string; fechaCierre: string | null };
 }
@@ -18,7 +35,7 @@ export interface IncidenciaDto {
 export interface CreateIncidenciaStockDto {
   sesionCajaId: number;
   productoId: string;
-  tipo: IncidenciaTipo;
+  categoriaId: string;
   cantidad: number;
   observacion?: string;
 }

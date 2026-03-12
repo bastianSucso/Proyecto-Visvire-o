@@ -5,7 +5,7 @@ import { RouterModule } from '@angular/router';
 import { CajaActualResponse, CajaResumenResponse, CajaService } from '../../../../core/services/caja.service';
 import { ProductosService, Producto } from '../../../../core/services/productos.service';
 import { Router } from '@angular/router';
-import { IncidenciasService, IncidenciaTipo } from '../../../../core/services/incidencias.service';
+import { IncidenciasService } from '../../../../core/services/incidencias.service';
 import { VentaListItem, VentasService } from '../../../../core/services/ventas.service';
 import {
   AlojamientoService,
@@ -83,7 +83,7 @@ export class CajaPage implements OnInit {
 
     this.incidenciaForm = this.fb.group({
       productoId: ['', [Validators.required]],
-      tipo: ['FALTANTE' as IncidenciaTipo, [Validators.required]],
+      categoriaId: ['', [Validators.required]],
       cantidad: [1, [Validators.required, Validators.min(1)]],
       observacion: [''],
     });
@@ -341,7 +341,7 @@ export class CajaPage implements OnInit {
     const payload = {
       sesionCajaId: this.cajaActual.sesionCaja.idSesionCaja,
       productoId: String(v.productoId),
-      tipo: v.tipo as IncidenciaTipo,
+      categoriaId: String(v.categoriaId),
       cantidad: Number(v.cantidad),
       observacion: (v.observacion ?? '').trim() || undefined,
     };

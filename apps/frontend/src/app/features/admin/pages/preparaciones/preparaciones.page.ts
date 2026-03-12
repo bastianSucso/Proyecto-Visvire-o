@@ -37,7 +37,7 @@ export class PreparacionesPage {
     name: ['', [Validators.required, Validators.maxLength(120)]],
     internalCode: ['', [Validators.required, Validators.maxLength(60)]],
     barcode: [''],
-    unidadBase: [''],
+    unidadBase: ['', [Validators.required]],
     precioCosto: [0, [Validators.required, Validators.min(0)]],
     precioVenta: [0, [Validators.required, Validators.min(0)]],
   });
@@ -147,6 +147,7 @@ export class PreparacionesPage {
 
     this.form.enable();
     this.form.get('precioCosto')?.disable();
+    this.form.get('unidadBase')?.enable({ emitEvent: false });
 
     this.productosService.suggestInternalCode().subscribe({
       next: (res) => {
@@ -173,6 +174,7 @@ export class PreparacionesPage {
     });
     this.form.enable();
     this.form.get('precioCosto')?.disable();
+    this.form.get('unidadBase')?.disable({ emitEvent: false });
   }
 
   closeModal() {
@@ -188,21 +190,29 @@ export class PreparacionesPage {
 
     const v = this.form.value;
 
-    const payload = {
+    const createPayload = {
       name: (v.name ?? '').trim(),
       internalCode: (v.internalCode ?? '').trim(),
       barcode: (v.barcode ?? '').trim() || undefined,
-      unidadBase: (v.unidadBase ?? '').trim() || undefined,
+      unidadBase: (v.unidadBase ?? '').trim(),
       precioVenta: Number(v.precioVenta ?? 0),
       tipo: 'COMIDA' as ProductoTipo,
+    };
+
+    const updatePayload = {
+      name: createPayload.name,
+      internalCode: createPayload.internalCode,
+      barcode: createPayload.barcode,
+      precioVenta: createPayload.precioVenta,
+      tipo: createPayload.tipo,
     };
 
     this.loading = true;
     this.errorMsg = '';
 
     const req$ = this.editing
-      ? this.productosService.update(this.editing.id, payload)
-      : this.productosService.create({ ...payload, precioCosto: 0 });
+      ? this.productosService.update(this.editing.id, updatePayload)
+      : this.productosService.create({ ...createPayload, precioCosto: 0 });
 
     req$.subscribe({
       next: () => {

@@ -15,6 +15,7 @@ import { Roles } from '../../common/guards/roles.decorator';
 import { HistorialService } from './historial.service';
 import { CreateInconsistenciaAdminDto } from './dto/create-inconsistencia-admin.dto';
 import { ResolverInconsistenciaDto } from './dto/resolver-inconsistencia.dto';
+import { ConsultarPerdidasDto, ListarPerdidasProductosDto } from './dto/consultar-perdidas.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -30,7 +31,7 @@ export class InconsistenciasAdminController {
   @Get()
   listar(
     @Query('estado') estado?: any,
-    @Query('tipo') tipo?: any,
+    @Query('categoriaId') categoriaId?: string,
     @Query('contexto') contexto?: any,
     @Query('productoId') productoId?: string,
     @Query('sesionCajaId') sesionCajaId?: string,
@@ -38,7 +39,7 @@ export class InconsistenciasAdminController {
   ) {
     return this.historialService.listarInconsistenciasAdmin({
       estado,
-      tipo,
+      categoriaId,
       contexto,
       productoId,
       sesionCajaId: sesionCajaId ? Number(sesionCajaId) : undefined,
@@ -47,8 +48,13 @@ export class InconsistenciasAdminController {
   }
 
   @Get('perdidas/resumen')
-  resumenPerdidas(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.historialService.obtenerResumenPerdidas({ from, to });
+  resumenPerdidas(@Query() query: ConsultarPerdidasDto) {
+    return this.historialService.obtenerResumenPerdidas(query);
+  }
+
+  @Get('perdidas/productos')
+  listarPerdidasProductos(@Query() query: ListarPerdidasProductosDto) {
+    return this.historialService.listarPerdidasProductos(query);
   }
 
   @Get('sesion-activa')

@@ -9,26 +9,25 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
+        <a
+          routerLink="/admin/inventario"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Volver
+        </a>
         <button
           type="button"
           (click)="openNuevaModal()"
-          class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+          class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
         >
           + Nueva inconsistencia
         </button>
         <a
-          routerLink="/admin/inventario"
-          class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          routerLink="/admin/inventario/inconsistencias-categorias"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
         >
-          Volver a inventario
+          Categorías
         </a>
-        <button
-          type="button"
-          (click)="cargar()"
-          class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-        >
-          Refrescar
-        </button>
       </div>
     </div>
 
@@ -96,7 +95,7 @@
               >{{ getEstado(item) }}</span>
             </div>
             <p class="mt-1 text-xs text-slate-500">
-              {{ item.origen }} · {{ item.tipo }} · {{ item.ubicacion.nombre }} ·
+              {{ item.origen }} · {{ item.categoria.codigo }} · {{ item.ubicacion.nombre }} ·
               {{ item.fechaHoraDeteccion | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}
             </p>
           </button>
@@ -124,7 +123,7 @@
           </div>
           <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
             <p class="text-xs text-slate-500">Categoría reportada</p>
-            <p class="font-semibold text-slate-900">{{ s.tipo }}</p>
+            <p class="font-semibold text-slate-900">{{ s.categoria.codigo }} · {{ s.categoria.nombre }}</p>
           </div>
           <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
             <p class="text-xs text-slate-500">Cantidad reportada</p>
@@ -161,7 +160,7 @@
             <div>
               <label class="mb-1 block text-xs font-medium text-slate-600">Categoría de resolución</label>
               <div class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900">
-                {{ s.tipo }}
+                {{ s.categoria.codigo }} · {{ s.categoria.nombre }}
               </div>
             </div>
             <div class="sm:col-span-2">
@@ -187,7 +186,7 @@
           <h3 class="text-sm font-semibold text-slate-900">Resolución aplicada</h3>
           <div class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <p><span class="text-xs text-slate-500">Estado:</span> {{ r.estadoFinal }}</p>
-            <p><span class="text-xs text-slate-500">Categoría:</span> {{ r.categoria }}</p>
+            <p><span class="text-xs text-slate-500">Categoría:</span> {{ r.categoria.codigo }} · {{ r.categoria.nombre }}</p>
             <p><span class="text-xs text-slate-500">Stock teórico:</span> {{ (+r.stockTeorico) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}</p>
             <p><span class="text-xs text-slate-500">Stock real:</span> {{ (+r.stockRealObservado) | number:'1.0-3' }} {{ s.producto.unidadBase ?? '' }}</p>
             <p>
@@ -257,11 +256,9 @@
 
           <div>
             <label class="mb-1 block text-xs font-medium text-slate-600">Categoría</label>
-            <select [(ngModel)]="tipoNuevo" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-              <option value="FALTANTE">FALTANTE</option>
-              <option value="DANIO">DANIO</option>
-              <option value="VENCIDO">VENCIDO</option>
-              <option value="OTRO">OTRO</option>
+            <select [(ngModel)]="categoriaNuevaId" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+              <option value="">Selecciona categoría</option>
+              <option *ngFor="let c of categorias" [value]="c.id">{{ c.codigo }} · {{ c.nombre }}</option>
             </select>
           </div>
 

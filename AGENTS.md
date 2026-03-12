@@ -175,6 +175,15 @@
   - Advertencia: gama `amber`.
   - Riesgo/eliminacion: borde/texto rojo suave.
 
+#### Preferencia explicita del usuario (obligatoria) - botones admin
+- En cabeceras/listados administrativos, usar botones con alineacion consistente y misma presencia visual.
+- Clase base requerida para botones secundarios de header:
+  - `inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100`
+- Clase base requerida para botones primarios de header:
+  - `inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900`
+- Evitar estilos secundarios antiguos en headers (`rounded-lg` sin `inline-flex`, sin `font-medium`, o sin estado `active`).
+- Mantener esta preferencia en vistas tipo CRUD administrativo (referencia: `inconsistencias-categorias`).
+
 ### Inputs, selects y formularios
 - Control estandar:
   - `w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm`

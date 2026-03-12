@@ -9,8 +9,8 @@
           </div>
 
           <a
-            routerLink="/admin/finanzas/historico"
-            class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            routerLink="/admin/reporte-ventas"
+            class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Volver
           </a>
@@ -80,7 +80,18 @@
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div class="text-sm font-semibold text-slate-900">Jornada #{{ jornada.sesionCajaId }}</div>
+                  <div class="flex items-center gap-2">
+                    <div class="text-sm font-semibold text-slate-900">Jornada #{{ jornada.sesionCajaId }}</div>
+                    <span
+                      class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      [ngClass]="{
+                        'bg-amber-50 text-amber-700 ring-1 ring-amber-200': jornada.estado === 'ABIERTA',
+                        'bg-slate-100 text-slate-700 ring-1 ring-slate-200': jornada.estado === 'CERRADA'
+                      }"
+                    >
+                      {{ jornada.estado }}
+                    </span>
+                  </div>
                   <div class="text-xs text-slate-500">
                     {{ datetimeLabel(jornada.fechaApertura) }} · {{ datetimeLabel(jornada.fechaCierre) }}
                   </div>
@@ -170,7 +181,7 @@
                       <td class="px-4 py-3 text-right">
                         <button
                           type="button"
-                          class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
                           (click)="verOperacion(v)"
                         >
                           Ver
@@ -269,7 +280,9 @@
                         <div class="font-medium text-slate-900">{{ item.nombreProducto || '-' }}</div>
                         <div class="text-xs text-slate-500">{{ item.productoId || '-' }}</div>
                       </td>
-                      <td class="px-4 py-3 text-right">{{ item.cantidad }}</td>
+                      <td class="px-4 py-3 text-right">
+                        {{ item.cantidad | number:'1.0-3' }} {{ item.unidadProducto ?? '' }}
+                      </td>
                       <td class="px-4 py-3 text-right">{{ money(item.precioUnitario) }}</td>
                       <td class="px-4 py-3 text-right font-medium">{{ money(item.subtotal) }}</td>
                       <td class="px-4 py-3 text-right">{{ money(item.costoUnitarioSnapshot) }}</td>

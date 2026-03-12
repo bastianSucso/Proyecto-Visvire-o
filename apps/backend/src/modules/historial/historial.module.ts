@@ -12,6 +12,10 @@ import { InventarioModule } from '../inventario/inventario.module';
 import { InconsistenciasAdminController } from './inconsistencias-admin.controller';
 import { IncidenciaResolucionAdminEntity } from './entities/incidencia-resolucion-admin.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
+import { InconsistenciaCategoriaEntity } from './entities/inconsistencia-categoria.entity';
+import { InconsistenciasCategoriasService } from './inconsistencias-categorias.service';
+import { InconsistenciasCategoriasController } from './inconsistencias-categorias.controller';
+import { InconsistenciasCategoriasAdminController } from './inconsistencias-categorias-admin.controller';
 
 @Module({
   imports: [
@@ -20,6 +24,7 @@ import { ProductoStockEntity } from '../productos/entities/producto-stock.entity
       StockSesionCajaEntity,
       IncidenciaStockEntity,
       IncidenciaResolucionAdminEntity,
+      InconsistenciaCategoriaEntity,
       ProductoEntity,
       ProductoStockEntity,
       UbicacionEntity,
@@ -28,7 +33,12 @@ import { ProductoStockEntity } from '../productos/entities/producto-stock.entity
     InventarioModule,
   ],
   exports: [TypeOrmModule, HistorialService],
-  controllers: [SesionCajaController, InconsistenciasAdminController],
-  providers: [HistorialService],
+  controllers: [
+    SesionCajaController,
+    InconsistenciasAdminController,
+    InconsistenciasCategoriasController,
+    InconsistenciasCategoriasAdminController,
+  ],
+  providers: [HistorialService, InconsistenciasCategoriasService],
 })
 export class HistorialModule {}

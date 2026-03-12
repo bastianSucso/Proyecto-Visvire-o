@@ -33,8 +33,8 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
-          <a class="rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm text-white" routerLink="/admin/rrhh/personal">Personal</a>
-          <a class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50" routerLink="/admin/rrhh/pagos">Pagos</a>
+          <a class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900" routerLink="/admin/rrhh/personal">Personal</a>
+          <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100" routerLink="/admin/rrhh/pagos">Pagos</a>
         </div>
 
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -156,7 +156,7 @@
                   type="button"
                   (click)="first()"
                   [disabled]="page === 1"
-                  class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50"
                 >
                   «
                 </button>
@@ -165,7 +165,7 @@
                   type="button"
                   (click)="prev()"
                   [disabled]="page === 1"
-                  class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50"
                 >
                   Anterior
                 </button>
@@ -174,7 +174,7 @@
                   type="button"
                   (click)="next()"
                   [disabled]="page === totalPages"
-                  class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50"
                 >
                   Siguiente
                 </button>
@@ -183,7 +183,7 @@
                   type="button"
                   (click)="last()"
                   [disabled]="page === totalPages"
-                  class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50"
                 >
                   »
                 </button>
@@ -246,10 +246,10 @@
           </div>
 
           <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-            <button type="button" (click)="closeCreateModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button type="button" (click)="closeCreateModal()" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100">
               Cancelar
             </button>
-            <button type="submit" [disabled]="saving" class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+            <button type="submit" [disabled]="saving" class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900 disabled:opacity-60">
               {{ saving ? 'Guardando...' : 'Guardar trabajador' }}
             </button>
           </div>
@@ -307,10 +307,10 @@
           </div>
 
           <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-            <button type="button" (click)="closeEditModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button type="button" (click)="closeEditModal()" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100">
               Cancelar
             </button>
-            <button type="submit" [disabled]="editSaving" class="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+            <button type="submit" [disabled]="editSaving" class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900 disabled:opacity-60">
               {{ editSaving ? 'Guardando...' : 'Guardar cambios' }}
             </button>
           </div>

@@ -1,10 +1,10 @@
-import { Component, ElementRef, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, ElementRef, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { ProductosService, Producto } from '../../../../../core/services/productos.service';
-import { UbicacionesService, Ubicacion } from '../../../../../core/services/ubicaciones.service';
 import { InventarioService } from '../../../../../core/services/inventario.service';
+import { Producto, ProductosService } from '../../../../../core/services/productos.service';
+import { Ubicacion, UbicacionesService } from '../../../../../core/services/ubicaciones.service';
 
 @Component({
   selector: 'app-inventario-ingreso-page',
@@ -31,6 +31,7 @@ export class InventarioIngresoPage {
     unidadBase: string | null;
     cantidad: number;
     costoIngreso: number;
+    costoBase: number;
     aplicaCreditoFiscal: boolean;
   }[] = [];
   loading = false;
@@ -48,8 +49,8 @@ export class InventarioIngresoPage {
   cantidadRapida = 1;
   editCantidad: Record<string, number> = {};
   editCosto: Record<string, number> = {};
+  editCostoText: Record<string, string> = {};
   editAplicaCredito: Record<string, boolean> = {};
-
 
   ngOnInit() {
     this.cargarProductos();
@@ -64,12 +65,65 @@ export class InventarioIngresoPage {
     return producto.tipo === 'COMIDA';
   }
 
+  private parseClp(raw: string | number) {
+    const onlyDigits = String(raw ?? '').replace(/\D/g, '');
+    if (!onlyDigits) return 0;
+    const parsed = Number(onlyDigits);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.trunc(parsed);
+  }
+
+  formatClp(value: number) {
+    const amount = Math.max(0, Math.trunc(Number(value ?? 0)));
+    return new Intl.NumberFormat('es-CL', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
   getTipoBadgeClass(producto: Producto) {
     const tipo = producto.tipo ?? '';
     if (tipo === 'INSUMO') return 'bg-blue-50 text-blue-700 ring-blue-200';
     if (tipo === 'REVENTA') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
     if (tipo === 'COMIDA') return 'bg-amber-50 text-amber-700 ring-amber-200';
     return 'bg-slate-100 text-slate-700 ring-slate-200';
+  }
+
+  getCostoWarningLevel(item: { costoIngreso: number; costoBase: number }) {
+    const base = Number(item.costoBase ?? 0);
+    const ingreso = Number(item.costoIngreso ?? 0);
+    if (!Number.isFinite(base) || base <= 0 || !Number.isFinite(ingreso) || ingreso <= 0) {
+      return 'none';
+    }
+
+    const ratio = ingreso / base;
+    if (ratio >= 10) return 'danger';
+    if (ratio >= 3) return 'warn';
+    return 'none';
+  }
+
+  hasCostoBase(item: { costoBase: number }) {
+    const base = Number(item.costoBase ?? 0);
+    return Number.isFinite(base) && base > 0;
+  }
+
+  getCostoWarningText(item: { costoIngreso: number; costoBase: number }) {
+    const level = this.getCostoWarningLevel(item);
+    if (level === 'danger') {
+      return 'Costo muy alto vs costo habitual (>= 10x). Revisa antes de confirmar.';
+    }
+    if (level === 'warn') {
+      return 'Costo alto vs costo habitual (>= 3x). Confirma si es correcto.';
+    }
+    return '';
+  }
+
+  get subtotalDocumento() {
+    return this.items.reduce((sum, it) => sum + Number(it.cantidad) * Number(it.costoIngreso), 0);
+  }
+
+  subtotalItem(item: { cantidad: number; costoIngreso: number }) {
+    return Number(item.cantidad) * Number(item.costoIngreso);
   }
 
   private isBarcodeLike(s: string) {
@@ -238,9 +292,13 @@ export class InventarioIngresoPage {
       this.scanError = 'No se permite ingresar productos COMIDA.';
       return;
     }
-    const costoBase = Number(producto.precioCosto ?? 0);
-    const costoIngreso = Number.isFinite(costoBase) ? costoBase : 0;
+
+    const costoBaseRaw = Number(producto.precioCosto ?? 0);
+    const costoBase =
+      Number.isFinite(costoBaseRaw) && costoBaseRaw > 0 ? Math.trunc(costoBaseRaw) : 0;
+    const costoIngreso = costoBase;
     const existing = this.items.find((it) => it.id === producto.id);
+
     if (!existing) {
       this.items = [
         ...this.items,
@@ -252,11 +310,13 @@ export class InventarioIngresoPage {
           unidadBase: producto.unidadBase ?? null,
           cantidad,
           costoIngreso,
+          costoBase,
           aplicaCreditoFiscal: false,
         },
       ];
       this.editCantidad[producto.id] = cantidad;
       this.editCosto[producto.id] = costoIngreso;
+      this.editCostoText[producto.id] = this.formatClp(costoIngreso);
       this.editAplicaCredito[producto.id] = false;
     } else {
       existing.cantidad += cantidad;
@@ -279,15 +339,31 @@ export class InventarioIngresoPage {
     if (item) item.cantidad = cantidad;
   }
 
+  onCostoInput(itemId: string, value: string) {
+    const parsed = this.parseClp(value);
+    this.editCosto[itemId] = parsed;
+    this.editCostoText[itemId] = parsed > 0 ? this.formatClp(parsed) : '';
+
+    const item = this.items.find((it) => it.id === itemId);
+    if (item) {
+      item.costoIngreso = parsed;
+    }
+  }
+
   guardarCosto(itemId: string) {
-    const costo = Number(this.editCosto[itemId]);
+    const item = this.items.find((it) => it.id === itemId);
+    if (!item) return;
+
+    const costo = this.parseClp(this.editCostoText[itemId]);
     if (!Number.isFinite(costo) || costo <= 0) {
       this.scanError = 'El costo debe ser mayor a 0.';
+      this.editCostoText[itemId] = this.formatClp(item.costoIngreso);
       return;
     }
 
-    const item = this.items.find((it) => it.id === itemId);
-    if (item) item.costoIngreso = costo;
+    this.editCosto[itemId] = costo;
+    this.editCostoText[itemId] = this.formatClp(costo);
+    item.costoIngreso = costo;
   }
 
   guardarAplicaCredito(itemId: string) {
@@ -300,17 +376,18 @@ export class InventarioIngresoPage {
     this.items = this.items.filter((it) => it.id !== itemId);
     delete this.editCantidad[itemId];
     delete this.editCosto[itemId];
+    delete this.editCostoText[itemId];
     delete this.editAplicaCredito[itemId];
   }
 
-  confirmar() {
+  private validarFormulario() {
     if (!this.destinoId) {
       this.errorMsg = 'Selecciona un destino.';
-      return;
+      return false;
     }
     if (this.items.length === 0) {
       this.errorMsg = 'Debes agregar al menos un producto.';
-      return;
+      return false;
     }
 
     const invalido = this.items.find(
@@ -318,14 +395,20 @@ export class InventarioIngresoPage {
     );
     if (invalido) {
       this.errorMsg = 'Cada item debe tener un costo válido (> 0).';
-      return;
+      return false;
     }
 
     const invalidoCredito = this.items.find((it) => typeof it.aplicaCreditoFiscal !== 'boolean');
     if (invalidoCredito) {
       this.errorMsg = 'Cada item debe indicar si aplica crédito fiscal.';
-      return;
+      return false;
     }
+
+    return true;
+  }
+
+  confirmar() {
+    if (!this.validarFormulario()) return;
 
     this.loading = true;
     this.errorMsg = '';
@@ -336,7 +419,7 @@ export class InventarioIngresoPage {
       items: this.items.map((it) => ({
         productoId: it.id,
         cantidad: it.cantidad,
-        costoIngreso: it.costoIngreso,
+        costoIngreso: Math.trunc(it.costoIngreso),
         aplicaCreditoFiscal: it.aplicaCreditoFiscal,
       })),
     };

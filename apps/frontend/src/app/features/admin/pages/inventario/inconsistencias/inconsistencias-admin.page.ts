@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { Producto, ProductosService } from '../../../../../core/services/productos.service';
 import {
-  InconsistenciaCategoria,
   InconsistenciaContexto,
+  InconsistenciaCategoriaRef,
   InconsistenciaDetalle,
   InconsistenciaEstado,
   InconsistenciaListItem,
@@ -14,6 +14,7 @@ import {
 } from '../../../../../core/services/inconsistencias-admin.service';
 import { Ubicacion, UbicacionesService } from '../../../../../core/services/ubicaciones.service';
 import { InventarioService } from '../../../../../core/services/inventario.service';
+import { InconsistenciasCategoriasService } from '../../../../../core/services/inconsistencias-categorias.service';
 
 @Component({
   selector: 'app-inconsistencias-admin-page',
@@ -26,6 +27,7 @@ export class InconsistenciasAdminPage implements OnInit {
   private readonly productosService = inject(ProductosService);
   private readonly ubicacionesService = inject(UbicacionesService);
   private readonly inventarioService = inject(InventarioService);
+  private readonly categoriasService = inject(InconsistenciasCategoriasService);
 
   loading = false;
   saving = false;
@@ -39,11 +41,12 @@ export class InconsistenciasAdminPage implements OnInit {
   selected: InconsistenciaDetalle | null = null;
   productos: Producto[] = [];
   ubicaciones: Ubicacion[] = [];
+  categorias: InconsistenciaCategoriaRef[] = [];
 
   contextoNuevo: InconsistenciaContexto = 'DURANTE_JORNADA';
   sesionActivaModal: InconsistenciaSesionActiva | null = null;
   ubicacionNueva = '';
-  tipoNuevo: InconsistenciaCategoria = 'FALTANTE';
+  categoriaNuevaId = '';
   cantidadNueva = 1;
   observacionNueva = '';
 
@@ -69,6 +72,21 @@ export class InconsistenciasAdminPage implements OnInit {
     this.ubicacionesService.list(undefined, false).subscribe({
       next: (rows) => {
         this.ubicaciones = rows ?? [];
+      },
+      error: () => {},
+    });
+
+    this.categoriasService.listActivas().subscribe({
+      next: (rows) => {
+        this.categorias = (rows ?? []).map((c) => ({
+          id: c.id,
+          codigo: c.codigo,
+          nombre: c.nombre,
+          activa: c.activa,
+        }));
+        if (!this.categoriaNuevaId && this.categorias.length > 0) {
+          this.categoriaNuevaId = this.categorias[0].id;
+        }
       },
       error: () => {},
     });
@@ -112,7 +130,7 @@ export class InconsistenciasAdminPage implements OnInit {
     this.contextoNuevo = 'FUERA_JORNADA';
     this.sesionActivaModal = null;
     this.ubicacionNueva = '';
-    this.tipoNuevo = 'FALTANTE';
+    this.categoriaNuevaId = this.categorias[0]?.id ?? '';
     this.cantidadNueva = 1;
     this.observacionNueva = '';
     this.scan = '';
@@ -255,6 +273,10 @@ export class InconsistenciasAdminPage implements OnInit {
       this.errorMsg = 'Debes seleccionar una ubicación.';
       return;
     }
+    if (!this.categoriaNuevaId) {
+      this.errorMsg = 'Debes seleccionar una categoría.';
+      return;
+    }
     if (this.isComida(this.productoNuevo)) {
       this.errorMsg =
         'No se puede registrar inconsistencia para productos tipo COMIDA desde este flujo.';
@@ -266,7 +288,7 @@ export class InconsistenciasAdminPage implements OnInit {
         contexto: this.contextoNuevo,
         productoId: this.productoNuevo.id,
         ubicacionId: this.ubicacionNueva,
-        tipo: this.tipoNuevo,
+        categoriaId: this.categoriaNuevaId,
         cantidad: this.cantidadNueva,
         observacion: this.observacionNueva.trim(),
       })

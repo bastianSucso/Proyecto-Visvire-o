@@ -111,6 +111,7 @@ export class AlojamientoMapaPage {
     camas: [],
     inventario: [],
   };
+  roomPriceText = '0';
 
   newAmenity: CreateComodidadDto = { nombre: '', descripcion: '', activa: true };
   editAmenity: (UpdateComodidadDto & { id?: string }) | null = null;
@@ -119,6 +120,34 @@ export class AlojamientoMapaPage {
   ngOnInit() {
     this.loadCatalogos();
     this.loadPisos();
+  }
+
+  private parseClp(raw: string | number) {
+    const onlyDigits = String(raw ?? '').replace(/\D/g, '');
+    if (!onlyDigits) return 0;
+    const parsed = Number(onlyDigits);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.trunc(parsed);
+  }
+
+  private formatClp(value: number) {
+    const amount = Math.max(0, Math.trunc(Number(value ?? 0)));
+    return new Intl.NumberFormat('es-CL', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
+  onRoomPriceInput(value: string) {
+    const parsed = this.parseClp(value);
+    this.roomForm.precio = parsed;
+    this.roomPriceText = parsed > 0 ? this.formatClp(parsed) : '';
+  }
+
+  onRoomPriceBlur() {
+    const parsed = this.parseClp(this.roomPriceText);
+    this.roomForm.precio = parsed;
+    this.roomPriceText = this.formatClp(parsed);
   }
 
   // ---------- Carga inicial ----------
@@ -510,6 +539,7 @@ export class AlojamientoMapaPage {
       camas: [],
       inventario: [],
     };
+    this.roomPriceText = this.formatClp(this.roomForm.precio ?? 0);
     this.selectedRoom = null;
     this.isRoomPanelOpen = true;
   }
@@ -584,6 +614,7 @@ export class AlojamientoMapaPage {
       })),
     };
     this.isRoomPanelOpen = true;
+    this.roomPriceText = this.formatClp(this.roomForm.precio ?? 0);
   }
 
   closeRoomPanel() {
@@ -620,7 +651,7 @@ export class AlojamientoMapaPage {
 
     const payload: CreateHabitacionDto = {
       identificador: (this.roomForm.identificador ?? '').trim(),
-      precio: Number(this.roomForm.precio ?? 0),
+      precio: Math.trunc(Number(this.roomForm.precio ?? 0)),
       estadoActivo: !!this.roomForm.estadoActivo,
       posX: Number(this.roomForm.posX ?? 0),
       posY: Number(this.roomForm.posY ?? 0),

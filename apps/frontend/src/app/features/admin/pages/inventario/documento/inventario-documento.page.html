@@ -57,53 +57,58 @@
         <h2 class="text-sm font-semibold text-slate-900">Productos</h2>
       </div>
 
-      <div class="px-4 py-3 overflow-auto">
-        <table class="w-full text-left text-sm">
+      <div class="overflow-auto px-4 py-3">
+        <table class="w-full text-sm">
           <thead class="text-xs text-slate-500">
-              <tr class="border-b border-slate-100">
-                <th class="py-2 pr-3">Producto</th>
-                <th class="py-2 pr-3">Tipo</th>
-                <th class="py-2 pr-3">Unidad</th>
-                <th class="py-2 pr-3 w-32 text-center">Cantidad</th>
-                <th class="py-2 pr-3 w-36 text-center">Costo total unitario</th>
-                <th class="py-2 pr-3 w-32 text-center">Neto unitario</th>
-                <th class="py-2 pr-3 w-32 text-center">IVA unitario</th>
-                <th class="py-2 pr-3 w-20 text-center">Tasa</th>
-                <th class="py-2 pr-3 w-28 text-center">Crédito</th>
-              </tr>
-            </thead>
-            <tbody class="text-sm">
+            <tr class="border-b border-slate-100">
+              <th class="w-64 px-3 py-2 text-center font-medium">Producto</th>
+              <th class="px-3 py-2 text-center font-medium">Tipo</th>
+              <th class="w-32 px-3 py-2 text-center font-medium">Cantidad</th>
+              <th class="px-3 py-2 text-center font-medium">Unidad</th>
+              <th class="w-36 px-3 py-2 text-center font-medium">Costo total unitario</th>
+              <th class="w-32 px-3 py-2 text-center font-medium">Neto unitario</th>
+              <th class="w-32 px-3 py-2 text-center font-medium">IVA unitario</th>
+              <th class="w-20 px-3 py-2 text-center font-medium">Tasa</th>
+              <th class="w-28 px-3 py-2 text-center font-medium">Crédito</th>
+              <th class="w-40 px-3 py-2 text-center font-medium">Valor de ingreso</th>
+            </tr>
+          </thead>
+          <tbody class="text-sm">
             <tr *ngFor="let it of documento?.items" class="border-b border-slate-100 last:border-b-0">
-              <td class="py-3 pr-3">
-                <div class="font-medium text-slate-900 leading-5">
+              <td class="px-3 py-3 text-center align-middle">
+                <div class="text-center font-medium leading-5 text-slate-900">
                   {{ it.producto?.name ?? '-' }}
                 </div>
-                <div class="text-xs text-slate-500 mt-0.5">
+                <div class="mt-0.5 text-center text-xs text-slate-500">
                   {{ it.producto?.internalCode ?? '-' }}
                   <span *ngIf="it.barcode">• {{ it.barcode }}</span>
                 </div>
               </td>
-              <td class="py-3 pr-3 text-slate-600">{{ it.producto?.tipo ?? '-' }}</td>
-              <td class="py-3 pr-3 text-slate-600">{{ it.unidadBase ?? '-' }}</td>
-              <td class="py-3 pr-3 text-center">{{ it.cantidad }}</td>
-              <td class="py-3 pr-3 text-center text-slate-700">
+              <td class="px-3 py-3 text-center text-slate-600 align-middle">{{ it.producto?.tipo ?? '-' }}</td>
+              
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">{{ it.cantidad }}</td>
+              <td class="px-3 py-3 text-center text-slate-600 align-middle">{{ it.unidadBase ?? '-' }}</td>
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">
                 {{ it.costoIngresoUnitarioTotal !== null ? (it.costoIngresoUnitarioTotal | currency:'CLP':'symbol-narrow':'1.0-0') : '-' }}
               </td>
-              <td class="py-3 pr-3 text-center text-slate-700">
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">
                 {{ it.netoUnitario !== null ? (it.netoUnitario | currency:'CLP':'symbol-narrow':'1.0-0') : '-'}}
               </td>
-              <td class="py-3 pr-3 text-center text-slate-700">
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">
                 {{ it.ivaUnitario !== null ? (it.ivaUnitario | currency:'CLP':'symbol-narrow':'1.0-0') : '-'}}
               </td>
-              <td class="py-3 pr-3 text-center text-slate-700">
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">
                 {{ it.ivaTasa !== null ? ((it.ivaTasa * 100) | number:'1.0-2') + '%' : '-' }}
               </td>
-              <td class="py-3 pr-3 text-center text-slate-700">
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">
                 {{ it.aplicaCreditoFiscal === null ? '-' : (it.aplicaCreditoFiscal ? 'Si' : 'No') }}
+              </td>
+              <td class="px-3 py-3 text-center text-slate-700 align-middle">
+                {{ it.costoIngresoUnitarioTotal !== null ? ((it.cantidad * it.costoIngresoUnitarioTotal) | currency:'CLP':'symbol-narrow':'1.0-0') : '-' }}
               </td>
             </tr>
             <tr *ngIf="!loading && (documento?.items?.length ?? 0) === 0">
-              <td class="py-6 text-slate-500" colspan="9">Sin items.</td>
+              <td class="px-3 py-6 text-center text-slate-500" colspan="10">Sin items.</td>
             </tr>
           </tbody>
         </table>

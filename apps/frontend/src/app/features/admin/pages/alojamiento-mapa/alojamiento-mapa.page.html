@@ -363,7 +363,17 @@
             </label>
             <label class="text-xs text-slate-600">
               Precio
-              <input class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" type="number" [(ngModel)]="roomForm.precio" name="roomPrice" />
+              <input
+                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
+                type="text"
+                inputmode="numeric"
+                [ngModel]="roomPriceText"
+                (ngModelChange)="onRoomPriceInput($event)"
+                (blur)="onRoomPriceBlur()"
+                name="roomPrice"
+                placeholder="80.000"
+              />
+              <span class="mt-1 block text-[11px] text-slate-500">CLP sin decimales</span>
             </label>
             <label class="flex items-center gap-2 text-xs text-slate-600">
               <input type="checkbox" [(ngModel)]="roomForm.estadoActivo" name="roomActive" />

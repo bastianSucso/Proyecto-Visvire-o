@@ -27,11 +27,11 @@ export class CreateProductoDto {
   @MaxLength(80)
   barcode?: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(30)
   @IsIn(['g', 'kg', 'ml', 'l', 'unidad', 'pack'], { message: 'unidadBase inválida' })
-  unidadBase?: string;
+  unidadBase: string;
 
   @Type(() => Number)
   @IsNumber()

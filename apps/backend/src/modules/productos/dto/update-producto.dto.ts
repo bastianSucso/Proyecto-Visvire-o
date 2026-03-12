@@ -2,7 +2,6 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
-  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -26,18 +25,6 @@ export class UpdateProductoDto {
   @IsString()
   @MaxLength(80)
   barcode?: string | null;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(30)
-  @IsIn(['g', 'kg', 'ml', 'l', 'unidad', 'pack'], { message: 'unidadBase inválida' })
-  unidadBase?: string | null;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  precioCosto?: number;
 
   @IsOptional()
   @Type(() => Number)

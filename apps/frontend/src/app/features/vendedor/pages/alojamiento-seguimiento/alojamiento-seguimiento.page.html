@@ -121,7 +121,7 @@
             </thead>
             <tbody>
               <tr *ngFor="let item of group.items" class="border-t border-slate-100">
-                <td class="px-4 py-3 text-slate-700">{{ item.createdAt | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}</td>
+                <td class="px-4 py-3 text-slate-700">{{ item.fechaEvento | date:'dd/MM/yyyy HH:mm':'America/Santiago':'es-CL' }}</td>
                 <td class="px-4 py-3 font-semibold text-slate-800">{{ item.habitacion.identificador }}</td>
                 <td class="px-4 py-3 text-slate-600">{{ item.habitacion.pisoNombre || '-' }}</td>
                 <td class="px-4 py-3 text-slate-700">{{ accionLabel(item.accion) }}</td>

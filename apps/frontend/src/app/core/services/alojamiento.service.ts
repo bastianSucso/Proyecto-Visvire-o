@@ -305,6 +305,7 @@ export interface RoomStateChangeItem {
   id: string;
   asignacionId: string | null;
   createdAt: string;
+  fechaEvento: string;
   accion: HabitacionEstadoCambioAccion;
   estadoAnterior: HabitacionEstadoTimeline;
   estadoNuevo: HabitacionEstadoTimeline;

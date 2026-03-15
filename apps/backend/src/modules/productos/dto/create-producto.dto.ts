@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsEnum,
-  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -30,7 +29,6 @@ export class CreateProductoDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(30)
-  @IsIn(['g', 'kg', 'ml', 'l', 'unidad', 'pack'], { message: 'unidadBase inválida' })
   unidadBase: string;
 
   @Type(() => Number)

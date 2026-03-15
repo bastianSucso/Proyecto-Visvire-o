@@ -12,6 +12,13 @@
       <div class="flex items-center gap-2">
         <button
           type="button"
+          (click)="openUnidadesModal()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Gestionar unidades
+        </button>
+        <button
+          type="button"
           (click)="load()"
           class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
         >
@@ -428,5 +435,11 @@
         </form>
       </div>
     </div>
+
+    <app-unidades-medida-modal
+      [isOpen]="isUnidadesModalOpen"
+      (closed)="closeUnidadesModal()"
+      (changed)="onUnidadesChanged()"
+    ></app-unidades-medida-modal>
   </div>
 </div>

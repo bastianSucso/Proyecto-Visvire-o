@@ -1,0 +1,134 @@
+<div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+  <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+    <div class="flex items-center justify-between border-b border-slate-200 p-5">
+      <h3 class="text-sm font-semibold text-slate-900">Gestionar unidades</h3>
+      <button
+        type="button"
+        class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        (click)="close()"
+      >
+        Cerrar
+      </button>
+    </div>
+
+    <div class="space-y-4 p-5">
+      <div *ngIf="errorMsg" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ errorMsg }}
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <p class="mb-2 text-xs font-medium text-slate-600">Nueva unidad</p>
+        <div [formGroup]="createForm" class="flex flex-col gap-2 sm:flex-row">
+          <input
+            formControlName="nombre"
+            type="text"
+            maxlength="30"
+            placeholder="Ej: docena"
+            (keydown.enter)="onCreateEnter($event)"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+          <button
+            type="button"
+            (click)="create()"
+            [disabled]="saving || createForm.invalid"
+            class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900 disabled:opacity-50"
+          >
+            Crear
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="loading" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+        Cargando unidades...
+      </div>
+
+      <div *ngIf="!loading" class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 text-slate-600">
+            <tr>
+              <th class="px-4 py-3">Nombre</th>
+              <th class="px-4 py-3">Estado</th>
+              <th class="px-4 py-3">Referencias</th>
+              <th class="px-4 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="text-slate-800">
+            <tr *ngFor="let item of unidades" class="border-t border-slate-100">
+              <td class="px-4 py-3">
+                <ng-container *ngIf="editId === item.id; else nombreRead">
+                  <div [formGroup]="editForm" class="flex w-full items-center gap-2">
+                    <input
+                      formControlName="nombre"
+                      maxlength="30"
+                      (keydown.enter)="onEditEnter($event, item)"
+                      class="min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                    <button
+                      type="button"
+                      (click)="saveEdit(item)"
+                      [disabled]="saving || editForm.invalid"
+                      class="inline-flex shrink-0 items-center justify-center rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      type="button"
+                      [disabled]="saving"
+                      (click)="cancelEdit()"
+                      class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </ng-container>
+                <ng-template #nombreRead>
+                  <span class="font-medium text-slate-900">{{ item.nombre }}</span>
+                </ng-template>
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  [ngClass]="item.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'"
+                >
+                  {{ item.isActive ? 'Activa' : 'Inactiva' }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-600">{{ item.referencedCount }}</td>
+              <td class="px-4 py-3">
+                <div class="flex justify-end gap-2" *ngIf="editId !== item.id">
+                  <button
+                    type="button"
+                    [disabled]="saving"
+                    (click)="startEdit(item)"
+                    class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    [disabled]="saving"
+                    (click)="toggleActive(item)"
+                    class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {{ item.isActive ? 'Desactivar' : 'Activar' }}
+                  </button>
+                  <button
+                    type="button"
+                    [disabled]="saving || !item.canDelete"
+                    (click)="remove(item)"
+                    class="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="unidades.length === 0">
+              <td class="px-4 py-6 text-sm text-slate-500" colspan="4">No hay unidades registradas.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

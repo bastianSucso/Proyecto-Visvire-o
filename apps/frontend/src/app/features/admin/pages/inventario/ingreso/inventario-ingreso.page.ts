@@ -138,7 +138,7 @@ export class InventarioIngresoPage {
   }
 
   cargarProductos() {
-    this.productosService.list(true).subscribe({
+    this.productosService.list(false).subscribe({
       next: (data) => (this.productos = data ?? []),
       error: () => {},
     });
@@ -175,6 +175,7 @@ export class InventarioIngresoPage {
 
     const matches = this.productos
       .filter((p) => {
+        if (!p.isActive) return false;
         if (this.isComida(p)) return false;
         const name = this.norm(p.name);
         const code = this.norm(p.internalCode);

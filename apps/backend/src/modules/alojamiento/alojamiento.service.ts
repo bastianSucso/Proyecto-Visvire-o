@@ -471,6 +471,7 @@ export class AlojamientoService {
       asignacionId?: string | null;
       actorUserId?: string | null;
       detalle?: string | null;
+      fechaEvento?: Date | null;
     },
     manager?: EntityManager,
   ) {
@@ -485,6 +486,7 @@ export class AlojamientoService {
       accion: input.accion,
       actorUserId: input.actorUserId ?? null,
       detalle: input.detalle ?? null,
+      fechaEvento: input.fechaEvento ?? new Date(),
     });
     await repo.save(entity);
   }
@@ -543,6 +545,7 @@ export class AlojamientoService {
               detalle:
                 this.buildStateChangeGuestDetail('Salida', assignment.huesped) ??
                 'Checkout automático por salida estimada vencida',
+              fechaEvento: assignment.fechaSalidaReal ?? assignment.fechaSalidaEstimada,
             }),
           );
         }
@@ -696,7 +699,8 @@ export class AlojamientoService {
       .leftJoinAndSelect('cambio.habitacion', 'room')
       .leftJoinAndSelect('cambio.asignacion', 'asignacion')
       .leftJoinAndSelect('room.pisoZona', 'piso')
-      .orderBy('cambio.createdAt', 'DESC');
+      .orderBy('cambio.fechaEvento', 'DESC')
+      .addOrderBy('cambio.createdAt', 'DESC');
 
     if (from && to) {
       const start = this.parseTimestamp(from);
@@ -704,7 +708,7 @@ export class AlojamientoService {
       if (end <= start) {
         throw new BadRequestException('La fecha de salida debe ser posterior a la fecha de ingreso');
       }
-      qb.andWhere('cambio.createdAt >= :start AND cambio.createdAt <= :end', { start, end });
+      qb.andWhere('cambio.fechaEvento >= :start AND cambio.fechaEvento <= :end', { start, end });
     } else if (from || to) {
       throw new BadRequestException('Debes indicar ambas fechas o ninguna');
     }
@@ -718,6 +722,7 @@ export class AlojamientoService {
           id: string;
           asignacionId: string | null;
           createdAt: Date;
+          fechaEvento: Date;
           accion: HabitacionEstadoCambioAccion;
           estadoAnterior: HabitacionEstadoTimeline;
           estadoNuevo: HabitacionEstadoTimeline;
@@ -733,7 +738,7 @@ export class AlojamientoService {
     >();
 
     for (const row of rows) {
-      const parts = this.getBusinessDateParts(row.createdAt);
+      const parts = this.getBusinessDateParts(row.fechaEvento);
       const dateKey = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
       if (!grouped.has(dateKey)) {
         grouped.set(dateKey, { date: dateKey, items: [] });
@@ -743,6 +748,7 @@ export class AlojamientoService {
         id: row.id,
         asignacionId: row.asignacion?.id ?? null,
         createdAt: row.createdAt,
+        fechaEvento: row.fechaEvento,
         accion: row.accion,
         estadoAnterior: row.estadoAnterior,
         estadoNuevo: row.estadoNuevo,

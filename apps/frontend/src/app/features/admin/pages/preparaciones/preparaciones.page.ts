@@ -4,20 +4,24 @@ import { RouterModule } from '@angular/router';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProductosService, Producto, ProductoTipo } from '../../../../core/services/productos.service';
 import { RecetasService } from '../../../../core/services/recetas.service';
+import { UnidadMedida, UnidadesMedidaService } from '../../../../core/services/unidades-medida.service';
+import { UnidadesMedidaModalComponent } from '../../components/unidades-medida-modal/unidades-medida-modal.component';
 import { catchError, forkJoin, of } from 'rxjs';
 
 @Component({
   selector: 'app-preparaciones-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, UnidadesMedidaModalComponent],
   templateUrl: 'preparaciones.page.html',
 })
 export class PreparacionesPage {
   private fb = inject(FormBuilder);
   private productosService = inject(ProductosService);
   private recetasService = inject(RecetasService);
+  private unidadesService = inject(UnidadesMedidaService);
 
   productos: Producto[] = [];
+  unidades: UnidadMedida[] = [];
   posiblesMap: Record<string, number> = {};
   loading = false;
   errorMsg = '';
@@ -29,9 +33,8 @@ export class PreparacionesPage {
   readonly pageSizes = [10, 20, 50, 100];
 
   isModalOpen = false;
+  isUnidadesModalOpen = false;
   editing: Producto | null = null;
-
-  readonly unidadBaseOptions = ['g', 'kg', 'ml', 'l', 'unidad', 'pack'];
 
   form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
@@ -52,10 +55,12 @@ export class PreparacionesPage {
     forkJoin({
       productos: this.productosService.list(true),
       posibles: this.recetasService.posibles().pipe(catchError(() => of([]))),
+      unidades: this.unidadesService.list(true),
     }).subscribe({
-      next: ({ productos, posibles }) => {
+      next: ({ productos, posibles, unidades }) => {
         const all = productos ?? [];
         this.productos = all.filter((p) => p.tipo === 'COMIDA');
+        this.unidades = unidades ?? [];
         this.posiblesMap = (posibles ?? []).reduce((acc, item) => {
           acc[item.comidaId] = item.posibles;
           return acc;
@@ -65,6 +70,27 @@ export class PreparacionesPage {
       error: (err) => (this.errorMsg = this.mapError(err)),
       complete: () => (this.loading = false),
     });
+  }
+
+  get unidadBaseOptions() {
+    const activas = this.unidades.filter((u) => u.isActive).map((u) => u.nombre);
+    const current = this.editing?.unidadBase?.trim() ?? '';
+    if (current && !activas.includes(current)) {
+      return [current, ...activas];
+    }
+    return activas;
+  }
+
+  openUnidadesModal() {
+    this.isUnidadesModalOpen = true;
+  }
+
+  closeUnidadesModal() {
+    this.isUnidadesModalOpen = false;
+  }
+
+  onUnidadesChanged() {
+    this.load();
   }
 
   onSearchChange() {

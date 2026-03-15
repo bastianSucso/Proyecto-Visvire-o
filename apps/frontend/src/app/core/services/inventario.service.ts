@@ -12,6 +12,7 @@ export interface InventarioStockItem {
   unidadBase: string | null;
   tipo: ProductoTipo;
   isActive: boolean;
+  enHojaCompra: boolean;
   cantidadTotal: number;
   stocks: {
     ubicacion: { id: string; nombre: string; tipo: string };
@@ -143,6 +144,21 @@ export interface CreateAjusteDto {
   motivo: string;
 }
 
+export type AjusteOperativoCausaCodigo = 'USO_NEGOCIO';
+
+export interface AjusteOperativoCausa {
+  codigo: AjusteOperativoCausaCodigo;
+  nombre: string;
+}
+
+export interface CreateAjusteOperativoDto {
+  productoId: string;
+  ubicacionId: string;
+  cantidad: number;
+  causa: AjusteOperativoCausaCodigo;
+  observacion?: string;
+}
+
 export interface CreateTraspasoDto {
   productoId: string;
   origenId: string;
@@ -202,6 +218,14 @@ export class InventarioService {
 
   registrarAjuste(dto: CreateAjusteDto) {
     return this.http.post<InventarioMovimiento>('/api/inventario/ajustes', dto);
+  }
+
+  listarCausasAjusteOperativo() {
+    return this.http.get<AjusteOperativoCausa[]>('/api/inventario/ajustes-operativos/causas');
+  }
+
+  registrarAjusteOperativo(dto: CreateAjusteOperativoDto) {
+    return this.http.post<InventarioMovimiento>('/api/inventario/ajustes-operativos', dto);
   }
 
   registrarTraspaso(dto: CreateTraspasoDto) {

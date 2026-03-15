@@ -1,7 +1,7 @@
 import { Component, ElementRef, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { ProductosService, Producto } from '../../../../../core/services/productos.service';
 import { UbicacionesService, Ubicacion } from '../../../../../core/services/ubicaciones.service';
 import { InventarioService, InventarioStockItem } from '../../../../../core/services/inventario.service';
@@ -19,6 +19,7 @@ export class InventarioTraspasoPage {
   private ubicacionesService = inject(UbicacionesService);
   private inventarioService = inject(InventarioService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   productos: Producto[] = [];
   ubicaciones: Ubicacion[] = [];
@@ -51,7 +52,21 @@ export class InventarioTraspasoPage {
   editCantidad: Record<string, number> = {};
   savingItemId: number | null = null;
 
+  private prefillProductoId: string | null = null;
+  private prefillCantidad = 0;
+  private prefillDestinoSala = false;
+  private prefillProductoAplicado = false;
+
   ngOnInit() {
+    this.route.queryParamMap.subscribe((params) => {
+      this.prefillProductoId = params.get('productoId');
+      this.prefillCantidad = Number(params.get('cantidad') ?? 0);
+      this.prefillDestinoSala = params.get('prefillDestinoSala') === '1';
+      this.prefillProductoAplicado = false;
+      this.tryApplyPrefillDestinoSala();
+      this.tryApplyPrefillProducto();
+    });
+
     this.cargarProductos();
     this.cargarUbicaciones();
     this.cargarStock();
@@ -85,17 +100,54 @@ export class InventarioTraspasoPage {
   }
 
   cargarProductos() {
-    this.productosService.list(true).subscribe({
-      next: (data) => (this.productos = data ?? []),
+    this.productosService.list(false).subscribe({
+      next: (data) => {
+        this.productos = data ?? [];
+        this.tryApplyPrefillProducto();
+      },
       error: () => {},
     });
   }
 
   cargarUbicaciones() {
     this.ubicacionesService.list(undefined, false).subscribe({
-      next: (data) => (this.ubicaciones = data ?? []),
+      next: (data) => {
+        this.ubicaciones = data ?? [];
+        this.tryApplyPrefillDestinoSala();
+      },
       error: () => {},
     });
+  }
+
+  private tryApplyPrefillDestinoSala() {
+    if (!this.prefillDestinoSala || this.ubicaciones.length === 0) return;
+    if (this.destinoId) return;
+
+    const sala = this.ubicaciones.find((u) => u.tipo === 'SALA_VENTA' && u.activa);
+    if (!sala) return;
+
+    this.destinoId = sala.id;
+    this.onHeaderChange();
+  }
+
+  private tryApplyPrefillProducto() {
+    if (this.prefillProductoAplicado) return;
+    if (!this.prefillProductoId || this.productos.length === 0) return;
+
+    const producto = this.productos.find((p) => p.id === this.prefillProductoId);
+    if (!producto || this.isComida(producto) || !producto.isActive) {
+      this.prefillProductoAplicado = true;
+      return;
+    }
+
+    const cantidad = Number(this.prefillCantidad);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      this.prefillProductoAplicado = true;
+      return;
+    }
+
+    this.prefillProductoAplicado = true;
+    this.addByProducto(producto, Number(cantidad.toFixed(3)));
   }
 
   cargarStock() {
@@ -153,6 +205,7 @@ export class InventarioTraspasoPage {
 
     const matches = this.productos
       .filter((p) => {
+        if (!p.isActive) return false;
         if (this.isComida(p)) return false;
         const name = this.norm(p.name);
         const code = this.norm(p.internalCode);
@@ -205,8 +258,8 @@ export class InventarioTraspasoPage {
     if (!raw) return;
 
     const cant = Number(this.cantidadRapida);
-    if (!Number.isInteger(cant) || cant < 1) {
-      this.scanError = 'Cantidad inválida (debe ser entero >= 1).';
+    if (!Number.isFinite(cant) || cant <= 0) {
+      this.scanError = 'Cantidad inválida (debe ser > 0).';
       return;
     }
 
@@ -239,8 +292,8 @@ export class InventarioTraspasoPage {
       return;
     }
     const cant = Number(this.cantidadRapida);
-    if (!Number.isInteger(cant) || cant < 1) {
-      this.scanError = 'Cantidad inválida (debe ser entero >= 1).';
+    if (!Number.isFinite(cant) || cant <= 0) {
+      this.scanError = 'Cantidad inválida (debe ser > 0).';
       return;
     }
 
@@ -280,8 +333,8 @@ export class InventarioTraspasoPage {
 
   guardarCantidad(itemId: string) {
     const cantidad = Number(this.editCantidad[itemId]);
-    if (!Number.isInteger(cantidad) || cantidad < 1) {
-      this.scanError = 'La cantidad debe ser un entero mayor o igual a 1.';
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      this.scanError = 'La cantidad debe ser mayor a 0.';
       return;
     }
 

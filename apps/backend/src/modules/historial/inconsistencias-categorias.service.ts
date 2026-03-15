@@ -3,7 +3,6 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -14,7 +13,7 @@ import { IncidenciaStockEntity } from './entities/incidencia-stock.entity';
 import { IncidenciaResolucionAdminEntity } from './entities/incidencia-resolucion-admin.entity';
 
 @Injectable()
-export class InconsistenciasCategoriasService implements OnModuleInit {
+export class InconsistenciasCategoriasService {
   constructor(
     @InjectRepository(InconsistenciaCategoriaEntity)
     private readonly categoriaRepo: Repository<InconsistenciaCategoriaEntity>,
@@ -23,10 +22,6 @@ export class InconsistenciasCategoriasService implements OnModuleInit {
     @InjectRepository(IncidenciaResolucionAdminEntity)
     private readonly resolucionRepo: Repository<IncidenciaResolucionAdminEntity>,
   ) {}
-
-  async onModuleInit() {
-    await this.ensureDefaults();
-  }
 
   private normalizeCode(value: string): string {
     const ascii = (value ?? '')
@@ -42,31 +37,6 @@ export class InconsistenciasCategoriasService implements OnModuleInit {
     }
 
     return ascii;
-  }
-
-  private async ensureDefaults() {
-    const defaults = [
-      { codigo: 'FALTANTE', nombre: 'Faltante', orden: 1 },
-      { codigo: 'DANADO', nombre: 'Dañado', orden: 2 },
-      { codigo: 'VENCIDO', nombre: 'Vencido', orden: 3 },
-      { codigo: 'OTRO', nombre: 'Otro', orden: 4 },
-    ];
-
-    for (const it of defaults) {
-      const exists = await this.categoriaRepo.findOne({ where: { codigo: it.codigo } });
-      if (exists) continue;
-
-      await this.categoriaRepo.save(
-        this.categoriaRepo.create({
-          codigo: it.codigo,
-          nombre: it.nombre,
-          descripcion: null,
-          activa: true,
-          esSistema: true,
-          orden: it.orden,
-        }),
-      );
-    }
   }
 
   async list(includeInactive = true) {

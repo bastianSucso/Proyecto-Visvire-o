@@ -12,6 +12,7 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoStockEntity } from './entities/producto-stock.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { RecetasService } from './recetas.service';
+import { UnidadesMedidaService } from './unidades-medida.service';
 
 @Injectable()
 export class ProductosService {
@@ -23,6 +24,7 @@ export class ProductosService {
     @InjectRepository(UbicacionEntity)
     private readonly ubicacionRepo: Repository<UbicacionEntity>,
     private readonly recetasService: RecetasService,
+    private readonly unidadesMedidaService: UnidadesMedidaService,
   ) {}
 
   private assertTipoValid(tipo?: ProductoTipoEnum) {
@@ -106,6 +108,7 @@ export class ProductosService {
       relations: { stocks: true },
     });
     if (!p) throw new NotFoundException('Producto no encontrado por barcode');
+    if (!p.isActive) throw new ConflictException('Producto inactivo');
 
     const cantidadTotal = (p.stocks ?? []).reduce((sum, s) => sum + Number(s.cantidad ?? 0), 0);
     return this.toResponse(p, { cantidadTotal });
@@ -137,6 +140,8 @@ export class ProductosService {
     if (!unidadBase) {
       throw new BadRequestException('unidadBase es requerida');
     }
+
+    await this.unidadesMedidaService.assertUnidadActivaExists(unidadBase);
 
     const dupInternal = await this.repo.findOne({ where: { internalCode } });
     if (dupInternal) {

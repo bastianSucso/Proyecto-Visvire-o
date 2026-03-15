@@ -52,7 +52,7 @@ export class InventarioConversionPage {
   }
 
   private loadCatalogs() {
-    this.productosService.list(true).subscribe({
+    this.productosService.list(false).subscribe({
       next: (data) => (this.productos = data ?? []),
       error: () => {},
     });
@@ -103,7 +103,7 @@ export class InventarioConversionPage {
   }
 
   private getSelectableProductos() {
-    return this.productos.filter((p) => !this.isComida(p));
+    return this.productos.filter((p) => p.isActive && !this.isComida(p));
   }
 
   onOrigenSearchChange(value: string) {

@@ -58,11 +58,11 @@ export class InconsistenciasAdminPage implements OnInit {
   stockTeoricoProductoSeleccionado: number | null = null;
   loadingStockTeorico = false;
 
-  stockRealResolucion = 0;
+  cantidadDescuentoResolucion: number | null = null;
   motivoResolucion = '';
 
   ngOnInit(): void {
-    this.productosService.list(true).subscribe({
+    this.productosService.list(false).subscribe({
       next: (rows) => {
         this.productos = rows ?? [];
       },
@@ -169,6 +169,7 @@ export class InconsistenciasAdminPage implements OnInit {
 
     const matches = this.productos
       .filter((p) => {
+        if (!p.isActive) return false;
         if (p.tipo === 'COMIDA') return false;
         const name = this.norm(p.name);
         const code = this.norm(p.internalCode);
@@ -341,7 +342,11 @@ export class InconsistenciasAdminPage implements OnInit {
     this.api.detalle(id).subscribe({
       next: (detail: InconsistenciaDetalle) => {
         this.selected = detail;
-        this.stockRealResolucion = Number(detail.resolucionAdmin?.stockRealObservado ?? 0);
+        if (detail.resolucionAdmin) {
+          this.cantidadDescuentoResolucion = Math.abs(Number(detail.resolucionAdmin.diferencia ?? 0));
+        } else {
+          this.cantidadDescuentoResolucion = null;
+        }
         this.motivoResolucion = detail.resolucionAdmin?.motivoResolucion ?? '';
       },
       error: () => {},
@@ -358,10 +363,29 @@ export class InconsistenciasAdminPage implements OnInit {
       this.errorMsg = 'Debes indicar motivo de resolución.';
       return;
     }
+
+    const cantidadDescuento = Number(this.cantidadDescuentoResolucion);
+    if (!Number.isFinite(cantidadDescuento)) {
+      this.errorMsg = 'Debes indicar la cantidad a descontar (usa 0 si no aplica descuento).';
+      return;
+    }
+    if (cantidadDescuento < 0) {
+      this.errorMsg = 'La cantidad a descontar no puede ser negativa.';
+      return;
+    }
+
+    const stockTeorico = Number(this.selected.stockTeoricoSistema ?? 0);
+    if (cantidadDescuento > stockTeorico) {
+      this.errorMsg = 'La cantidad a descontar no puede superar el stock teórico.';
+      return;
+    }
+
+    const stockRealObservado = Number((stockTeorico - cantidadDescuento).toFixed(3));
+
     this.saving = true;
     this.api
       .resolver(this.selected.id, {
-        stockRealObservado: this.stockRealResolucion,
+        stockRealObservado,
         motivoResolucion: this.motivoResolucion.trim(),
       })
       .subscribe({

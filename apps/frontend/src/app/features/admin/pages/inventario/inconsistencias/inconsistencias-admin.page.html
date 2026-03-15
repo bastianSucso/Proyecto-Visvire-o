@@ -136,7 +136,7 @@
         <div class="mt-4 rounded-xl border border-slate-200 p-4" *ngIf="!s.resolucionAdmin">
           <h3 class="text-sm font-semibold text-slate-900">Resolver incidencia</h3>
           <p class="mt-1 text-xs text-slate-500">
-            Si stock real es menor al teórico, se aplicará ajuste negativo. Si es igual, se cerrará sin ajuste.
+            Ingresa solo la cantidad a descontar del stock teórico (usa 0 si no corresponde ajuste).
           </p>
           <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
             <p>
@@ -150,12 +150,20 @@
           </div>
           <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-xs font-medium text-slate-600">Stock real observado</label>
+              <label class="mb-1 block text-xs font-medium text-slate-600">Cantidad a descontar</label>
               <input
                 type="number"
-                [(ngModel)]="stockRealResolucion"
+                min="0"
+                step="0.001"
+                [(ngModel)]="cantidadDescuentoResolucion"
+                placeholder="0"
                 class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
               />
+              <p class="mt-1 text-xs text-slate-500">
+                Stock real resultante:
+                {{ (+s.stockTeoricoSistema - +(cantidadDescuentoResolucion ?? 0)) | number:'1.0-3' }}
+                {{ s.producto.unidadBase ?? '' }}
+              </p>
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium text-slate-600">Categoría de resolución</label>

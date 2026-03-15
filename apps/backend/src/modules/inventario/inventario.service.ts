@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { UserEntity } from '../users/entities/user.entity';
 import { RecetasService } from '../productos/recetas.service';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
 import { CreateAjusteDto } from './dto/create-ajuste.dto';
+import { CreateAjusteOperativoDto } from './dto/create-ajuste-operativo.dto';
 import { CreateTraspasoDto } from './dto/create-traspaso.dto';
 import { CreateDocumentoIngresoDto } from './dto/create-documento-ingreso.dto';
 import { CreateDocumentoTraspasoDto } from './dto/create-documento-traspaso.dto';
@@ -21,6 +23,20 @@ import { ConvertirProductoDto } from './dto/convertir-producto.dto';
 import { CreateConversionFactorDto } from './dto/create-conversion-factor.dto';
 import { ProductoConversionEntity } from './entities/producto-conversion.entity';
 import { FinanzasService } from '../finanzas/finanzas.service';
+import { InventarioSalaObjetivoEntity } from './entities/inventario-sala-objetivo.entity';
+import { CreateInventarioSalaObjetivoDto } from './dto/create-inventario-sala-objetivo.dto';
+import { UpdateInventarioSalaObjetivoDto } from './dto/update-inventario-sala-objetivo.dto';
+import { InventarioProductoImportanteEntity } from './entities/inventario-producto-importante.entity';
+import { InventarioHojaCompraItemEntity } from './entities/inventario-hoja-compra-item.entity';
+import { AddInventarioHojaCompraItemDto } from './dto/add-inventario-hoja-compra-item.dto';
+import { UpdateInventarioHojaCompraItemDto } from './dto/update-inventario-hoja-compra-item.dto';
+import { CreateInventarioProductoImportanteDto } from './dto/create-inventario-producto-importante.dto';
+import { UpdateInventarioProductoImportanteDto } from './dto/update-inventario-producto-importante.dto';
+import {
+  AJUSTE_OPERATIVO_CAUSAS,
+  AJUSTE_OPERATIVO_CAUSAS_LABEL,
+  AjusteOperativoCausa,
+} from './constants/ajuste-operativo-causas';
 
 const IVA_TASA = 0.19;
 
@@ -38,6 +54,12 @@ export class InventarioService {
     private readonly stockRepo: Repository<ProductoStockEntity>,
     @InjectRepository(ProductoConversionEntity)
     private readonly conversionRepo: Repository<ProductoConversionEntity>,
+    @InjectRepository(InventarioSalaObjetivoEntity)
+    private readonly salaObjetivoRepo: Repository<InventarioSalaObjetivoEntity>,
+    @InjectRepository(InventarioProductoImportanteEntity)
+    private readonly productoImportanteRepo: Repository<InventarioProductoImportanteEntity>,
+    @InjectRepository(InventarioHojaCompraItemEntity)
+    private readonly hojaCompraItemRepo: Repository<InventarioHojaCompraItemEntity>,
     private readonly recetasService: RecetasService,
     private readonly finanzasService: FinanzasService,
   ) {}
@@ -48,18 +70,160 @@ export class InventarioService {
     return producto;
   }
 
-  private async assertProductoNoComida(productoId: string) {
-    const producto = await this.productoRepo.findOne({ where: { id: productoId } });
-    if (!producto) throw new NotFoundException('Producto no encontrado');
+  private assertProductoOperable(producto: ProductoEntity, operacion: string) {
+    if (!producto.isActive) {
+      throw new BadRequestException(`No se puede ${operacion} un producto inactivo`);
+    }
     if (producto.tipo === ProductoTipoEnum.COMIDA) {
       throw new BadRequestException('No se permite ingresar o traspasar productos COMIDA');
     }
+  }
+
+  private async getProductoOperableOrThrow(productoId: string, operacion: string) {
+    const producto = await this.getProductoOrThrow(productoId);
+    this.assertProductoOperable(producto, operacion);
+    return producto;
   }
 
   private async getUbicacionOrThrow(ubicacionId: string) {
     const ubicacion = await this.ubicacionRepo.findOne({ where: { id: ubicacionId } });
     if (!ubicacion) throw new NotFoundException('Ubicación no encontrada');
     return ubicacion;
+  }
+
+  private async getSalaActivaOrThrow() {
+    const sala = await this.ubicacionRepo.findOne({
+      where: { tipo: 'SALA_VENTA', activa: true } as any,
+      order: { createdAt: 'ASC' },
+    });
+    if (!sala) {
+      throw new NotFoundException('No existe sala de ventas activa');
+    }
+    return sala;
+  }
+
+  private parseStockIdeal(raw: number) {
+    const stockIdeal = Number(raw);
+    if (!Number.isFinite(stockIdeal) || stockIdeal <= 0) {
+      throw new BadRequestException('stockIdeal debe ser un número > 0');
+    }
+    return stockIdeal;
+  }
+
+  private toSalaObjetivoResponse(
+    objetivo: InventarioSalaObjetivoEntity,
+    stockTeoricoSala: number,
+  ) {
+    const stockIdeal = Number(objetivo.stockIdeal ?? 0);
+    const faltante = Math.max(stockIdeal - stockTeoricoSala, 0);
+
+    return {
+      id: objetivo.id,
+      stockIdeal,
+      stockTeoricoSala,
+      faltante,
+      producto: {
+        id: objetivo.producto.id,
+        name: objetivo.producto.name,
+        internalCode: objetivo.producto.internalCode,
+        barcode: objetivo.producto.barcode ?? null,
+        unidadBase: objetivo.producto.unidadBase ?? null,
+        tipo: objetivo.producto.tipo,
+        isActive: objetivo.producto.isActive,
+      },
+      createdAt: objetivo.createdAt,
+      updatedAt: objetivo.updatedAt,
+    };
+  }
+
+  private parseCantidadMinima(raw: number) {
+    const cantidadMinima = Number(raw);
+    if (!Number.isFinite(cantidadMinima) || cantidadMinima <= 0) {
+      throw new BadRequestException('cantidadMinima debe ser un número > 0');
+    }
+    return cantidadMinima;
+  }
+
+  private toProductoImportanteResponse(
+    item: InventarioProductoImportanteEntity,
+    stockTotal: number,
+    enHojaCompra: boolean,
+  ) {
+    const cantidadMinima = Number(item.cantidadMinima ?? 0);
+    const faltante = Math.max(cantidadMinima - stockTotal, 0);
+
+    return {
+      id: item.id,
+      cantidadMinima,
+      stockTotal,
+      faltante,
+      enHojaCompra,
+      producto: {
+        id: item.producto.id,
+        name: item.producto.name,
+        internalCode: item.producto.internalCode,
+        barcode: item.producto.barcode ?? null,
+        unidadBase: item.producto.unidadBase ?? null,
+        tipo: item.producto.tipo,
+        isActive: item.producto.isActive,
+        precioCosto: Number(item.producto.precioCosto ?? 0),
+      },
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  private toHojaCompraItemResponse(item: InventarioHojaCompraItemEntity, stockTotal: number) {
+    const cantidad = Number(item.cantidad ?? 0);
+    const precioCostoUnitario = Number(item.producto.precioCosto ?? 0);
+    const subtotalEstimado = Number((cantidad * precioCostoUnitario).toFixed(2));
+
+    return {
+      id: item.id,
+      cantidad,
+      precioCostoUnitario,
+      subtotalEstimado,
+      stockTotal,
+      producto: {
+        id: item.producto.id,
+        name: item.producto.name,
+        internalCode: item.producto.internalCode,
+        barcode: item.producto.barcode ?? null,
+        unidadBase: item.producto.unidadBase ?? null,
+        tipo: item.producto.tipo,
+        isActive: item.producto.isActive,
+      },
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  private async syncHojaCompraFromFaltante(productoId: string, faltante: number) {
+    const existing = await this.hojaCompraItemRepo.findOne({
+      where: { producto: { id: productoId } } as any,
+    });
+
+    if (faltante <= 0) {
+      if (existing) {
+        await this.hojaCompraItemRepo.remove(existing);
+      }
+      return;
+    }
+
+    const cantidad = this.formatCantidad(faltante);
+
+    if (existing) {
+      existing.cantidad = cantidad;
+      await this.hojaCompraItemRepo.save(existing);
+      return;
+    }
+
+    await this.hojaCompraItemRepo.save(
+      this.hojaCompraItemRepo.create({
+        producto: { id: productoId } as any,
+        cantidad,
+      }),
+    );
   }
 
   private parseCantidad(raw: number) {
@@ -115,6 +279,24 @@ export class InventarioService {
       .getRawOne<{ total: string }>();
 
     return Number(row?.total ?? 0);
+  }
+
+  private async getStockTotalByProductoIds(productoIds: string[]) {
+    if (productoIds.length === 0) return new Map<string, number>();
+
+    const rows = await this.stockRepo
+      .createQueryBuilder('ps')
+      .select('ps.id_producto', 'productoId')
+      .addSelect('COALESCE(SUM(ps.cantidad), 0)', 'cantidad')
+      .where('ps.id_producto IN (:...productoIds)', { productoIds })
+      .groupBy('ps.id_producto')
+      .getRawMany<{ productoId: string; cantidad: string }>();
+
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(row.productoId, Number(row.cantidad ?? 0));
+    }
+    return map;
   }
 
   private getUnidadBaseMeta(producto: ProductoEntity) {
@@ -189,8 +371,7 @@ export class InventarioService {
       const productoRepoTx = manager.getRepository(ProductoEntity);
 
       for (const it of dto.items) {
-        await this.assertProductoNoComida(it.productoId);
-        const producto = await this.getProductoOrThrow(it.productoId);
+        const producto = await this.getProductoOperableOrThrow(it.productoId, 'ingresar stock de');
         const cantidad = this.parseCantidad(it.cantidad);
         const costoIngreso = this.parseCosto(it.costoIngreso);
         const aplicaCreditoFiscal = this.parseAplicaCreditoFiscal(it.aplicaCreditoFiscal);
@@ -304,8 +485,7 @@ export class InventarioService {
 
       for (const it of dto.items) {
         const cantidad = this.parseCantidad(it.cantidad);
-        await this.assertProductoNoComida(it.productoId);
-        const producto = await this.getProductoOrThrow(it.productoId);
+        const producto = await this.getProductoOperableOrThrow(it.productoId, 'traspasar stock de');
 
         const stockOrigen = await stockRepoTx.findOne({
           where: {
@@ -400,8 +580,10 @@ export class InventarioService {
       const alteraRepoTx = manager.getRepository(AlteraEntity);
       const productoRepoTx = manager.getRepository(ProductoEntity);
 
-      await this.assertProductoNoComida(dto.productoId);
-      const producto = await this.getProductoOrThrow(dto.productoId);
+      const producto = await this.getProductoOperableOrThrow(
+        dto.productoId,
+        'ingresar stock de',
+      );
       const ubicacion = await this.getUbicacionOrThrow(dto.ubicacionId);
 
       const stockTotal = await this.getStockTotalByProductoId(producto.id, stockRepoTx);
@@ -508,7 +690,7 @@ export class InventarioService {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
 
-      const producto = await this.getProductoOrThrow(dto.productoId);
+      const producto = await this.getProductoOperableOrThrow(dto.productoId, 'ajustar stock de');
       const ubicacion = await this.getUbicacionOrThrow(dto.ubicacionId);
 
       const stockRow = await stockRepoTx.findOne({
@@ -562,6 +744,41 @@ export class InventarioService {
     });
   }
 
+  listarCausasAjusteOperativo() {
+    return AJUSTE_OPERATIVO_CAUSAS.map((codigo) => ({
+      codigo,
+      nombre: AJUSTE_OPERATIVO_CAUSAS_LABEL[codigo],
+    }));
+  }
+
+  async registrarAjusteOperativo(dto: CreateAjusteOperativoDto, usuarioId: string) {
+    const cantidad = Number(dto.cantidad);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('cantidad debe ser un número > 0');
+    }
+
+    const causa = dto.causa as AjusteOperativoCausa;
+    if (!AJUSTE_OPERATIVO_CAUSAS.includes(causa)) {
+      throw new BadRequestException('causa no válida para ajuste operativo');
+    }
+
+    const label = AJUSTE_OPERATIVO_CAUSAS_LABEL[causa];
+    const observacion = dto.observacion?.trim();
+    const motivo = observacion
+      ? `[OPERATIVO:${causa}] ${label} - ${observacion}`
+      : `[OPERATIVO:${causa}] ${label}`;
+
+    return this.registrarAjuste(
+      {
+        productoId: dto.productoId,
+        ubicacionId: dto.ubicacionId,
+        cantidad: -Math.abs(cantidad),
+        motivo: motivo.slice(0, 300),
+      },
+      usuarioId,
+    );
+  }
+
   async registrarAjusteDesdeInconsistencia(
     dto: {
       productoId: string;
@@ -611,9 +828,7 @@ export class InventarioService {
       const stockRepoTx = manager.getRepository(ProductoStockEntity);
       const alteraRepoTx = manager.getRepository(AlteraEntity);
 
-      await this.assertProductoNoComida(dto.productoId);
-      await this.assertProductoNoComida(dto.productoId);
-      const producto = await this.getProductoOrThrow(dto.productoId);
+      const producto = await this.getProductoOperableOrThrow(dto.productoId, 'traspasar stock de');
       const origen = await this.getUbicacionOrThrow(dto.origenId);
       const destino = await this.getUbicacionOrThrow(dto.destinoId);
 
@@ -695,7 +910,16 @@ export class InventarioService {
       order: { createdAt: 'DESC' },
     });
 
-    const filtrados = productos.filter((p) => p.tipo !== ProductoTipoEnum.COMIDA);
+    const filtrados = productos.filter((p) => p.isActive && p.tipo !== ProductoTipoEnum.COMIDA);
+    const productoIds = filtrados.map((p) => p.id);
+    const hojaItems =
+      productoIds.length > 0
+        ? await this.hojaCompraItemRepo.find({
+            where: { producto: { id: In(productoIds) } } as any,
+            relations: { producto: true },
+          })
+        : [];
+    const hojaProductoIds = new Set(hojaItems.map((it) => it.producto.id));
 
     return filtrados.map((p) => {
       const stocks = (p.stocks ?? []).map((s) => ({
@@ -717,10 +941,307 @@ export class InventarioService {
         unidadBase: p.unidadBase,
         tipo: p.tipo,
         isActive: p.isActive,
+        enHojaCompra: hojaProductoIds.has(p.id),
         stocks,
         cantidadTotal,
       };
     });
+  }
+
+  async listarSalaObjetivos() {
+    const sala = await this.getSalaActivaOrThrow();
+
+    const objetivos = await this.salaObjetivoRepo.find({
+      relations: { producto: true },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (objetivos.length === 0) return [];
+
+    const productoIds = objetivos.map((o) => o.producto.id);
+
+    const rawStock = await this.stockRepo
+      .createQueryBuilder('ps')
+      .select('ps.id_producto', 'productoId')
+      .addSelect('COALESCE(SUM(ps.cantidad), 0)', 'cantidad')
+      .where('ps.id_ubicacion = :salaId', { salaId: sala.id })
+      .andWhere('ps.id_producto IN (:...productoIds)', { productoIds })
+      .groupBy('ps.id_producto')
+      .getRawMany<{ productoId: string; cantidad: string }>();
+
+    const stockByProducto = new Map<string, number>();
+    for (const row of rawStock) {
+      stockByProducto.set(row.productoId, Number(row.cantidad ?? 0));
+    }
+
+    return objetivos.map((o) => {
+      const stockTeoricoSala = stockByProducto.get(o.producto.id) ?? 0;
+      return this.toSalaObjetivoResponse(o, stockTeoricoSala);
+    });
+  }
+
+  async crearSalaObjetivo(dto: CreateInventarioSalaObjetivoDto) {
+    const producto = await this.getProductoOrThrow(dto.productoId);
+    this.assertProductoOperable(producto, 'definir stock ideal para');
+
+    const exists = await this.salaObjetivoRepo.findOne({
+      where: { producto: { id: producto.id } } as any,
+    });
+    if (exists) {
+      throw new ConflictException('El producto ya tiene un stock ideal configurado para sala');
+    }
+
+    const stockIdeal = this.parseStockIdeal(dto.stockIdeal);
+    const objetivo = await this.salaObjetivoRepo.save(
+      this.salaObjetivoRepo.create({
+        producto: { id: producto.id } as any,
+        stockIdeal: this.formatCantidad(stockIdeal),
+      }),
+    );
+
+    const saved = await this.salaObjetivoRepo.findOne({
+      where: { id: objetivo.id },
+      relations: { producto: true },
+    });
+    if (!saved) throw new NotFoundException('No se pudo crear el objetivo de sala');
+
+    const sala = await this.getSalaActivaOrThrow();
+    const stockRow = await this.stockRepo.findOne({
+      where: { producto: { id: saved.producto.id }, ubicacion: { id: sala.id } } as any,
+    });
+
+    return this.toSalaObjetivoResponse(saved, Number(stockRow?.cantidad ?? 0));
+  }
+
+  async actualizarSalaObjetivo(id: string, dto: UpdateInventarioSalaObjetivoDto) {
+    const objetivo = await this.salaObjetivoRepo.findOne({
+      where: { id },
+      relations: { producto: true },
+    });
+    if (!objetivo) throw new NotFoundException('Objetivo de sala no encontrado');
+
+    this.assertProductoOperable(objetivo.producto, 'actualizar stock ideal para');
+
+    const stockIdeal = this.parseStockIdeal(dto.stockIdeal);
+    objetivo.stockIdeal = this.formatCantidad(stockIdeal);
+    await this.salaObjetivoRepo.save(objetivo);
+
+    const sala = await this.getSalaActivaOrThrow();
+    const stockRow = await this.stockRepo.findOne({
+      where: { producto: { id: objetivo.producto.id }, ubicacion: { id: sala.id } } as any,
+    });
+
+    return this.toSalaObjetivoResponse(objetivo, Number(stockRow?.cantidad ?? 0));
+  }
+
+  async eliminarSalaObjetivo(id: string) {
+    const objetivo = await this.salaObjetivoRepo.findOne({ where: { id } });
+    if (!objetivo) throw new NotFoundException('Objetivo de sala no encontrado');
+
+    await this.salaObjetivoRepo.remove(objetivo);
+    return { ok: true };
+  }
+
+  async listarProductosImportantes() {
+    const items = await this.productoImportanteRepo.find({
+      relations: { producto: true },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (items.length === 0) return [];
+
+    const productoIds = items.map((item) => item.producto.id);
+    const stockByProducto = await this.getStockTotalByProductoIds(productoIds);
+    const hojaItems = await this.hojaCompraItemRepo.find({
+      where: { producto: { id: In(productoIds) } } as any,
+      relations: { producto: true },
+    });
+    const hojaProductoIds = new Set(hojaItems.map((it) => it.producto.id));
+
+    return items.map((item) => {
+      const stockTotal = stockByProducto.get(item.producto.id) ?? 0;
+      const enHojaCompra = hojaProductoIds.has(item.producto.id);
+      return this.toProductoImportanteResponse(item, stockTotal, enHojaCompra);
+    });
+  }
+
+  async crearProductoImportante(dto: CreateInventarioProductoImportanteDto) {
+    const producto = await this.getProductoOrThrow(dto.productoId);
+    this.assertProductoOperable(producto, 'definir cantidad minima para');
+
+    const exists = await this.productoImportanteRepo.findOne({
+      where: { producto: { id: producto.id } } as any,
+    });
+    if (exists) {
+      throw new ConflictException('El producto ya está marcado como importante');
+    }
+
+    const cantidadMinima = this.parseCantidadMinima(dto.cantidadMinima);
+    const savedEntity = await this.productoImportanteRepo.save(
+      this.productoImportanteRepo.create({
+        producto: { id: producto.id } as any,
+        cantidadMinima: this.formatCantidad(cantidadMinima),
+      }),
+    );
+
+    const saved = await this.productoImportanteRepo.findOne({
+      where: { id: savedEntity.id },
+      relations: { producto: true },
+    });
+    if (!saved) throw new NotFoundException('No se pudo crear el producto importante');
+
+    const stockTotal = await this.getStockTotalByProductoId(saved.producto.id, this.stockRepo);
+    const faltante = Math.max(cantidadMinima - stockTotal, 0);
+    await this.syncHojaCompraFromFaltante(saved.producto.id, faltante);
+
+    const enHojaCompra = !!(await this.hojaCompraItemRepo.findOne({
+      where: { producto: { id: saved.producto.id } } as any,
+    }));
+
+    return this.toProductoImportanteResponse(saved, stockTotal, enHojaCompra);
+  }
+
+  async actualizarProductoImportante(id: string, dto: UpdateInventarioProductoImportanteDto) {
+    const item = await this.productoImportanteRepo.findOne({
+      where: { id },
+      relations: { producto: true },
+    });
+    if (!item) throw new NotFoundException('Producto importante no encontrado');
+
+    this.assertProductoOperable(item.producto, 'actualizar cantidad minima para');
+
+    const cantidadMinima = this.parseCantidadMinima(dto.cantidadMinima);
+    item.cantidadMinima = this.formatCantidad(cantidadMinima);
+    await this.productoImportanteRepo.save(item);
+
+    const stockTotal = await this.getStockTotalByProductoId(item.producto.id, this.stockRepo);
+    const faltante = Math.max(cantidadMinima - stockTotal, 0);
+    await this.syncHojaCompraFromFaltante(item.producto.id, faltante);
+
+    const enHojaCompra = !!(await this.hojaCompraItemRepo.findOne({
+      where: { producto: { id: item.producto.id } } as any,
+    }));
+
+    return this.toProductoImportanteResponse(item, stockTotal, enHojaCompra);
+  }
+
+  async eliminarProductoImportante(id: string) {
+    const item = await this.productoImportanteRepo.findOne({ where: { id } });
+    if (!item) throw new NotFoundException('Producto importante no encontrado');
+
+    await this.productoImportanteRepo.remove(item);
+    return { ok: true };
+  }
+
+  async listarHojaCompra() {
+    const items = await this.hojaCompraItemRepo.find({
+      relations: { producto: true },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (items.length === 0) return [];
+
+    const productoIds = items.map((item) => item.producto.id);
+    const stockByProducto = await this.getStockTotalByProductoIds(productoIds);
+
+    return items.map((item) => {
+      const stockTotal = stockByProducto.get(item.producto.id) ?? 0;
+      return this.toHojaCompraItemResponse(item, stockTotal);
+    });
+  }
+
+  async agregarHojaCompraItem(dto: AddInventarioHojaCompraItemDto) {
+    const producto = await this.getProductoOrThrow(dto.productoId);
+    this.assertProductoOperable(producto, 'agregar a la hoja de compra');
+
+    const cantidad = this.parseCantidad(dto.cantidad);
+    const existing = await this.hojaCompraItemRepo.findOne({
+      where: { producto: { id: producto.id } } as any,
+      relations: { producto: true },
+    });
+
+    let item: InventarioHojaCompraItemEntity;
+    if (existing) {
+      const nuevaCantidad = Number(existing.cantidad ?? 0) + cantidad;
+      existing.cantidad = this.formatCantidad(nuevaCantidad);
+      item = await this.hojaCompraItemRepo.save(existing);
+    } else {
+      item = await this.hojaCompraItemRepo.save(
+        this.hojaCompraItemRepo.create({
+          producto: { id: producto.id } as any,
+          cantidad: this.formatCantidad(cantidad),
+        }),
+      );
+    }
+
+    const saved = await this.hojaCompraItemRepo.findOne({
+      where: { id: item.id },
+      relations: { producto: true },
+    });
+    if (!saved) throw new NotFoundException('No se pudo guardar el item de hoja de compra');
+
+    const stockTotal = await this.getStockTotalByProductoId(saved.producto.id, this.stockRepo);
+    return this.toHojaCompraItemResponse(saved, stockTotal);
+  }
+
+  async actualizarHojaCompraItem(id: string, dto: UpdateInventarioHojaCompraItemDto) {
+    const item = await this.hojaCompraItemRepo.findOne({
+      where: { id },
+      relations: { producto: true },
+    });
+    if (!item) throw new NotFoundException('Item de hoja de compra no encontrado');
+
+    this.assertProductoOperable(item.producto, 'actualizar en la hoja de compra');
+
+    const cantidad = this.parseCantidad(dto.cantidad);
+    item.cantidad = this.formatCantidad(cantidad);
+    await this.hojaCompraItemRepo.save(item);
+
+    const stockTotal = await this.getStockTotalByProductoId(item.producto.id, this.stockRepo);
+    return this.toHojaCompraItemResponse(item, stockTotal);
+  }
+
+  async eliminarHojaCompraItem(id: string) {
+    const item = await this.hojaCompraItemRepo.findOne({ where: { id } });
+    if (!item) throw new NotFoundException('Item de hoja de compra no encontrado');
+
+    await this.hojaCompraItemRepo.remove(item);
+    return { ok: true };
+  }
+
+  async limpiarHojaCompra() {
+    await this.hojaCompraItemRepo.createQueryBuilder().delete().execute();
+
+    const importantes = await this.productoImportanteRepo.find({ relations: { producto: true } });
+    if (importantes.length === 0) return [];
+
+    const productoIds = importantes.map((item) => item.producto.id);
+    const stockByProducto = await this.getStockTotalByProductoIds(productoIds);
+
+    const nuevos = importantes
+      .map((item) => {
+        const stockTotal = stockByProducto.get(item.producto.id) ?? 0;
+        const cantidadMinima = Number(item.cantidadMinima ?? 0);
+        const faltante = Math.max(cantidadMinima - stockTotal, 0);
+        return { item, faltante };
+      })
+      .filter(({ item, faltante }) => {
+        const productoOperable =
+          item.producto.isActive && item.producto.tipo !== ProductoTipoEnum.COMIDA;
+        return productoOperable && faltante > 0;
+      })
+      .map(({ item, faltante }) =>
+        this.hojaCompraItemRepo.create({
+          producto: { id: item.producto.id } as any,
+          cantidad: this.formatCantidad(faltante),
+        }),
+      );
+
+    if (nuevos.length > 0) {
+      await this.hojaCompraItemRepo.save(nuevos);
+    }
+
+    return this.listarHojaCompra();
   }
 
   async convertirProducto(dto: ConvertirProductoDto, usuarioId: string) {
@@ -740,11 +1261,13 @@ export class InventarioService {
         where: { id: dto.productoOrigenId },
       });
       if (!productoOrigen) throw new NotFoundException('Producto origen no encontrado');
+      this.assertProductoOperable(productoOrigen, 'convertir');
 
       const productoDestino = await manager.getRepository(ProductoEntity).findOne({
         where: { id: dto.productoDestinoId },
       });
       if (!productoDestino) throw new NotFoundException('Producto destino no encontrado');
+      this.assertProductoOperable(productoDestino, 'convertir');
 
       const ubicacion = await manager.getRepository(UbicacionEntity).findOne({
         where: { id: dto.ubicacionId },
@@ -1027,8 +1550,14 @@ export class InventarioService {
       throw new BadRequestException('factor debe ser un número > 0');
     }
 
-    const origen = await this.getProductoOrThrow(dto.productoOrigenId);
-    const destino = await this.getProductoOrThrow(dto.productoDestinoId);
+    const origen = await this.getProductoOperableOrThrow(
+      dto.productoOrigenId,
+      'guardar una conversión para',
+    );
+    const destino = await this.getProductoOperableOrThrow(
+      dto.productoDestinoId,
+      'guardar una conversión para',
+    );
 
     const existing = await this.conversionRepo.findOne({
       where: {

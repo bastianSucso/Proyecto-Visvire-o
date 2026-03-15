@@ -142,7 +142,7 @@ export class VentaEditPage implements OnInit, AfterViewChecked  {
   }
 
   private isVendible(p: Producto): boolean {
-    return p.tipo === 'REVENTA' || p.tipo === 'COMIDA';
+    return p.isActive && (p.tipo === 'REVENTA' || p.tipo === 'COMIDA');
   }
 
   get totalNumero(): number {

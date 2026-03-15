@@ -70,9 +70,21 @@
 
 ## Database and migrations (backend)
 - Seed admin: `npm run seed:admin`
+- Seed catalogos base (manual, idempotente): `npm run seed:catalogos`
 - Run migrations: `npm run migration:run`
 - Revert migrations: `npm run migration:revert`
 - Generate migration: `npm run migration:generate`
+
+## Catalogos default y datos base (obligatorio)
+- Regla general: **no** sembrar defaults en runtime (ni en `list()`, ni en `onModuleInit`, ni en arranque automatico del modulo).
+- Los catalogos base del sistema deben crearse via migracion idempotente o script manual idempotente.
+- Diferenciar mecanismo por tipo de dato:
+  - Datos de negocio base no sensibles (ej. categorias/unidades): migracion idempotente versionada.
+  - Datos operacionales/sensibles (ej. admin bootstrap con password): script manual idempotente.
+- Las acciones de restauracion de defaults deben ser explicitas (script o accion admin), nunca implicitas por reinicio del backend.
+- Regla de eliminacion en catalogos administrables:
+  - Permitir eliminar solo si `referencedCount === 0` (o equivalente segun modulo).
+  - Si hay referencias, bloquear eliminacion y permitir desactivacion.
 
 ## TypeScript configuration
 ### Backend
@@ -110,6 +122,17 @@
 - EditorConfig enforces single quotes for TS.
 - Strict rule: inline templates are forbidden in frontend code.
 - Always use `templateUrl` with a separate `*.html` file for pages/components.
+
+### Estandar de formularios frontend (obligatorio)
+- Para CRUD admin (especialmente modales), usar `ReactiveFormsModule` como primera opcion.
+- Evitar mezclar `[(ngModel)]` y `formGroup/formControlName` dentro del mismo flujo de formulario.
+- En edicion inline en tabla, evitar submit implicito accidental:
+  - usar botones `type="button"` para acciones `Guardar/Cancelar/Crear`;
+  - manejar `Enter/Escape` de forma explicita cuando corresponda.
+- En formularios reactivos, centralizar validaciones en `FormControl` (required, maxLength, etc.) y deshabilitar acciones con `form.invalid`.
+- Mantener usabilidad en filas editables:
+  - input principal con `flex-1` y `min-w-*` para evitar campos comprimidos;
+  - botones de accion con `shrink-0` para no colapsar el input.
 
 ## Imports and module structure
 ### Backend

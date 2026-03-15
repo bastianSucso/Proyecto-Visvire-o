@@ -4,6 +4,9 @@ import { InventarioService } from './inventario.service';
 import { InventarioController } from './inventario.controller';
 import { AlteraEntity } from './entities/altera.entity';
 import { ProductoConversionEntity } from './entities/producto-conversion.entity';
+import { InventarioSalaObjetivoEntity } from './entities/inventario-sala-objetivo.entity';
+import { InventarioProductoImportanteEntity } from './entities/inventario-producto-importante.entity';
+import { InventarioHojaCompraItemEntity } from './entities/inventario-hoja-compra-item.entity';
 import { ProductoEntity } from '../productos/entities/producto.entity';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
 import { ProductoStockEntity } from '../productos/entities/producto-stock.entity';
@@ -15,6 +18,9 @@ import { FinanzasModule } from '../finanzas/finanzas.module';
     TypeOrmModule.forFeature([
       AlteraEntity,
       ProductoConversionEntity,
+      InventarioSalaObjetivoEntity,
+      InventarioProductoImportanteEntity,
+      InventarioHojaCompraItemEntity,
       ProductoEntity,
       UbicacionEntity,
       ProductoStockEntity,

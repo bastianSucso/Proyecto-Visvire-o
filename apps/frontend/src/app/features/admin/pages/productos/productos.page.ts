@@ -3,18 +3,23 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProductosService, Producto, ProductoTipo } from '../../../../core/services/productos.service';
+import { UnidadMedida, UnidadesMedidaService } from '../../../../core/services/unidades-medida.service';
+import { UnidadesMedidaModalComponent } from '../../components/unidades-medida-modal/unidades-medida-modal.component';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-productos-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, UnidadesMedidaModalComponent],
   templateUrl: 'productos.page.html',
 })
 export class ProductosPage {
   private fb = inject(FormBuilder);
   private productosService = inject(ProductosService);
+  private unidadesService = inject(UnidadesMedidaService);
 
   productos: Producto[] = [];
+  unidades: UnidadMedida[] = [];
   loading = false;
   errorMsg = '';
 
@@ -28,11 +33,10 @@ export class ProductosPage {
   sortDir: 'asc' | 'desc' = 'desc';
 
   isModalOpen = false;
+  isUnidadesModalOpen = false;
   editing: Producto | null = null;
 
   readonly tiposOptions: ProductoTipo[] = ['REVENTA', 'INSUMO'];
-  readonly unidadBaseOptions = ['g', 'kg', 'ml', 'l', 'unidad', 'pack'];
-
   form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
     internalCode: ['', [Validators.required, Validators.maxLength(60)]],
@@ -51,15 +55,40 @@ export class ProductosPage {
   load() {
     this.loading = true;
     this.errorMsg = '';
-    this.productosService.list(true).subscribe({
-      next: (data) => {
-        const all = data ?? [];
+    forkJoin({
+      productos: this.productosService.list(true),
+      unidades: this.unidadesService.list(true),
+    }).subscribe({
+      next: ({ productos, unidades }) => {
+        const all = productos ?? [];
         this.productos = all.filter((p) => p.tipo !== 'COMIDA');
-        this.page = 1; // reset al refrescar
+        this.unidades = unidades ?? [];
+        this.page = 1;
       },
       error: (err) => (this.errorMsg = this.mapError(err)),
       complete: () => (this.loading = false),
     });
+  }
+
+  get unidadBaseOptions() {
+    const activas = this.unidades.filter((u) => u.isActive).map((u) => u.nombre);
+    const current = this.editing?.unidadBase?.trim() ?? '';
+    if (current && !activas.includes(current)) {
+      return [current, ...activas];
+    }
+    return activas;
+  }
+
+  openUnidadesModal() {
+    this.isUnidadesModalOpen = true;
+  }
+
+  closeUnidadesModal() {
+    this.isUnidadesModalOpen = false;
+  }
+
+  onUnidadesChanged() {
+    this.load();
   }
 
   // ------- helpers tabla ----------

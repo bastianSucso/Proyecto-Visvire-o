@@ -1,0 +1,471 @@
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-6xl px-4 py-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Hoja de compra</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Gestiona cantidades estimadas por producto y el costo total esperado de reposición.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a
+          routerLink="/admin/inventario"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Volver
+        </a>
+
+        <button
+          type="button"
+          (click)="loadItems()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Refrescar
+        </button>
+
+        <button
+          type="button"
+          (click)="exportPdfPaginaVisible()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Exportar PDF
+        </button>
+
+        <button
+          type="button"
+          (click)="openImportantesModal()"
+          class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900"
+        >
+          Agregar productos importantes
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="errorMsg" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ errorMsg }}
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="p-5 sm:p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-slate-900">Listado de compra</p>
+            <p class="text-xs text-slate-500">Subtotal estimado basado en el precio costo actual del producto.</p>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <button
+              type="button"
+              (click)="limpiarCompra()"
+              class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 active:bg-red-100"
+            >
+              Limpiar compra
+            </button>
+
+            <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2">
+              <p class="text-xs font-medium text-blue-700">Total estimado</p>
+              <p class="text-sm font-semibold text-blue-800">{{ totalEstimado | number: '1.0-2' }}</p>
+            </div>
+
+            <div *ngIf="loading" class="flex items-center gap-3 text-sm text-slate-600">
+              <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+              Cargando datos...
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            [(ngModel)]="q"
+            (ngModelChange)="onSearchChange()"
+            type="text"
+            placeholder="Buscar por nombre / código / barcode..."
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 sm:max-w-md"
+          />
+
+          <div class="flex items-center justify-between gap-3 sm:justify-end">
+            <div class="text-xs text-slate-500">Mostrando {{ fromItem }} - {{ toItem }} de {{ totalItems }}</div>
+
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-500">Filas:</label>
+              <select
+                [(ngModel)]="pageSize"
+                (change)="onPageSizeChange()"
+                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option *ngFor="let n of pageSizes" [ngValue]="n">{{ n }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+              <tr>
+                <th class="px-4 py-3 text-center">Producto</th>
+                <th class="px-4 py-3 text-center">Unidad</th>
+                <th class="px-4 py-3 text-center">Stock Actual</th>
+                <th class="px-4 py-3 text-center">Precio costo</th>
+                <th class="px-4 py-3 text-center">Cantidad a comprar</th>
+                <th class="px-4 py-3 text-center">Subtotal estimado</th>
+                <th class="px-4 py-3 text-center">Accion</th>
+              </tr>
+            </thead>
+
+            <tbody class="text-slate-800">
+              <tr *ngFor="let item of pageItems" class="border-t border-slate-100">
+                <td class="px-4 py-3 text-center">
+                  <div class="font-medium text-slate-900">{{ item.producto.name }}</div>
+                  <div class="text-xs text-slate-500">
+                    {{ item.producto.internalCode }}
+                    <span *ngIf="item.producto.barcode">• {{ item.producto.barcode }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-center text-slate-600">{{ item.producto.unidadBase ?? '-' }}</td>
+                <td class="px-4 py-3 text-center text-slate-700">{{ item.stockTotal }}</td>
+                <td class="px-4 py-3 text-center text-slate-700">{{ item.precioCostoUnitario | number: '1.0-2' }}</td>
+                <td class="px-4 py-3 text-center">
+                  <div class="flex justify-center">
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      [(ngModel)]="draftCantidadById[item.id]"
+                      (ngModelChange)="onCantidadInputChange(item)"
+                      (blur)="onCantidadBlur(item)"
+                      class="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-center font-semibold text-slate-900">
+                  {{ item.subtotalEstimado | number: '1.0-2' }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex justify-center">
+                    <button
+                      type="button"
+                      (click)="remove(item)"
+                      class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr *ngIf="!loading && pageItems.length === 0">
+                <td class="px-4 py-6 text-slate-500" colspan="7">No hay productos en la hoja de compra.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="text-xs text-slate-500">Página {{ page }} / {{ totalPages }}</div>
+
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              (click)="first()"
+              [disabled]="page === 1"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              «
+            </button>
+
+            <button
+              type="button"
+              (click)="prev()"
+              [disabled]="page === 1"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Anterior
+            </button>
+
+            <button
+              type="button"
+              (click)="next()"
+              [disabled]="page === totalPages"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+
+            <button
+              type="button"
+              (click)="last()"
+              [disabled]="page === totalPages"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              »
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="isImportantesModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+      <div class="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-slate-200 p-5">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Productos importantes para compra</h2>
+            <p class="mt-1 text-xs text-slate-500">Define la cantidad mínima indispensable para reposición automática.</p>
+          </div>
+          <button type="button" class="text-slate-500 hover:text-slate-700" (click)="closeImportantesModal()">✕</button>
+        </div>
+
+        <div class="space-y-4 p-5">
+          <div *ngIf="importantesError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ importantesError }}
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <p class="text-sm font-semibold text-slate-900">
+                {{ importantesEditing ? 'Editar producto importante' : 'Agregar producto importante' }}
+              </p>
+              <button
+                type="button"
+                (click)="openCreateImportante()"
+                class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              >
+                Nuevo
+              </button>
+            </div>
+
+            <form class="grid gap-3 sm:grid-cols-12" [formGroup]="importanteForm" (ngSubmit)="saveImportante()">
+              <div class="sm:col-span-8">
+                <label class="mb-1 block text-xs font-medium text-slate-600">Producto</label>
+                <div class="relative">
+                  <input
+                    type="text"
+                    [value]="productoSearch"
+                    (input)="onProductoSearchChange($any($event.target).value)"
+                    (keydown)="onProductoKeydown($event)"
+                    [readonly]="!!importantesEditing"
+                    placeholder="Nombre / código / barcode"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    autocomplete="off"
+                  />
+
+                  <div
+                    *ngIf="showSug && !importantesEditing"
+                    class="absolute z-50 mt-2 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
+                  >
+                    <button
+                      type="button"
+                      *ngFor="let p of sugerencias; let i = index"
+                      (mousedown)="$event.preventDefault()"
+                      (mouseenter)="activeSugIndex = i"
+                      (click)="selectProducto(p)"
+                      class="w-full border-l-4 px-3 py-2 text-left transition focus:outline-none"
+                      [ngClass]="
+                        i === activeSugIndex
+                          ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200'
+                          : 'border-transparent bg-white hover:bg-slate-50'
+                      "
+                    >
+                      <p class="text-sm font-semibold text-slate-900">{{ p.name }}</p>
+                      <p class="text-xs text-slate-500">
+                        {{ p.internalCode }}
+                        <span *ngIf="p.barcode">• {{ p.barcode }}</span>
+                        <span
+                          *ngIf="p.unidadBase"
+                          class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600"
+                        >
+                          {{ p.unidadBase }}
+                        </span>
+                        <span
+                          class="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1"
+                          [ngClass]="getTipoBadgeClass(p.tipo)"
+                        >
+                          {{ p.tipo }}
+                        </span>
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sm:col-span-2">
+                <label class="mb-1 block text-xs font-medium text-slate-600">Cantidad mínima</label>
+                <input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  formControlName="cantidadMinima"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+                <p *ngIf="importanteControl('cantidadMinima')?.touched && importanteControl('cantidadMinima')?.invalid" class="mt-1 text-xs text-red-600">
+                  Debe ser mayor a 0.
+                </p>
+              </div>
+
+              <div class="sm:col-span-2 flex items-end justify-end">
+                <button
+                  type="submit"
+                  [disabled]="importantesLoading"
+                  class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900 disabled:opacity-50"
+                >
+                  {{ importantesEditing ? 'Guardar' : 'Agregar' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              [(ngModel)]="importantesQ"
+              (ngModelChange)="onImportantesSearchChange()"
+              type="text"
+              placeholder="Buscar por nombre / código / barcode..."
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 sm:max-w-md"
+            />
+
+            <div class="flex items-center justify-between gap-3 sm:justify-end">
+              <div class="text-xs text-slate-500">
+                Mostrando {{ importantesFromItem }} - {{ importantesToItem }} de {{ importantesTotalItems }}
+              </div>
+
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-slate-500">Filas:</label>
+                <select
+                  [(ngModel)]="importantesPageSize"
+                  (change)="onImportantesPageSizeChange()"
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                >
+                  <option *ngFor="let n of importantesPageSizes" [ngValue]="n">{{ n }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="importantesLoading" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+            Cargando productos importantes...
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                  <th class="px-4 py-3">Producto</th>
+                  <th class="px-4 py-3">Tipo</th>
+                  <th class="px-4 py-3 text-right">Cantidad mínima</th>
+                  <th class="px-4 py-3 text-right">Stock total</th>
+                  <th class="px-4 py-3 text-right">Faltante</th>
+                  <th class="px-4 py-3 text-right">Acción</th>
+                </tr>
+              </thead>
+
+              <tbody class="text-slate-800">
+                <tr *ngFor="let item of importantesPageItems" class="border-t border-slate-100">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-slate-900">{{ item.producto.name }}</div>
+                    <div class="text-xs text-slate-500">
+                      {{ item.producto.internalCode }}
+                      <span *ngIf="item.producto.barcode">• {{ item.producto.barcode }}</span>
+                      <span
+                        *ngIf="item.producto.unidadBase"
+                        class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                      >
+                        {{ item.producto.unidadBase }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
+                      [ngClass]="getTipoBadgeClass(item.producto.tipo)"
+                    >
+                      {{ item.producto.tipo }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-right font-medium text-slate-900">{{ item.cantidadMinima }}</td>
+                  <td class="px-4 py-3 text-right text-slate-700">{{ item.stockTotal }}</td>
+                  <td class="px-4 py-3 text-right">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
+                      [ngClass]="
+                        item.faltante > 0
+                          ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                      "
+                    >
+                      {{ item.faltante > 0 ? item.faltante : 0 }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        (click)="openEditImportante(item)"
+                        class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        (click)="removeImportante(item)"
+                        class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 active:bg-red-100"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr *ngIf="!importantesLoading && importantesPageItems.length === 0">
+                  <td class="px-4 py-6 text-slate-500" colspan="6">No hay resultados para la búsqueda.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-xs text-slate-500">Página {{ importantesPage }} / {{ importantesTotalPages }}</div>
+
+            <div class="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                (click)="importantesFirst()"
+                [disabled]="importantesPage === 1"
+                class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                «
+              </button>
+
+              <button
+                type="button"
+                (click)="importantesPrev()"
+                [disabled]="importantesPage === 1"
+                class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Anterior
+              </button>
+
+              <button
+                type="button"
+                (click)="importantesNext()"
+                [disabled]="importantesPage === importantesTotalPages"
+                class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Siguiente
+              </button>
+
+              <button
+                type="button"
+                (click)="importantesLast()"
+                [disabled]="importantesPage === importantesTotalPages"
+                class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

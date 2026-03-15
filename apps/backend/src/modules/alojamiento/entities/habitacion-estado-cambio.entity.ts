@@ -70,6 +70,9 @@ export class HabitacionEstadoCambioEntity {
   @Column({ type: 'text', nullable: true })
   detalle: string | null;
 
+  @Column({ type: 'timestamptz', name: 'fecha_evento' })
+  fechaEvento: Date;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'fecha_creacion' })
   createdAt: Date;
 }

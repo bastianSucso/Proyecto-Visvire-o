@@ -1,0 +1,192 @@
+<div class="min-h-[calc(100vh-64px)] bg-white">
+  <div class="mx-auto w-full max-w-3xl px-4 py-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Ajuste operativo</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Descuento manual de stock por uso interno del negocio.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          (click)="loadData()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Refrescar
+        </button>
+        <button
+          type="button"
+          (click)="volver()"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          Volver
+        </button>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="space-y-4 p-5 sm:p-6" [formGroup]="form">
+        <div *ngIf="loading" class="flex items-center gap-3 text-sm text-slate-600">
+          <div class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"></div>
+          Cargando catálogos...
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Producto</label>
+          <div class="relative">
+            <input
+              type="text"
+              [value]="scan"
+              (input)="onScanInput($any($event.target).value)"
+              (keydown)="onScanKeydown($event)"
+              placeholder="Nombre / código / barcode"
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+
+            <div
+              *ngIf="showSug"
+              class="absolute z-10 mt-1 max-h-80 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+            >
+              <button
+                *ngFor="let item of sugerencias; let i = index"
+                type="button"
+                (click)="seleccionarProducto(item)"
+                class="mb-1 w-full rounded-lg border-l-4 px-3 py-2 text-left"
+                [ngClass]="{
+                  'border-blue-600 bg-blue-50 ring-2 ring-blue-200': i === activeSugIndex,
+                  'border-transparent bg-white hover:bg-slate-50': i !== activeSugIndex
+                }"
+              >
+                <div class="text-sm font-semibold text-slate-900">{{ item.name }}</div>
+                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span>{{ item.internalCode }}</span>
+                  <span *ngIf="item.barcode">• {{ item.barcode }}</span>
+                  <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                    {{ item.unidadBase ?? 'Sin unidad' }}
+                  </span>
+                  <span
+                    class="rounded-full px-2 py-0.5 text-xs"
+                    [ngClass]="{
+                      'bg-blue-50 text-blue-700': item.tipo === 'INSUMO',
+                      'bg-emerald-50 text-emerald-700': item.tipo === 'REVENTA'
+                    }"
+                  >
+                    {{ item.tipo }}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+          <input type="hidden" formControlName="productoId" />
+
+          <div *ngIf="productoSeleccionado" class="mt-2 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">{{ productoSeleccionado.name }}</p>
+              <p class="text-xs text-slate-500">{{ productoSeleccionado.internalCode }}</p>
+            </div>
+            <button
+              type="button"
+              (click)="limpiarProducto()"
+              class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Limpiar
+            </button>
+          </div>
+          <p
+            *ngIf="form.controls.productoId.touched && form.controls.productoId.invalid"
+            class="mt-1 text-xs text-red-600"
+          >
+            Debes seleccionar un producto.
+          </p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Ubicación</label>
+            <select
+              formControlName="ubicacionId"
+              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">Selecciona una ubicación</option>
+              <option *ngFor="let item of ubicacionesOrdenadas" [value]="item.id">{{ item.nombre }}</option>
+            </select>
+            <p
+              *ngIf="form.controls.ubicacionId.touched && form.controls.ubicacionId.invalid"
+              class="mt-1 text-xs text-red-600"
+            >
+              Debes seleccionar una ubicación.
+            </p>
+            <p *ngIf="stockUbicacionActual !== null" class="mt-1 text-xs text-slate-500">
+              Stock actual en ubicación: {{ stockUbicacionActual }}
+            </p>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Causa</label>
+            <div
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800"
+            >
+              Uso del negocio
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Cantidad a descontar</label>
+          <input
+            type="number"
+            min="0.001"
+            step="0.001"
+            formControlName="cantidad"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+          <p
+            *ngIf="form.controls.cantidad.touched && form.controls.cantidad.invalid"
+            class="mt-1 text-xs text-red-600"
+          >
+            Debe ser un número mayor a 0.
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Observación (opcional)</label>
+          <textarea
+            rows="3"
+            formControlName="observacion"
+            placeholder="Ejemplo: Insumo usado en limpieza de cocina"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          ></textarea>
+          <p class="mt-1 text-xs text-slate-500">Máximo 220 caracteres.</p>
+        </div>
+
+        <div *ngIf="errorMsg" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {{ errorMsg }}
+        </div>
+
+        <div *ngIf="successMsg" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {{ successMsg }}
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            (click)="volver()"
+            class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="registrar()"
+            [disabled]="saving || loading"
+            class="inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:bg-blue-900 disabled:opacity-60"
+          >
+            {{ saving ? 'Registrando...' : 'Registrar ajuste' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

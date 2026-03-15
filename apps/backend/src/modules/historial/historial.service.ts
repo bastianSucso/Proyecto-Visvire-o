@@ -182,6 +182,9 @@ export class HistorialService {
 
     const producto = await this.productoRepo.findOne({ where: { id: dto.productoId } });
     if (!producto) throw new BadRequestException('Producto no existe');
+    if (!producto.isActive) {
+      throw new BadRequestException('Producto inactivo. No se pueden registrar operaciones.');
+    }
 
     const sala = dto.ubicacionId
       ? await this.ubicacionRepo.findOne({ where: { id: dto.ubicacionId } })
@@ -259,6 +262,9 @@ export class HistorialService {
 
     const producto = await this.productoRepo.findOne({ where: { id: dto.productoId } });
     if (!producto) throw new BadRequestException('Producto no existe');
+    if (!producto.isActive) {
+      throw new BadRequestException('Producto inactivo. No se pueden registrar operaciones.');
+    }
 
     const ubicacion = await this.ubicacionRepo.findOne({ where: { id: dto.ubicacionId } });
     if (!ubicacion) throw new BadRequestException('Ubicación no existe');

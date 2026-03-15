@@ -119,6 +119,24 @@
       </a>
 
       <a
+        routerLink="/admin/inventario/sala-objetivos"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">🛒</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Stock ideal sala</span>
+      </a>
+
+      <a
+        routerLink="/admin/inventario/inconsistencias"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
+      >
+        <span class="w-5 text-center">⚠️</span>
+        <span class="text-sm font-medium transition-all duration-200" [class.hidden]="isCollapsed">Inconsistencias</span>
+      </a>
+
+      <a
         routerLink="/admin/finanzas/resumen"
         routerLinkActive="bg-blue-50 text-blue-700"
         class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition"
@@ -301,6 +319,24 @@
         (click)="closeMobile()"
       >
         Inventario
+      </a>
+
+      <a
+        routerLink="/admin/inventario/sala-objetivos"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Stock ideal sala
+      </a>
+
+      <a
+        routerLink="/admin/inventario/inconsistencias"
+        routerLinkActive="bg-blue-50 text-blue-700"
+        class="block px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50"
+        (click)="closeMobile()"
+      >
+        Inconsistencias
       </a>
 
       <a

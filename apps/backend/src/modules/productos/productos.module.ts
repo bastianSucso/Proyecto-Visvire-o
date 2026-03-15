@@ -12,6 +12,9 @@ import { RecetasService } from './recetas.service';
 import { InsumoGruposController } from './insumo-grupos.controller';
 import { InsumoGruposService } from './insumo-grupos.service';
 import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
+import { UnidadMedidaEntity } from './entities/unidad-medida.entity';
+import { UnidadesMedidaService } from './unidades-medida.service';
+import { UnidadesMedidaController } from './unidades-medida.controller';
 
 @Module({
   imports: [
@@ -22,10 +25,11 @@ import { UbicacionEntity } from '../ubicaciones/entities/ubicacion.entity';
       InsumoGrupoEntity,
       InsumoGrupoItemEntity,
       UbicacionEntity,
+      UnidadMedidaEntity,
     ]),
   ],
-  controllers: [ProductosController, RecetasController, InsumoGruposController],
-  providers: [ProductosService, RecetasService, InsumoGruposService],
-  exports: [RecetasService],
+  controllers: [ProductosController, RecetasController, InsumoGruposController, UnidadesMedidaController],
+  providers: [ProductosService, RecetasService, InsumoGruposService, UnidadesMedidaService],
+  exports: [RecetasService, UnidadesMedidaService],
 })
 export class ProductosModule {}
